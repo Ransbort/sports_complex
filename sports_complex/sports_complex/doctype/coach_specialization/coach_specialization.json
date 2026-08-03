@@ -1,7 +1,7 @@
 {
  "doctype": "DocType",
- "name": "Sports Complex",
- "module": "Coaching",
+ "name": "Coach Specialization",
+ "module": "Sports Complex",
  "custom": 0,
  "istable": 1,
  "issingle": 0,
