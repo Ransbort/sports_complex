@@ -2,7 +2,7 @@ app_name = "sports_complex"
 app_title = "Sports Complex"
 app_publisher = "Ransbort"
 app_description = "Sports Complex Management: facilities, bookings, membership, coaching, tournaments, POS, and Paystack payments"
-app_email = "you@example.com"
+app_email = "ransbort@outlook.com"
 app_license = "mit"
 required_apps = ["frappe"]
 
