@@ -1,0 +1,145 @@
+{
+ "doctype": "DocType",
+ "name": "Booking Cancellation",
+ "module": "Sports Complex",
+ "custom": 0,
+ "istable": 0,
+ "issingle": 0,
+ "is_submittable": 1,
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "autoname": "naming_series:",
+ "naming_rule": "By \"Naming Series\" field",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1,
+ "field_order": [
+  "naming_series",
+  "facility_booking",
+  "cancellation_date",
+  "cancelled_by",
+  "reason",
+  "section_break_1",
+  "refund_amount",
+  "refund_status",
+  "credit_note",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "options": "BCANCEL-.YYYY.-",
+   "label": "Series",
+   "reqd": 1
+  },
+  {
+   "fieldname": "facility_booking",
+   "fieldtype": "Link",
+   "options": "Facility Booking",
+   "label": "Facility Booking",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "cancellation_date",
+   "fieldtype": "Date",
+   "label": "Cancellation Date",
+   "reqd": 1,
+   "default": "Today",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "cancelled_by",
+   "fieldtype": "Link",
+   "options": "User",
+   "label": "Cancelled By",
+   "default": "__user"
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason"
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break",
+   "label": "Refund"
+  },
+  {
+   "fieldname": "refund_amount",
+   "fieldtype": "Currency",
+   "label": "Refund Amount"
+  },
+  {
+   "fieldname": "refund_status",
+   "fieldtype": "Select",
+   "options": "Pending\nProcessed",
+   "default": "Pending",
+   "label": "Refund Status",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "credit_note",
+   "fieldtype": "Link",
+   "options": "Sales Invoice",
+   "label": "Credit Note",
+   "read_only": 1,
+   "no_copy": 1,
+   "description": "Return-type Sales Invoice against the original booking's invoice"
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "options": "Booking Cancellation",
+   "label": "Amended From",
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "print": 1,
+   "email": 1,
+   "export": 1,
+   "share": 1,
+   "report": 1
+  },
+  {
+   "role": "Sports Complex Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "print": 1,
+   "email": 1,
+   "export": 1,
+   "report": 1
+  },
+  {
+   "role": "Sports Complex Staff",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "print": 1,
+   "report": 1
+  }
+ ]
+}
