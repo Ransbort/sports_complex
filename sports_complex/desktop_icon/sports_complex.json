@@ -1,0 +1,20 @@
+{
+ "app": "sports_complex",
+ "creation": "2026-07-22 00:00:00",
+ "docstatus": 0,
+ "doctype": "Desktop Icon",
+ "hidden": 0,
+ "icon_type": "App",
+ "idx": 16,
+ "label": "Sport Complex",
+ "link": "/desk/sports-complex",
+ "link_type": "External",
+ "logo_url": "/assets/sports_complex/images/sports_complex.svg",
+ "modified": "2026-07-22 00:00:00",
+ "modified_by": "Administrator",
+ "name": "Ex Healthcare",
+ "owner": "Administrator",
+ "restrict_removal": 0,
+ "roles": [],
+ "standard": 1
+}
