@@ -1,0 +1,9 @@
+{
+ "doctype": "Report",
+ "report_name": "Facility Utilization",
+ "report_type": "Query Report",
+ "module": "Sports Complex",
+ "is_standard": "Yes",
+ "ref_doctype": "Court",
+ "query": "select c.name as \"Court:Link/Court:120\", c.sports_facility as \"Facility:Link/Sports Facility:160\", count(fb.name) as \"Bookings:Int:100\", coalesce(sum(timestampdiff(minute, fb.start_time, fb.end_time)), 0)/60 as \"Booked Hours:Float:110\" from `tabCourt` c left join `tabFacility Booking` fb on fb.court = c.name and fb.booking_status not in ('Cancelled', 'No-show') group by c.name order by c.name"
+}

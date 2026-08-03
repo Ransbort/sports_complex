@@ -1,0 +1,9 @@
+{
+ "doctype": "Report",
+ "report_name": "Membership Report",
+ "report_type": "Query Report",
+ "module": "Sports Complex",
+ "is_standard": "Yes",
+ "ref_doctype": "Membership",
+ "query": "select m.name as \"Membership:Link/Membership:140\", m.member as \"Member:Link/Member:160\", m.membership_plan as \"Plan:Link/Membership Plan:140\", m.start_date as \"Start:Date:100\", m.end_date as \"End:Date:100\", m.status as \"Status:Data:100\", case when m.status = 'Active' and datediff(m.end_date, curdate()) between 0 and 30 then 'Yes' else '' end as \"Expiring Soon:Data:100\" from `tabMembership` m order by m.end_date asc"
+}

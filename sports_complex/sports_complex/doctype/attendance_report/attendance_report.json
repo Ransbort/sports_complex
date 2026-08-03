@@ -1,0 +1,9 @@
+{
+ "doctype": "Report",
+ "report_name": "Attendance Report",
+ "report_type": "Query Report",
+ "module": "Sports Complex",
+ "is_standard": "Yes",
+ "ref_doctype": "Member Attendance",
+ "query": "select ma.member as \"Member:Link/Member:160\", ma.check_in_time as \"Check-in:Datetime:160\", ma.sports_facility as \"Facility:Link/Sports Facility:160\", ma.source as \"Source:Data:120\" from `tabMember Attendance` ma order by ma.check_in_time desc"
+}
