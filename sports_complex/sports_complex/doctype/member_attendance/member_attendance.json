@@ -1,0 +1,95 @@
+{
+ "doctype": "DocType",
+ "name": "Member Attendance",
+ "module": "Sports Complex",
+ "custom": 0,
+ "istable": 0,
+ "issingle": 0,
+ "is_submittable": 0,
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "autoname": "hash",
+ "naming_rule": "Random",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1,
+ "description": "Lightweight attendance log. Kept non-submittable since entries are typically auto-created from Check-In or Training Session records.",
+ "field_order": [
+  "member",
+  "check_in_time",
+  "column_break_1",
+  "sports_facility",
+  "source"
+ ],
+ "fields": [
+  {
+   "fieldname": "member",
+   "fieldtype": "Link",
+   "options": "Member",
+   "label": "Member",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "check_in_time",
+   "fieldtype": "Datetime",
+   "label": "Check-In Time",
+   "reqd": 1,
+   "default": "now",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sports_facility",
+   "fieldtype": "Link",
+   "options": "Sports Facility",
+   "label": "Sports Facility"
+  },
+  {
+   "fieldname": "source",
+   "fieldtype": "Select",
+   "options": "Booking\nWalk-in\nTraining Session",
+   "default": "Walk-in",
+   "label": "Source",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "print": 1,
+   "email": 1,
+   "export": 1,
+   "share": 1,
+   "report": 1
+  },
+  {
+   "role": "Sports Complex Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "print": 1,
+   "email": 1,
+   "export": 1,
+   "report": 1
+  },
+  {
+   "role": "Sports Complex Staff",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "print": 1,
+   "report": 1
+  }
+ ]
+}
