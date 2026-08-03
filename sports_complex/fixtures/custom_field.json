@@ -1,0 +1,88 @@
+[
+ {
+  "doctype": "Custom Field",
+  "dt": "Sales Invoice",
+  "fieldname": "sc_source_section",
+  "label": "Sports Complex Source",
+  "fieldtype": "Section Break",
+  "insert_after": "customer_group",
+  "collapsible": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Sales Invoice",
+  "fieldname": "facility_booking",
+  "label": "Facility Booking",
+  "fieldtype": "Link",
+  "options": "Facility Booking",
+  "insert_after": "sc_source_section",
+  "read_only": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Sales Invoice",
+  "fieldname": "membership",
+  "label": "Membership",
+  "fieldtype": "Link",
+  "options": "Membership",
+  "insert_after": "facility_booking",
+  "read_only": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Sales Invoice",
+  "fieldname": "membership_renewal",
+  "label": "Membership Renewal",
+  "fieldtype": "Link",
+  "options": "Membership Renewal",
+  "insert_after": "membership",
+  "read_only": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Sales Invoice",
+  "fieldname": "column_break_sc_source",
+  "fieldtype": "Column Break",
+  "insert_after": "membership_renewal"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Sales Invoice",
+  "fieldname": "tournament_registration",
+  "label": "Tournament Registration",
+  "fieldtype": "Link",
+  "options": "Tournament Registration",
+  "insert_after": "column_break_sc_source",
+  "read_only": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Sales Invoice",
+  "fieldname": "training_session",
+  "label": "Training Session",
+  "fieldtype": "Link",
+  "options": "Training Session",
+  "insert_after": "tournament_registration",
+  "read_only": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Sales Invoice",
+  "fieldname": "equipment_issue",
+  "label": "Equipment Issue",
+  "fieldtype": "Link",
+  "options": "Equipment Issue",
+  "insert_after": "training_session",
+  "read_only": 1
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Sales Invoice",
+  "fieldname": "equipment_return",
+  "label": "Equipment Return (damage charge)",
+  "fieldtype": "Link",
+  "options": "Equipment Return",
+  "insert_after": "equipment_issue",
+  "read_only": 1
+ }
+]
