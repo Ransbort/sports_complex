@@ -12,7 +12,7 @@ from sports_complex.sports_complex.utils.invoicing import (
 __all__ = [
 	"get_app_version",
 	"get_build_version",
-	"get_member_combustomer".replace("combustomer", "customer"),  # noqa
+	"get_member_customer",
 	"get_or_create_item",
 	"make_linked_sales_invoice",
 ]
