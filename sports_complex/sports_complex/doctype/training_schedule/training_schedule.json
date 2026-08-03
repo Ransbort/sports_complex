@@ -1,7 +1,7 @@
 {
  "doctype": "DocType",
- "name": "Sports Complex",
- "module": "Coaching",
+ "name": "Training Schedule",
+ "module": "Sports Complex",
  "custom": 0,
  "istable": 0,
  "issingle": 0,
