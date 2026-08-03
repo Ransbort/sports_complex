@@ -1,15 +1,24 @@
 app_name = "sports_complex"
 app_title = "Sports Complex"
-app_publisher = "Your Company"
+app_publisher = "Ransbort"
 app_description = "Sports Complex Management: facilities, bookings, membership, coaching, tournaments, POS, and Paystack payments"
 app_email = "you@example.com"
 app_license = "mit"
-required_apps = ["frappe", "erpnext", "frappe_paystack"]
+
+required_apps = ["frappe"]
 
 # Includes in <head>
 # ------------------
+
 # app_include_css = "/assets/sports_complex/css/sports_complex.css"
 # app_include_js = "/assets/sports_complex/js/sports_complex.js"
+
+# Installation
+# ------------
+
+after_install = "sports_complex.install.after_install"
+after_migrate = "sports_complex.install.after_migrate"
+before_uninstall = "sports_complex.uninstall.before_uninstall"
 
 # Document Events
 # ---------------
@@ -33,6 +42,7 @@ doc_events = {}
 
 # Scheduled Tasks
 # ---------------
+
 # scheduler_events = {
 #     "daily": [
 #         "sports_complex.sports_complex.doctype.maintenance_schedule.maintenance_schedule.mark_overdue",
@@ -41,4 +51,13 @@ doc_events = {}
 
 # Fixtures
 # --------
+# Synced automatically during install/migrate. Uncomment and extend as
+# doctypes/roles/print formats are added:
+#
+# fixtures = [
+#     {"dt": "Custom Field", "filters": [["module", "=", "Sports Complex"]]},
+#     {"dt": "Role", "filters": [["name", "in", []]]},
+#     {"dt": "Custom DocPerm", "filters": [["parent", "in", []]]},
+#     {"dt": "Print Format", "filters": [["module", "=", "Sports Complex"]]},
+# ]
 # fixtures = []
