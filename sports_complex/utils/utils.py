@@ -7,7 +7,7 @@ from pathlib import Path
 
 from sports_complex import __version__ as app_version
 
-_BASE_DIR = Path(__file__).resolve().parent
+_BASE_DIR = Path(__file__).resolve().parent.parent
 _VERSION_FILE = _BASE_DIR / "public" / "sports_complex" / "version.json"
 _MANIFEST_FILE = _BASE_DIR / "public" / "sports_complex" / "manifest.webmanifest"
 
