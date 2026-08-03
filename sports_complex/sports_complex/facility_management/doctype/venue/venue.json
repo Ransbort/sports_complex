@@ -1,0 +1,77 @@
+{
+ "doctype": "DocType",
+ "name": "Venue",
+ "module": "Facility Management",
+ "custom": 0,
+ "istable": 0,
+ "issingle": 0,
+ "autoname": "field:venue_name",
+ "naming_rule": "By fieldname",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1,
+ "fields": [
+  {
+   "fieldname": "venue_name",
+   "fieldtype": "Data",
+   "label": "Venue Name",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "address",
+   "fieldtype": "Small Text",
+   "label": "Address"
+  },
+  {
+   "fieldname": "city",
+   "fieldtype": "Data",
+   "label": "City",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "timezone",
+   "fieldtype": "Select",
+   "label": "Timezone",
+   "options": "Africa/Accra\nAfrica/Lagos\nAfrica/Johannesburg\nUTC",
+   "default": "Africa/Accra"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "contact_person",
+   "fieldtype": "Data",
+   "label": "Contact Person"
+  },
+  {
+   "fieldname": "contact_phone",
+   "fieldtype": "Data",
+   "label": "Contact Phone"
+  },
+  {
+   "fieldname": "operating_hours_from",
+   "fieldtype": "Time",
+   "label": "Operating Hours From",
+   "default": "06:00:00"
+  },
+  {
+   "fieldname": "operating_hours_to",
+   "fieldtype": "Time",
+   "label": "Operating Hours To",
+   "default": "22:00:00"
+  }
+ ],
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1, "write": 1, "create": 1, "delete": 1
+  },
+  {
+   "role": "Facility Manager",
+   "read": 1, "write": 1, "create": 1
+  }
+ ]
+}
