@@ -1,7 +1,7 @@
 {
  "doctype": "DocType",
  "name": "Equipment Return",
- "module": "Inventory",
+ "module": "Sports Complex",
  "custom": 0,
  "istable": 0,
  "issingle": 0,
