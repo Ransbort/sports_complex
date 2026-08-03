@@ -1,0 +1,154 @@
+{
+ "doctype": "DocType",
+ "name": "Player Registration",
+ "module": "Coaching",
+ "custom": 0,
+ "istable": 0,
+ "issingle": 0,
+ "is_submittable": 0,
+ "track_changes": 1,
+ "engine": "InnoDB",
+ "editable_grid": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "fields": [
+  {
+   "fieldname": "player_name",
+   "fieldtype": "Data",
+   "label": "Player Name",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "member",
+   "fieldtype": "Link",
+   "label": "Member",
+   "options": "Member"
+  },
+  {
+   "fieldname": "date_of_birth",
+   "fieldtype": "Date",
+   "label": "Date of Birth",
+   "reqd": 1
+  },
+  {
+   "fieldname": "age",
+   "fieldtype": "Int",
+   "label": "Age",
+   "read_only": 1,
+   "description": "Computed from Date of Birth on save"
+  },
+  {
+   "fieldname": "skill_level",
+   "fieldtype": "Select",
+   "label": "Skill Level",
+   "options": "Beginner\nIntermediate\nAdvanced\nElite"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break",
+   "label": ""
+  },
+  {
+   "fieldname": "is_minor",
+   "fieldtype": "Check",
+   "label": "Is Minor",
+   "read_only": 1,
+   "description": "Auto-set when Age < 18"
+  },
+  {
+   "fieldname": "sports_interested",
+   "fieldtype": "Table MultiSelect",
+   "label": "Sports Interested",
+   "options": "Coach Specialization"
+  },
+  {
+   "fieldname": "section_break_guardian",
+   "fieldtype": "Section Break",
+   "label": "Guardian / Consent (required if minor)",
+   "depends_on": "eval:doc.is_minor"
+  },
+  {
+   "fieldname": "guardian_name",
+   "fieldtype": "Data",
+   "label": "Guardian Name",
+   "mandatory_depends_on": "eval:doc.is_minor"
+  },
+  {
+   "fieldname": "guardian_relationship",
+   "fieldtype": "Data",
+   "label": "Guardian Relationship"
+  },
+  {
+   "fieldname": "guardian_contact",
+   "fieldtype": "Data",
+   "label": "Guardian Contact",
+   "mandatory_depends_on": "eval:doc.is_minor"
+  },
+  {
+   "fieldname": "guardian_email",
+   "fieldtype": "Data",
+   "label": "Guardian Email",
+   "options": "Email"
+  },
+  {
+   "fieldname": "column_break_guardian",
+   "fieldtype": "Column Break",
+   "label": ""
+  },
+  {
+   "fieldname": "consent_given",
+   "fieldtype": "Check",
+   "label": "Consent Given",
+   "mandatory_depends_on": "eval:doc.is_minor"
+  },
+  {
+   "fieldname": "consent_date",
+   "fieldtype": "Date",
+   "label": "Consent Date",
+   "mandatory_depends_on": "eval:doc.is_minor"
+  },
+  {
+   "fieldname": "consent_document",
+   "fieldtype": "Attach",
+   "label": "Consent Document (signed waiver)"
+  },
+  {
+   "fieldname": "medical_notes_ack",
+   "fieldtype": "Check",
+   "label": "Guardian acknowledges medical/liability waiver"
+  }
+ ],
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sports Complex Manager",
+   "share": 1,
+   "write": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0
+  }
+ ],
+ "autoname": "field:player_name"
+}

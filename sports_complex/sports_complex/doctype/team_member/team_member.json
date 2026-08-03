@@ -1,0 +1,73 @@
+{
+ "doctype": "DocType",
+ "name": "Team Member",
+ "module": "Coaching",
+ "custom": 0,
+ "istable": 1,
+ "issingle": 0,
+ "is_submittable": 0,
+ "track_changes": 1,
+ "engine": "InnoDB",
+ "editable_grid": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "fields": [
+  {
+   "fieldname": "player",
+   "fieldtype": "Link",
+   "label": "Player",
+   "options": "Player Registration",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "jersey_number",
+   "fieldtype": "Data",
+   "label": "Jersey Number",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "position",
+   "fieldtype": "Data",
+   "label": "Position",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "joined_date",
+   "fieldtype": "Date",
+   "label": "Joined Date"
+  }
+ ],
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sports Complex Manager",
+   "share": 1,
+   "write": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0
+  }
+ ],
+ "autoname": "hash"
+}
