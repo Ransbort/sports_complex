@@ -1,0 +1,90 @@
+{
+ "doctype": "DocType",
+ "name": "Results",
+ "module": "Events and Tournaments",
+ "custom": 0,
+ "istable": 0,
+ "issingle": 0,
+ "is_submittable": 0,
+ "track_changes": 1,
+ "engine": "InnoDB",
+ "editable_grid": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "fields": [
+  {
+   "fieldname": "match",
+   "fieldtype": "Link",
+   "label": "Match",
+   "options": "Match",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "winner_team",
+   "fieldtype": "Link",
+   "label": "Winner (Team)",
+   "options": "Team"
+  },
+  {
+   "fieldname": "winner_player",
+   "fieldtype": "Link",
+   "label": "Winner (Player)",
+   "options": "Player Registration"
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break",
+   "label": "Score"
+  },
+  {
+   "fieldname": "score_details",
+   "fieldtype": "Table",
+   "label": "Score Details",
+   "options": "Match Score Line"
+  },
+  {
+   "fieldname": "section_break_2",
+   "fieldtype": "Section Break",
+   "label": "Stats"
+  },
+  {
+   "fieldname": "stats",
+   "fieldtype": "Table",
+   "label": "Stats",
+   "options": "Match Stat"
+  }
+ ],
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sports Complex Manager",
+   "share": 1,
+   "write": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0
+  }
+ ],
+ "autoname": "hash"
+}

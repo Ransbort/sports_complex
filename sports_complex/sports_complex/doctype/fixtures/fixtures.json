@@ -1,0 +1,120 @@
+{
+ "doctype": "DocType",
+ "name": "Fixtures",
+ "module": "Events and Tournaments",
+ "custom": 0,
+ "istable": 0,
+ "issingle": 0,
+ "is_submittable": 0,
+ "track_changes": 1,
+ "engine": "InnoDB",
+ "editable_grid": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "fields": [
+  {
+   "fieldname": "tournament",
+   "fieldtype": "Link",
+   "label": "Tournament",
+   "options": "Tournament",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "round",
+   "fieldtype": "Data",
+   "label": "Round",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break",
+   "label": ""
+  },
+  {
+   "fieldname": "team_a",
+   "fieldtype": "Link",
+   "label": "Team A",
+   "options": "Team"
+  },
+  {
+   "fieldname": "team_b",
+   "fieldtype": "Link",
+   "label": "Team B",
+   "options": "Team"
+  },
+  {
+   "fieldname": "player_a",
+   "fieldtype": "Link",
+   "label": "Player A",
+   "options": "Player Registration"
+  },
+  {
+   "fieldname": "player_b",
+   "fieldtype": "Link",
+   "label": "Player B",
+   "options": "Player Registration"
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break",
+   "label": "Schedule"
+  },
+  {
+   "fieldname": "scheduled_date",
+   "fieldtype": "Date",
+   "label": "Scheduled Date",
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "scheduled_time",
+   "fieldtype": "Time",
+   "label": "Scheduled Time"
+  },
+  {
+   "fieldname": "court",
+   "fieldtype": "Link",
+   "label": "Court",
+   "options": "Court"
+  },
+  {
+   "fieldname": "match",
+   "fieldtype": "Link",
+   "label": "Match",
+   "options": "Match",
+   "read_only": 1
+  }
+ ],
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sports Complex Manager",
+   "share": 1,
+   "write": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0
+  }
+ ],
+ "autoname": "hash"
+}

@@ -1,0 +1,80 @@
+{
+ "doctype": "DocType",
+ "name": "Awards",
+ "module": "Events and Tournaments",
+ "custom": 0,
+ "istable": 0,
+ "issingle": 0,
+ "is_submittable": 0,
+ "track_changes": 1,
+ "engine": "InnoDB",
+ "editable_grid": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "fields": [
+  {
+   "fieldname": "tournament",
+   "fieldtype": "Link",
+   "label": "Tournament",
+   "options": "Tournament",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "award_name",
+   "fieldtype": "Data",
+   "label": "Award Name",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "recipient_team",
+   "fieldtype": "Link",
+   "label": "Recipient (Team)",
+   "options": "Team"
+  },
+  {
+   "fieldname": "recipient_player",
+   "fieldtype": "Link",
+   "label": "Recipient (Player)",
+   "options": "Player Registration"
+  },
+  {
+   "fieldname": "category",
+   "fieldtype": "Data",
+   "label": "Category"
+  }
+ ],
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sports Complex Manager",
+   "share": 1,
+   "write": 1,
+   "submit": 0,
+   "cancel": 0,
+   "amend": 0
+  }
+ ],
+ "autoname": "hash"
+}
