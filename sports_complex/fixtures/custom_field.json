@@ -1,5 +1,6 @@
 [
  {
+  "name": "Sales Invoice-sc_source_section",
   "doctype": "Custom Field",
   "dt": "Sales Invoice",
   "fieldname": "sc_source_section",
@@ -9,6 +10,7 @@
   "collapsible": 1
  },
  {
+  "name": "Sales Invoice-facility_booking",
   "doctype": "Custom Field",
   "dt": "Sales Invoice",
   "fieldname": "facility_booking",
@@ -19,6 +21,7 @@
   "read_only": 1
  },
  {
+  "name": "Sales Invoice-membership",
   "doctype": "Custom Field",
   "dt": "Sales Invoice",
   "fieldname": "membership",
@@ -29,6 +32,7 @@
   "read_only": 1
  },
  {
+  "name": "Sales Invoice-membership_renewal",
   "doctype": "Custom Field",
   "dt": "Sales Invoice",
   "fieldname": "membership_renewal",
@@ -39,6 +43,7 @@
   "read_only": 1
  },
  {
+  "name": "Sales Invoice-column_break_sc_source",
   "doctype": "Custom Field",
   "dt": "Sales Invoice",
   "fieldname": "column_break_sc_source",
@@ -46,6 +51,7 @@
   "insert_after": "membership_renewal"
  },
  {
+  "name": "Sales Invoice-tournament_registration",
   "doctype": "Custom Field",
   "dt": "Sales Invoice",
   "fieldname": "tournament_registration",
@@ -56,6 +62,7 @@
   "read_only": 1
  },
  {
+  "name": "Sales Invoice-training_session",
   "doctype": "Custom Field",
   "dt": "Sales Invoice",
   "fieldname": "training_session",
@@ -66,6 +73,7 @@
   "read_only": 1
  },
  {
+  "name": "Sales Invoice-equipment_issue",
   "doctype": "Custom Field",
   "dt": "Sales Invoice",
   "fieldname": "equipment_issue",
@@ -76,6 +84,7 @@
   "read_only": 1
  },
  {
+  "name": "Sales Invoice-equipment_return",
   "doctype": "Custom Field",
   "dt": "Sales Invoice",
   "fieldname": "equipment_return",
