@@ -23,7 +23,7 @@
    "fieldname": "sport",
    "fieldtype": "Link",
    "label": "Sport",
-   "options": "Facility Type",
+   "options": "Sport",
    "reqd": 1,
    "in_list_view": 1
   },
