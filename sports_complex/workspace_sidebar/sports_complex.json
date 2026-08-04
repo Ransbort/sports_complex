@@ -41,13 +41,13 @@
     "type": "Link",
     "icon": "calendar-fold",
     "label": "Booking Calendar",
-    "link_to": "booking-calendar",
-    "link_type": "Page",
+    "link_type": "URL",
+    "url": "/desk/facility-booking/view/calendar",
     "child": 0,
     "parent": "Sports Complex",
     "parentfield": "items",
     "parenttype": "Workspace Sidebar"
-  },
+  }
   {
     "doctype": "Workspace Sidebar Item",
     "idx": 4,
