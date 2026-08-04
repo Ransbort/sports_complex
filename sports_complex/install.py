@@ -12,7 +12,9 @@ This module handles post-fixture tasks (setting defaults, clearing cache, etc).
 Add app-specific setup steps inside after_install / after_migrate as needed.
 """
 
+import json
 import logging
+import os
 
 import frappe
 
@@ -25,8 +27,7 @@ def after_install():
 	try:
 		log_message("Sports Complex: Running post-install setup", level="info")
 
-		# TODO: add post-install setup steps here (e.g. default records,
-		# default settings, seeding reference data)
+		sync_workspace_sidebars()
 
 		# Clear cache to ensure changes take effect
 		frappe.clear_cache()
@@ -43,8 +44,7 @@ def after_install():
 def after_migrate():
 	"""Hook that runs after bench migrate"""
 	try:
-		# TODO: add post-migrate steps here (e.g. re-syncing defaults that
-		# other apps may have overwritten, backfilling new fields)
+		sync_workspace_sidebars()
 
 		# Clear cache
 		frappe.clear_cache()
@@ -56,6 +56,76 @@ def after_migrate():
 		frappe.log_error(title="Sports Complex Migration Error", message=frappe.get_traceback())
 		log_message(f"Sports Complex: Migration error - {str(e)}", level="error")
 		raise
+
+
+def sync_workspace_sidebars():
+	"""
+	Load Workspace Sidebar fixture JSON files and create/update the
+	corresponding DB records.
+
+	Workspace Sidebar is not a standard module-doctype citizen — its JSON
+	lives at <app>/workspace_sidebar/*.json, outside the folder structure
+	frappe.model.sync scans during bench migrate, so it is never picked up
+	automatically the way regular DocType fixtures are. This function does
+	that sync explicitly: for each JSON file found, it creates the
+	Workspace Sidebar record if missing, or updates an existing one and
+	fully replaces its items child table with what's in the file, so a
+	stale DB record can never drift from the JSON on disk.
+	"""
+	app_path = frappe.get_app_path("sports_complex")
+	sidebar_dir = os.path.join(app_path, "workspace_sidebar")
+
+	if not os.path.isdir(sidebar_dir):
+		log_message(f"No workspace_sidebar directory found at {sidebar_dir}, skipping sync", level="warning")
+		return
+
+	item_skip_fields = {"doctype", "parent", "parentfield", "parenttype"}
+
+	for filename in sorted(os.listdir(sidebar_dir)):
+		if not filename.endswith(".json"):
+			continue
+
+		filepath = os.path.join(sidebar_dir, filename)
+
+		try:
+			with open(filepath) as f:
+				data = json.load(f)
+		except (OSError, json.JSONDecodeError) as e:
+			log_message(f"Skipping {filename}: could not parse JSON ({e})", level="error")
+			continue
+
+		name = data.get("name") or data.get("title")
+		if not name:
+			log_message(f"Skipping {filename}: no 'name' or 'title' field", level="warning")
+			continue
+
+		doc_fields = {
+			"header_icon": data.get("header_icon"),
+			"title": data.get("title"),
+			"module": data.get("module"),
+			"app": data.get("app"),
+			"for_user": data.get("for_user"),
+			"module_onboarding": data.get("module_onboarding"),
+		}
+
+		if frappe.db.exists("Workspace Sidebar", name):
+			doc = frappe.get_doc("Workspace Sidebar", name)
+			doc.update(doc_fields)
+			doc.items = []
+			action = "Updated"
+		else:
+			doc = frappe.new_doc("Workspace Sidebar")
+			doc.name = name
+			doc.update(doc_fields)
+			action = "Created"
+
+		for item in data.get("items", []):
+			doc.append("items", {k: v for k, v in item.items() if k not in item_skip_fields})
+
+		doc.flags.ignore_permissions = True
+		doc.save(ignore_permissions=True)
+
+		log_message(f"{action} Workspace Sidebar '{name}' from {filename} ({len(doc.items)} items)", level="success")
 
 
 def log_message(message, level="info", indent=0):
