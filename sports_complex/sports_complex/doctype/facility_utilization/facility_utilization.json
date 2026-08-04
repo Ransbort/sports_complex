@@ -1,5 +1,6 @@
 {
  "doctype": "Report",
+ "name": "Facility Utilization",
  "report_name": "Facility Utilization",
  "report_type": "Query Report",
  "module": "Sports Complex",
