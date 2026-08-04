@@ -1,5 +1,6 @@
 {
  "doctype": "Report",
+ "name": "Revenue Report",
  "report_name": "Revenue Report",
  "report_type": "Script Report",
  "module": "Sports Complex",
