@@ -535,45 +535,6 @@
     "parent": "Sports Complex",
     "parentfield": "items",
     "parenttype": "Workspace Sidebar"
-  },
-  {
-    "doctype": "Workspace Sidebar Item",
-    "idx": 42,
-    "type": "Link",
-    "icon": "settings-2",
-    "label": "Facility Settings",
-    "link_to": "Facility Settings",
-    "link_type": "DocType",
-    "child": 1,
-    "parent": "Sports Complex",
-    "parentfield": "items",
-    "parenttype": "Workspace Sidebar"
-  },
-  {
-    "doctype": "Workspace Sidebar Item",
-    "idx": 43,
-    "type": "Link",
-    "icon": "calendar-cog",
-    "label": "Booking Settings",
-    "link_to": "Booking Settings",
-    "link_type": "DocType",
-    "child": 1,
-    "parent": "Sports Complex",
-    "parentfield": "items",
-    "parenttype": "Workspace Sidebar"
-  },
-  {
-    "doctype": "Workspace Sidebar Item",
-    "idx": 44,
-    "type": "Link",
-    "icon": "id-card",
-    "label": "Membership Settings",
-    "link_to": "Membership Settings",
-    "link_type": "DocType",
-    "child": 1,
-    "parent": "Sports Complex",
-    "parentfield": "items",
-    "parenttype": "Workspace Sidebar"
-    }
+  }
  ]
 }
