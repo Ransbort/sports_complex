@@ -13,10 +13,10 @@
  "sort_order": "DESC",
  "fields": [
   {
-   "fieldname": "facility_type",
+   "fieldname": "sport",
    "fieldtype": "Link",
-   "label": "Sport / Facility Type",
-   "options": "Facility Type",
+   "label": "Sport",
+   "options": "Sport",
    "reqd": 1,
    "in_list_view": 1
   }
