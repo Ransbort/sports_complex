@@ -1,5 +1,6 @@
 {
  "doctype": "Report",
+ "name": "Equipment Report",
  "report_name": "Equipment Report",
  "report_type": "Query Report",
  "module": "Sports Complex",
