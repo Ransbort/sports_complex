@@ -5,7 +5,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
-from sports_complex.sports_complex.utils import get_member_customer, make_linked_sales_invoice
+from sports_complex.utils import get_member_customer, make_linked_sales_invoice
 
 
 class EquipmentReturn(Document):
