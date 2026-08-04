@@ -1,8 +1,8 @@
 """
 Uninstallation hooks for Sports Complex
 """
-
 import logging
+import os
 
 import frappe
 
@@ -19,7 +19,9 @@ def before_uninstall():
 	try:
 		log_message("Starting Sports Complex uninstallation", level="info")
 
-		# TODO: add cleanup steps here, e.g.:
+		remove_workspace_sidebars()
+
+		# TODO: add further cleanup steps here, e.g.:
 		# remove_custom_fields()
 		# remove_print_formats()
 		# reset_related_doctype_configs()
@@ -29,7 +31,6 @@ def before_uninstall():
 
 		log_message("Sports Complex uninstalled successfully", level="success")
 		log_message("All custom fields and configurations have been removed", level="info")
-
 	except Exception as e:
 		frappe.db.rollback()
 		frappe.log_error(title="Sports Complex Uninstallation Error", message=frappe.get_traceback())
@@ -37,17 +38,52 @@ def before_uninstall():
 		raise
 
 
+def remove_workspace_sidebars():
+	"""
+	Delete Workspace Sidebar records that were created from this app's
+	workspace_sidebar/*.json fixtures (see sports_complex.install.sync_workspace_sidebars).
+	Matches by the "name" field in each JSON file, not by app/module on the
+	DB record, since a record may have been hand-edited since install.
+	"""
+	import json
+
+	app_path = frappe.get_app_path("sports_complex")
+	sidebar_dir = os.path.join(app_path, "workspace_sidebar")
+
+	if not os.path.isdir(sidebar_dir):
+		return
+
+	for filename in sorted(os.listdir(sidebar_dir)):
+		if not filename.endswith(".json"):
+			continue
+
+		filepath = os.path.join(sidebar_dir, filename)
+
+		try:
+			with open(filepath) as f:
+				data = json.load(f)
+		except (OSError, json.JSONDecodeError) as e:
+			log_message(f"Skipping {filename} during cleanup: could not parse JSON ({e})", level="warning")
+			continue
+
+		name = data.get("name") or data.get("title")
+		if not name:
+			continue
+
+		if frappe.db.exists("Workspace Sidebar", name):
+			frappe.delete_doc("Workspace Sidebar", name, ignore_permissions=True, force=True)
+			log_message(f"Removed Workspace Sidebar '{name}'", level="success")
+
+
 def log_message(message, level="info", indent=0):
 	"""
 	Standardized logging function with consistent formatting
-
 	Args:
 		message (str): The message to log
 		level (str): Log level - info, success, warning, error
 		indent (int): Indentation level (0, 1, 2, etc.)
 	"""
 	indent_str = "  " * indent
-
 	# Log level prefixes
 	prefixes = {
 		"info": "[INFO]",
@@ -55,13 +91,10 @@ def log_message(message, level="info", indent=0):
 		"warning": "[WARNING]",
 		"error": "[ERROR]",
 	}
-
 	prefix = prefixes.get(level, "[INFO]")
 	formatted_message = f"{indent_str}{prefix} {message}"
-
 	# Print to console
 	print(formatted_message)
-
 	# Also log to frappe logger with appropriate level
 	if level == "error":
 		logger.error(message)
@@ -82,6 +115,5 @@ def validate_uninstall():
 	try:
 		# TODO: add real validation checks here
 		return True, "Safe to uninstall"
-
 	except Exception as e:
 		return False, f"Validation error: {e!s}"
