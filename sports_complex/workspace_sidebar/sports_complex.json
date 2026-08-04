@@ -47,7 +47,7 @@
     "parent": "Sports Complex",
     "parentfield": "items",
     "parenttype": "Workspace Sidebar"
-  }
+  },
   {
     "doctype": "Workspace Sidebar Item",
     "idx": 4,
