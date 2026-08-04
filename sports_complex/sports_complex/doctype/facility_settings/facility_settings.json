@@ -1,0 +1,20 @@
+{
+ "doctype": "DocType",
+ "name": "Facility Settings",
+ "module": "Sports Complex",
+ "custom": 0,
+ "istable": 0,
+ "issingle": 1,
+ "track_changes": 1,
+ "fields": [
+  {"fieldname": "default_booking_duration", "fieldtype": "Int", "label": "Default Booking Duration (minutes)", "default": "60"},
+  {"fieldname": "buffer_time_between_bookings", "fieldtype": "Int", "label": "Buffer Time Between Bookings (minutes)", "default": "0"},
+  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+  {"fieldname": "advance_booking_window_days", "fieldtype": "Int", "label": "Advance Booking Window (days)", "default": "30", "description": "How far ahead members/customers can book"},
+  {"fieldname": "min_booking_notice_hours", "fieldtype": "Int", "label": "Minimum Booking Notice (hours)", "default": "1"}
+ ],
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1},
+  {"role": "Facility Manager", "read": 1, "write": 1}
+ ]
+}

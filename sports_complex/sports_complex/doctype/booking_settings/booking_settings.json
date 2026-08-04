@@ -1,0 +1,19 @@
+{
+ "doctype": "DocType",
+ "name": "Booking Settings",
+ "module": "Sports Complex",
+ "custom": 0,
+ "istable": 0,
+ "issingle": 1,
+ "track_changes": 1,
+ "fields": [
+  {"fieldname": "allow_overlapping_bookings", "fieldtype": "Check", "label": "Allow Overlapping Bookings", "default": "0"},
+  {"fieldname": "max_bookings_per_member_per_day", "fieldtype": "Int", "label": "Max Bookings Per Member Per Day", "default": "0", "description": "0 = unlimited"},
+  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+  {"fieldname": "auto_cancel_unpaid_after_minutes", "fieldtype": "Int", "label": "Auto-Cancel Unpaid Bookings After (minutes)", "default": "30"}
+ ],
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1},
+  {"role": "Facility Manager", "read": 1, "write": 1}
+ ]
+}

@@ -1,0 +1,19 @@
+{
+ "doctype": "DocType",
+ "name": "Membership Settings",
+ "module": "Sports Complex",
+ "custom": 0,
+ "istable": 0,
+ "issingle": 1,
+ "track_changes": 1,
+ "fields": [
+  {"fieldname": "renewal_grace_period_days", "fieldtype": "Int", "label": "Renewal Grace Period (days)", "default": "7"},
+  {"fieldname": "auto_suspend_on_expiry", "fieldtype": "Check", "label": "Auto-Suspend on Expiry", "default": "1"},
+  {"fieldname": "column_break_1", "fieldtype": "Column Break"},
+  {"fieldname": "renewal_reminder_days_before", "fieldtype": "Int", "label": "Renewal Reminder (days before expiry)", "default": "7"}
+ ],
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1},
+  {"role": "Facility Manager", "read": 1, "write": 1}
+ ]
+}
