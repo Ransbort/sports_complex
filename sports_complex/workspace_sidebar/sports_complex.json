@@ -515,7 +515,7 @@
     "type": "Link",
     "icon": "sliders",
     "label": "Setup",
-    "link_to": "Sports Settings",
+    "link_to": "Sports Complex Setup",
     "link_type": "DocType",
     "child": 0,
     "parent": "Sports Complex",
