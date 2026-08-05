@@ -1,59 +1,264 @@
 {
+ "actions": [],
+ "creation": "2026-08-04 16:56:25.844082",
  "doctype": "DocType",
- "name": "Sports Complex Setup",
- "module": "Sports Complex",
- "custom": 0,
- "istable": 0,
- "issingle": 1,
- "is_submittable": 0,
- "track_changes": 1,
  "engine": "InnoDB",
- "sort_field": "modified",
- "sort_order": "DESC",
- "fields": [
-  {"fieldname": "tab_default_settings", "fieldtype": "Tab Break", "label": "Default Settings"},
-  {"fieldname": "default_currency", "fieldtype": "Link", "options": "Currency", "label": "Default Currency"},
-  {"fieldname": "default_tax_template", "fieldtype": "Link", "options": "Sales Taxes and Charges Template", "label": "Default Tax Template"},
-  {"fieldname": "column_break_ds_1", "fieldtype": "Column Break"},
-  {"fieldname": "cancellation_window_hours", "fieldtype": "Int", "label": "Cancellation Window (hours)", "default": "24"},
-  {"fieldname": "no_show_penalty_percent", "fieldtype": "Percent", "label": "No-show Penalty (%)"},
-
-  {"fieldname": "tab_facility", "fieldtype": "Tab Break", "label": "Facility"},
-  {"fieldname": "default_booking_duration", "fieldtype": "Int", "label": "Default Booking Duration (minutes)", "default": "60"},
-  {"fieldname": "buffer_time_between_bookings", "fieldtype": "Int", "label": "Buffer Time Between Bookings (minutes)", "default": "0"},
-  {"fieldname": "column_break_fac_1", "fieldtype": "Column Break"},
-  {"fieldname": "advance_booking_window_days", "fieldtype": "Int", "label": "Advance Booking Window (days)", "default": "30", "description": "How far ahead customers/members can book"},
-  {"fieldname": "min_booking_notice_hours", "fieldtype": "Int", "label": "Minimum Booking Notice (hours)", "default": "1"},
-
-  {"fieldname": "tab_membership", "fieldtype": "Tab Break", "label": "Membership"},
-  {"fieldname": "renewal_grace_period_days", "fieldtype": "Int", "label": "Renewal Grace Period (days)", "default": "7"},
-  {"fieldname": "auto_suspend_on_expiry", "fieldtype": "Check", "label": "Auto-Suspend on Expiry", "default": "1"},
-  {"fieldname": "column_break_mem_1", "fieldtype": "Column Break"},
-  {"fieldname": "renewal_reminder_days_before", "fieldtype": "Int", "label": "Renewal Reminder (days before expiry)", "default": "7"},
-
-  {"fieldname": "tab_bookings", "fieldtype": "Tab Break", "label": "Bookings"},
-  {"fieldname": "allow_overlapping_bookings", "fieldtype": "Check", "label": "Allow Overlapping Bookings", "default": "0"},
-  {"fieldname": "max_bookings_per_member_per_day", "fieldtype": "Int", "label": "Max Bookings Per Member Per Day", "default": "0", "description": "0 = unlimited"},
-  {"fieldname": "column_break_bk_1", "fieldtype": "Column Break"},
-  {"fieldname": "auto_cancel_unpaid_after_minutes", "fieldtype": "Int", "label": "Auto-Cancel Unpaid Bookings After (minutes)", "default": "30"},
-
-  {"fieldname": "tab_payment", "fieldtype": "Tab Break", "label": "Payment"},
-  {"fieldname": "default_payment_gateway", "fieldtype": "Link", "options": "Payment Gateway", "label": "Default Payment Gateway", "description": "e.g. your Paystack Gateway Setting record"},
-  {"fieldname": "require_payment_before_confirmation", "fieldtype": "Check", "label": "Require Payment Before Booking Confirmation", "default": "1", "description": "If checked, Facility Booking status cannot move to Confirmed until the linked Sales Invoice is paid"},
-  {"fieldname": "column_break_pay_1", "fieldtype": "Column Break"},
-  {"fieldname": "allow_partial_payment", "fieldtype": "Check", "label": "Allow Partial Payment", "default": "0"},
-  {"fieldname": "refund_processing_days", "fieldtype": "Int", "label": "Refund Processing Time (days)", "default": "3"}
+ "field_order": [
+  "tab_default_settings",
+  "default_company",
+  "default_tax_template",
+  "column_break_ds_1",
+  "default_currency",
+  "cancellation_window_hours",
+  "tab_facility",
+  "default_booking_duration",
+  "buffer_time_between_bookings",
+  "column_break_fac_1",
+  "advance_booking_window_days",
+  "min_booking_notice_hours",
+  "tab_membership",
+  "renewal_grace_period_days",
+  "auto_suspend_on_expiry",
+  "column_break_mem_1",
+  "renewal_reminder_days_before",
+  "tab_bookings",
+  "allow_overlapping_bookings",
+  "max_bookings_per_member_per_day",
+  "auto_cancel_unpaid_bookings_after_hours",
+  "column_break_bk_1",
+  "send_booking_reminder",
+  "auto_cancel_unpaid_after_minutes",
+  "reminder_lead_time_hours",
+  "no_show_penalty_",
+  "tab_payment",
+  "enable_paystack_payments",
+  "default_payment_gateway",
+  "require_payment_before_confirmation",
+  "column_break_pay_1",
+  "allow_partial_payment",
+  "refund_processing_days"
  ],
- "permissions": [
+ "fields": [
   {
-   "role": "System Manager",
-   "read": 1, "write": 1, "create": 1, "delete": 1,
-   "email": 1, "export": 1, "print": 1, "report": 1, "share": 1
+   "fieldname": "tab_default_settings",
+   "fieldtype": "Tab Break",
+   "label": "Default Settings"
   },
   {
-   "role": "Sports Complex Manager",
-   "read": 1, "write": 1, "create": 1,
-   "email": 1, "export": 1, "print": 1, "report": 1, "share": 1
+   "fieldname": "default_currency",
+   "fieldtype": "Link",
+   "label": "Default Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "default_tax_template",
+   "fieldtype": "Link",
+   "label": "Default Tax Template",
+   "options": "Sales Taxes and Charges Template"
+  },
+  {
+   "fieldname": "column_break_ds_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "24",
+   "fieldname": "cancellation_window_hours",
+   "fieldtype": "Int",
+   "label": "Cancellation Window (hours)"
+  },
+  {
+   "fieldname": "tab_facility",
+   "fieldtype": "Tab Break",
+   "label": "Facility"
+  },
+  {
+   "default": "60",
+   "fieldname": "default_booking_duration",
+   "fieldtype": "Int",
+   "label": "Default Booking Duration (minutes)"
+  },
+  {
+   "default": "0",
+   "fieldname": "buffer_time_between_bookings",
+   "fieldtype": "Int",
+   "label": "Buffer Time Between Bookings (minutes)"
+  },
+  {
+   "fieldname": "column_break_fac_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "30",
+   "description": "How far ahead customers/members can book",
+   "fieldname": "advance_booking_window_days",
+   "fieldtype": "Int",
+   "label": "Advance Booking Window (days)"
+  },
+  {
+   "default": "1",
+   "fieldname": "min_booking_notice_hours",
+   "fieldtype": "Int",
+   "label": "Minimum Booking Notice (hours)"
+  },
+  {
+   "fieldname": "tab_membership",
+   "fieldtype": "Tab Break",
+   "label": "Membership"
+  },
+  {
+   "default": "7",
+   "fieldname": "renewal_grace_period_days",
+   "fieldtype": "Int",
+   "label": "Renewal Grace Period (days)"
+  },
+  {
+   "default": "1",
+   "fieldname": "auto_suspend_on_expiry",
+   "fieldtype": "Check",
+   "label": "Auto-Suspend on Expiry"
+  },
+  {
+   "fieldname": "column_break_mem_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "7",
+   "fieldname": "renewal_reminder_days_before",
+   "fieldtype": "Int",
+   "label": "Renewal Reminder (days before expiry)"
+  },
+  {
+   "fieldname": "tab_bookings",
+   "fieldtype": "Tab Break",
+   "label": "Bookings"
+  },
+  {
+   "default": "0",
+   "fieldname": "allow_overlapping_bookings",
+   "fieldtype": "Check",
+   "label": "Allow Overlapping Bookings"
+  },
+  {
+   "default": "0",
+   "description": "0 = unlimited",
+   "fieldname": "max_bookings_per_member_per_day",
+   "fieldtype": "Int",
+   "label": "Max Bookings Per Member Per Day"
+  },
+  {
+   "fieldname": "column_break_bk_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "24",
+   "description": "Bookings cancelled within this many hours of start time may incur the no-show penalty",
+   "fieldname": "auto_cancel_unpaid_after_minutes",
+   "fieldtype": "Int",
+   "label": "Cancellation Window (hours)"
+  },
+  {
+   "fieldname": "tab_payment",
+   "fieldtype": "Tab Break",
+   "label": "Payment"
+  },
+  {
+   "description": "e.g. your Paystack Gateway Setting record",
+   "fieldname": "default_payment_gateway",
+   "fieldtype": "Link",
+   "label": "Default Payment Gateway",
+   "options": "Payment Gateway"
+  },
+  {
+   "default": "1",
+   "description": "If checked, Facility Booking status cannot move to Confirmed until the linked Sales Invoice is paid",
+   "fieldname": "require_payment_before_confirmation",
+   "fieldtype": "Check",
+   "label": "Require Payment Before Booking Confirmation"
+  },
+  {
+   "fieldname": "column_break_pay_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "allow_partial_payment",
+   "fieldtype": "Check",
+   "label": "Allow Partial Payment"
+  },
+  {
+   "default": "3",
+   "fieldname": "refund_processing_days",
+   "fieldtype": "Int",
+   "label": "Refund Processing Time (days)"
+  },
+  {
+   "fieldname": "default_company",
+   "fieldtype": "Link",
+   "label": "Default Company",
+   "options": "Company"
+  },
+  {
+   "default": "0",
+   "description": "Master switch for accepting Paystack payments across Facility Booking, Membership, Tournament Registration, Training Session, and Equipment Issue/Return.",
+   "fieldname": "enable_paystack_payments",
+   "fieldtype": "Check",
+   "label": "Enable Paystack Payments"
+  },
+  {
+   "fieldname": "auto_cancel_unpaid_bookings_after_hours",
+   "fieldtype": "Int",
+   "label": "Auto Cancel Unpaid Bookings After (hours)"
+  },
+  {
+   "default": "0",
+   "fieldname": "send_booking_reminder",
+   "fieldtype": "Check",
+   "label": "Send Booking Reminder"
+  },
+  {
+   "default": "24",
+   "fieldname": "reminder_lead_time_hours",
+   "fieldtype": "Int",
+   "label": "Reminder Lead Time (hours)"
+  },
+  {
+   "default": "50",
+   "fieldname": "no_show_penalty_",
+   "fieldtype": "Percent",
+   "label": "No Show Penalty %"
   }
- ]
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-08-05 08:58:22.077439",
+ "modified_by": "Administrator",
+ "module": "Sports Complex",
+ "name": "Sports Complex Setup",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "Sports Complex Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
 }
