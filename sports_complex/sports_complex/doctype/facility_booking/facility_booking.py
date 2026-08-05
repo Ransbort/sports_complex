@@ -148,3 +148,50 @@ class FacilityBooking(Document):
 		si.insert()
 
 		self.sales_invoice = si.name
+
+
+@frappe.whitelist()
+def get_booking_events(start, end, filters=None):
+	"""Feed the Calendar view for Facility Booking.
+
+	Combines booking_date + start_time/end_time into datetimes since the
+	doctype stores date and time separately rather than as combined
+	datetime fields. Registered in facility_booking.js via
+	get_events_method.
+	"""
+	conditions = ["booking_date between %(start)s and %(end)s"]
+	values = {"start": start, "end": end}
+
+	if filters:
+		filters = frappe.parse_json(filters)
+		if filters.get("court"):
+			conditions.append("court = %(court)s")
+			values["court"] = filters["court"]
+		if filters.get("booking_status"):
+			conditions.append("booking_status = %(booking_status)s")
+			values["booking_status"] = filters["booking_status"]
+
+	bookings = frappe.db.sql(
+		f"""
+		select name, customer, court, booking_date, start_time, end_time,
+			booking_status, payment_status
+		from `tabFacility Booking`
+		where {" and ".join(conditions)}
+		""",
+		values,
+		as_dict=True,
+	)
+
+	events = []
+	for b in bookings:
+		events.append(
+			{
+				"name": b.name,
+				"title": f"{b.court} - {b.customer}",
+				"start": get_datetime(f"{b.booking_date} {b.start_time}"),
+				"end": get_datetime(f"{b.booking_date} {b.end_time}"),
+				"status": b.booking_status,
+				"payment_status": b.payment_status,
+			}
+		)
+	return events
