@@ -1,7 +1,13 @@
 {
- "charts": [],
- "content": "[{\"id\": \"header1\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\", \"col\": 12}}, {\"id\": \"sc1\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Facility Booking\", \"col\": 3}}, {\"id\": \"sc2\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Check-In\", \"col\": 3}}, {\"id\": \"sc3\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Member\", \"col\": 3}}, {\"id\": \"sc4\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Tournament\", \"col\": 3}}, {\"id\": \"spacer1\", \"type\": \"spacer\", \"data\": {\"col\": 12}}, {\"id\": \"header2\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Modules</b></span>\", \"col\": 12}}, {\"id\": \"card_facility_management\", \"type\": \"card\", \"data\": {\"card_name\": \"Facility Management\", \"col\": 4}}, {\"id\": \"card_booking_management\", \"type\": \"card\", \"data\": {\"card_name\": \"Booking Management\", \"col\": 4}}, {\"id\": \"card_membership\", \"type\": \"card\", \"data\": {\"card_name\": \"Membership\", \"col\": 4}}, {\"id\": \"card_coaching\", \"type\": \"card\", \"data\": {\"card_name\": \"Coaching\", \"col\": 4}}, {\"id\": \"card_events_and_tournaments\", \"type\": \"card\", \"data\": {\"card_name\": \"Events & Tournaments\", \"col\": 4}}, {\"id\": \"card_inventory\", \"type\": \"card\", \"data\": {\"card_name\": \"Inventory\", \"col\": 4}}, {\"id\": \"card_settings\", \"type\": \"card\", \"data\": {\"card_name\": \"Settings\", \"col\": 4}}, {\"id\": \"card_reports\", \"type\": \"card\", \"data\": {\"card_name\": \"Reports\", \"col\": 4}}]",
- "creation": "2026-08-04 00:00:00.000000",
+ "app": "sports_complex",
+ "charts": [
+  {
+   "chart_name": "Sports Complex Revenue Trend",
+   "label": "Sports Complex Revenue Trend"
+  }
+ ],
+ "content": "[{\"id\":\"2w3s_cLUWR\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Sports Complex Revenue Trend\",\"col\":12}},{\"id\":\"header1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"sc2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Check-In\",\"col\":3}},{\"id\":\"sc1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Facility Booking\",\"col\":3}},{\"id\":\"sc3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Member\",\"col\":3}},{\"id\":\"sc4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Tournament\",\"col\":3}},{\"id\":\"spacer1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"header2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Modules</b></span>\",\"col\":12}},{\"id\":\"U6LqRokJQu\",\"type\":\"card\",\"data\":{\"card_name\":\"Facility Management\",\"col\":4}},{\"id\":\"_SZo-BZLvO\",\"type\":\"card\",\"data\":{\"card_name\":\"Membership\",\"col\":4}},{\"id\":\"k1cDBdl07m\",\"type\":\"card\",\"data\":{\"card_name\":\"Booking Management\",\"col\":4}},{\"id\":\"MCc7WfkETf\",\"type\":\"card\",\"data\":{\"card_name\":\"Coaching\",\"col\":4}},{\"id\":\"GNpcSZ7CCB\",\"type\":\"card\",\"data\":{\"card_name\":\"Events & Tournaments\",\"col\":4}},{\"id\":\"F7f-UXWlPg\",\"type\":\"card\",\"data\":{\"card_name\":\"Inventory\",\"col\":4}}]",
+ "creation": "2026-08-04 00:00:00",
  "custom_blocks": [],
  "docstatus": 0,
  "doctype": "Workspace",
@@ -24,29 +30,9 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Sports Facility",
-   "link_count": 0,
-   "link_to": "Sports Facility",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
    "label": "Facility Type",
    "link_count": 0,
    "link_to": "Facility Type",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Court",
-   "link_count": 0,
-   "link_to": "Court",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -64,6 +50,26 @@
   {
    "hidden": 0,
    "is_query_report": 0,
+   "label": "Sports Facility",
+   "link_count": 0,
+   "link_to": "Sports Facility",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Court",
+   "link_count": 0,
+   "link_to": "Court",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
    "label": "Maintenance Schedule",
    "link_count": 0,
    "link_to": "Maintenance Schedule",
@@ -74,8 +80,8 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Booking Management",
-   "link_count": 5,
+   "label": "Membership",
+   "link_count": 3,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -83,12 +89,41 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Facility Booking",
+   "label": "Membership Plan",
    "link_count": 0,
-   "link_to": "Facility Booking",
+   "link_to": "Membership Plan",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Membership Renewal",
+   "link_count": 0,
+   "link_to": "Membership Renewal",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Member Attendance",
+   "link_count": 0,
+   "link_to": "Member Attendance",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Booking Management",
+   "link_count": 4,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
   },
   {
    "hidden": 0,
@@ -133,67 +168,8 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Membership",
-   "link_count": 5,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Member",
-   "link_count": 0,
-   "link_to": "Member",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Membership Plan",
-   "link_count": 0,
-   "link_to": "Membership Plan",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Membership",
-   "link_count": 0,
-   "link_to": "Membership",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Membership Renewal",
-   "link_count": 0,
-   "link_to": "Membership Renewal",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Member Attendance",
-   "link_count": 0,
-   "link_to": "Member Attendance",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
    "label": "Coaching",
-   "link_count": 7,
+   "link_count": 4,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -201,49 +177,9 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Coach",
+   "label": "Team",
    "link_count": 0,
-   "link_to": "Coach",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Coach Availability",
-   "link_count": 0,
-   "link_to": "Coach Availability",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Coach Specialization",
-   "link_count": 0,
-   "link_to": "Coach Specialization",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Training Session",
-   "link_count": 0,
-   "link_to": "Training Session",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Training Schedule",
-   "link_count": 0,
-   "link_to": "Training Schedule",
+   "link_to": "Team",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -261,9 +197,19 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Team",
+   "label": "Training Schedule",
    "link_count": 0,
-   "link_to": "Team",
+   "link_to": "Training Schedule",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Training Session",
+   "link_count": 0,
+   "link_to": "Training Session",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -272,20 +218,10 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Events & Tournaments",
-   "link_count": 7,
+   "link_count": 5,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Tournament",
-   "link_count": 0,
-   "link_to": "Tournament",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
   },
   {
    "hidden": 0,
@@ -313,16 +249,6 @@
    "label": "Match",
    "link_count": 0,
    "link_to": "Match",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Match Official",
-   "link_count": 0,
-   "link_to": "Match Official",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
@@ -385,97 +311,9 @@
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Settings",
-   "link_count": 1,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Sports Settings",
-   "link_count": 0,
-   "link_to": "Sports Settings",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Reports",
-   "link_count": 6,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 1,
-   "label": "Booking Report",
-   "link_count": 0,
-   "link_to": "Booking Report",
-   "link_type": "Report",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 1,
-   "label": "Revenue Report",
-   "link_count": 0,
-   "link_to": "Revenue Report",
-   "link_type": "Report",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 1,
-   "label": "Membership Report",
-   "link_count": 0,
-   "link_to": "Membership Report",
-   "link_type": "Report",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 1,
-   "label": "Attendance Report",
-   "link_count": 0,
-   "link_to": "Attendance Report",
-   "link_type": "Report",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 1,
-   "label": "Facility Utilization",
-   "link_count": 0,
-   "link_to": "Facility Utilization",
-   "link_type": "Report",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 1,
-   "label": "Equipment Report",
-   "link_count": 0,
-   "link_to": "Equipment Report",
-   "link_type": "Report",
-   "onboard": 0,
-   "type": "Link"
   }
  ],
- "modified": "2026-08-04 00:00:00.000000",
+ "modified": "2026-08-05 09:40:34.029439",
  "modified_by": "Administrator",
  "module": "Sports Complex",
  "name": "Sports Complex",
@@ -519,5 +357,6 @@
    "type": "DocType"
   }
  ],
- "title": "Sports Complex"
+ "title": "Sports Complex",
+ "type": "Workspace"
 }

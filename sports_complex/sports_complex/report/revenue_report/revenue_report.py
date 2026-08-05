@@ -24,7 +24,24 @@ def get_columns():
 
 
 def get_data(filters):
-	conditions = ["si.docstatus = 1"]
+	# Sales Invoice is shared across ex_healthcare, retail-suite, and
+	# sports_complex - this report must only ever return rows that actually
+	# originated from Sports Complex (i.e. carry one of the back-link fields
+	# invoicing.py stamps). Without this, every downstream consumer of this
+	# report - including any Dashboard Chart built on top of it - silently
+	# includes the other apps' revenue too.
+	conditions = [
+		"si.docstatus = 1",
+		"""(
+			si.facility_booking is not null
+			or si.membership is not null
+			or si.membership_renewal is not null
+			or si.tournament_registration is not null
+			or si.training_session is not null
+			or si.equipment_issue is not null
+			or si.equipment_return is not null
+		)""",
+	]
 	values = {}
 
 	if filters.get("from_date"):
@@ -70,4 +87,4 @@ def classify_source(row):
 	for fieldname, label in mapping:
 		if row.get(fieldname):
 			return label
-	return _("POS / Other")
+	return _("Other")
