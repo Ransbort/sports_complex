@@ -1,14 +1,14 @@
 {
  "actions": [],
  "autoname": "PLR-.YYYY.-.#####",
- "creation": "2026-08-10 00:00:00.000000",
+ "creation": "2026-08-10 00:00:00",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "full_name",
   "first_name",
   "last_name",
+  "full_name",
   "image",
   "column_break_status",
   "status",
@@ -38,12 +38,12 @@
  ],
  "fields": [
   {
+   "bold": 1,
    "fieldname": "full_name",
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Full Name",
-   "read_only": 1,
-   "bold": 1
+   "read_only": 1
   },
   {
    "fieldname": "first_name",
@@ -84,11 +84,11 @@
    "options": "Team"
   },
   {
+   "description": "Count of unresolved Player Progress Notes \u2014 kept in sync automatically",
    "fieldname": "open_issues_count",
    "fieldtype": "Int",
    "label": "Open Progress Issues",
-   "read_only": 1,
-   "description": "Count of unresolved Player Progress Notes — kept in sync automatically"
+   "read_only": 1
   },
   {
    "fieldname": "section_break_personal",
@@ -133,10 +133,10 @@
    "label": "Address"
   },
   {
+   "collapsible": 1,
    "fieldname": "section_break_emergency",
    "fieldtype": "Section Break",
-   "label": "Emergency Contact",
-   "collapsible": 1
+   "label": "Emergency Contact"
   },
   {
    "fieldname": "emergency_contact_name",
@@ -208,7 +208,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-10 00:00:00.000000",
+ "modified": "2026-08-10 14:04:10.499673",
  "modified_by": "Administrator",
  "module": "Sports Complex",
  "name": "Player",
@@ -228,6 +228,7 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
