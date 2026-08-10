@@ -1,15 +1,16 @@
 {
  "actions": [],
  "autoname": "PLR-.YYYY.-.#####",
- "creation": "2026-08-10 00:00:00",
+ "creation": "2026-08-10 00:00:00.000000",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "first_name",
-  "last_name",
   "full_name",
-  "image",
+  "first_name",
+  "middle_name",
+  "last_name",
+  "profile_photo",
   "column_break_status",
   "status",
   "team",
@@ -17,33 +18,54 @@
   "section_break_personal",
   "gender",
   "date_of_birth",
-  "mobile_number",
+  "age",
+  "nationality",
   "column_break_personal2",
-  "guardian_name",
-  "guardian_contact",
+  "mobile_number",
+  "email",
   "address",
-  "section_break_emergency",
-  "emergency_contact_name",
-  "emergency_contact_number",
-  "section_break_squad",
+  "section_break_id",
+  "identification_type",
+  "identification_number",
+  "column_break_id2",
+  "identification_document",
+  "section_break_football",
+  "dominant_foot",
   "position",
+  "secondary_position",
+  "column_break_football2",
+  "current_playing_level",
+  "previous_clubs",
+  "other_positions",
+  "section_break_medical",
+  "known_allergies",
+  "chronic_medical_conditions",
+  "column_break_medical2",
+  "previous_surgeries",
+  "current_medications",
+  "previous_serious_injuries",
+  "section_break_emergency",
+  "emergency_contacts",
+  "section_break_squad",
   "jersey_number",
   "player_category",
   "column_break_squad2",
   "joining_date",
   "contract_start_date",
   "contract_end_date",
+  "section_break_billing",
+  "customer",
   "section_break_origin",
   "trialist"
  ],
  "fields": [
   {
-   "bold": 1,
    "fieldname": "full_name",
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Full Name",
-   "read_only": 1
+   "read_only": 1,
+   "bold": 1
   },
   {
    "fieldname": "first_name",
@@ -52,15 +74,20 @@
    "reqd": 1
   },
   {
+   "fieldname": "middle_name",
+   "fieldtype": "Data",
+   "label": "Middle Name"
+  },
+  {
    "fieldname": "last_name",
    "fieldtype": "Data",
    "label": "Last Name"
   },
   {
-   "fieldname": "image",
+   "fieldname": "profile_photo",
    "fieldtype": "Attach Image",
    "hidden": 1,
-   "label": "Photo"
+   "label": "Profile Photo"
   },
   {
    "fieldname": "column_break_status",
@@ -84,11 +111,11 @@
    "options": "Team"
   },
   {
-   "description": "Count of unresolved Player Progress Notes \u2014 kept in sync automatically",
    "fieldname": "open_issues_count",
    "fieldtype": "Int",
    "label": "Open Progress Issues",
-   "read_only": 1
+   "read_only": 1,
+   "description": "Count of unresolved Player Progress Notes — kept in sync automatically"
   },
   {
    "fieldname": "section_break_personal",
@@ -104,28 +131,36 @@
   {
    "fieldname": "date_of_birth",
    "fieldtype": "Date",
-   "label": "Date of Birth"
+   "label": "Date Of Birth"
   },
   {
-   "fieldname": "mobile_number",
+   "fieldname": "age",
    "fieldtype": "Data",
-   "label": "Mobile Number",
-   "options": "Phone"
+   "label": "Age",
+   "read_only": 1,
+   "description": "Computed automatically from Date Of Birth"
+  },
+  {
+   "fieldname": "nationality",
+   "fieldtype": "Link",
+   "label": "Nationality",
+   "options": "Country"
   },
   {
    "fieldname": "column_break_personal2",
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "guardian_name",
+   "fieldname": "mobile_number",
    "fieldtype": "Data",
-   "label": "Guardian Name"
+   "label": "Phone",
+   "options": "Phone"
   },
   {
-   "fieldname": "guardian_contact",
+   "fieldname": "email",
    "fieldtype": "Data",
-   "label": "Guardian Contact",
-   "options": "Phone"
+   "label": "Email",
+   "options": "Email"
   },
   {
    "fieldname": "address",
@@ -134,31 +169,125 @@
   },
   {
    "collapsible": 1,
+   "fieldname": "section_break_id",
+   "fieldtype": "Section Break",
+   "label": "Identification"
+  },
+  {
+   "fieldname": "identification_type",
+   "fieldtype": "Select",
+   "label": "Identification Type",
+   "options": "\nNational ID\nPassport\nBirth Certificate\nVoter ID\nSchool ID\nOther"
+  },
+  {
+   "fieldname": "identification_number",
+   "fieldtype": "Data",
+   "label": "Identification Number"
+  },
+  {
+   "fieldname": "column_break_id2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "identification_document",
+   "fieldtype": "Attach",
+   "label": "Identification Document"
+  },
+  {
+   "fieldname": "section_break_football",
+   "fieldtype": "Section Break",
+   "label": "Playing Profile"
+  },
+  {
+   "fieldname": "dominant_foot",
+   "fieldtype": "Select",
+   "label": "Dominant Foot",
+   "options": "\nLeft\nRight\nBoth"
+  },
+  {
+   "fieldname": "position",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Position",
+   "options": "\nGOALKEEPER\nLEFT BACK\nRIGHT BACK\nCENTER BACK\nDEFENSIVE MID FIELD\nMIDFIELD\nATTACKING MID FIELD\nLEFT WING FORWARD\nRIGHT WING FORWARD\nSUPPORTING STRIKER\nCENTER FORWARD"
+  },
+  {
+   "fieldname": "secondary_position",
+   "fieldtype": "Select",
+   "label": "Secondary Position",
+   "options": "\nGOALKEEPER\nLEFT BACK\nRIGHT BACK\nCENTER BACK\nDEFENSIVE MID FIELD\nMIDFIELD\nATTACKING MID FIELD\nLEFT WING FORWARD\nRIGHT WING FORWARD\nSUPPORTING STRIKER\nCENTER FORWARD"
+  },
+  {
+   "fieldname": "column_break_football2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "current_playing_level",
+   "fieldtype": "Select",
+   "label": "Current Playing Level",
+   "options": "\nBeginner\nIntermediate\nProfessional"
+  },
+  {
+   "fieldname": "previous_clubs",
+   "fieldtype": "Data",
+   "label": "Previous Club(s) (last 2 years)"
+  },
+  {
+   "fieldname": "other_positions",
+   "fieldtype": "Table",
+   "label": "Other Sports",
+   "options": "Sports Position Interest"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_medical",
+   "fieldtype": "Section Break",
+   "label": "Medical Information"
+  },
+  {
+   "fieldname": "known_allergies",
+   "fieldtype": "Small Text",
+   "label": "Known Allergies"
+  },
+  {
+   "fieldname": "chronic_medical_conditions",
+   "fieldtype": "Small Text",
+   "label": "Chronic Medical Conditions"
+  },
+  {
+   "fieldname": "column_break_medical2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "previous_surgeries",
+   "fieldtype": "Small Text",
+   "label": "Previous Surgeries"
+  },
+  {
+   "fieldname": "current_medications",
+   "fieldtype": "Small Text",
+   "label": "Current Medications"
+  },
+  {
+   "fieldname": "previous_serious_injuries",
+   "fieldtype": "Small Text",
+   "label": "Previous Serious Injuries"
+  },
+  {
    "fieldname": "section_break_emergency",
    "fieldtype": "Section Break",
-   "label": "Emergency Contact"
+   "label": "Emergency Contacts"
   },
   {
-   "fieldname": "emergency_contact_name",
-   "fieldtype": "Data",
-   "label": "Emergency Contact Name"
-  },
-  {
-   "fieldname": "emergency_contact_number",
-   "fieldtype": "Data",
-   "label": "Emergency Contact Number",
-   "options": "Phone"
+   "fieldname": "emergency_contacts",
+   "fieldtype": "Table",
+   "label": "Emergency Contacts",
+   "options": "Sports Emergency Contact"
   },
   {
    "fieldname": "section_break_squad",
    "fieldtype": "Section Break",
    "label": "Squad Details"
-  },
-  {
-   "fieldname": "position",
-   "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Position"
   },
   {
    "fieldname": "jersey_number",
@@ -194,6 +323,19 @@
   },
   {
    "collapsible": 1,
+   "fieldname": "section_break_billing",
+   "fieldtype": "Section Break",
+   "label": "Billing"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
    "fieldname": "section_break_origin",
    "fieldtype": "Section Break",
    "label": "Origin"
@@ -208,7 +350,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-10 14:04:10.499673",
+ "modified": "2026-08-10 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Sports Complex",
  "name": "Player",
@@ -228,7 +370,6 @@
    "write": 1
   }
  ],
- "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],

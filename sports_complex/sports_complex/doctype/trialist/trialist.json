@@ -8,30 +8,64 @@
  "field_order": [
   "full_name",
   "first_name",
+  "middle_name",
   "last_name",
-  "image",
+  "profile_photo",
   "column_break_status",
   "status",
   "selection_round",
+  "is_athlete",
   "section_break_personal",
   "gender",
   "date_of_birth",
-  "mobile_number",
+  "age",
+  "nationality",
   "column_break_personal2",
-  "guardian_name",
-  "guardian_contact",
+  "mobile_number",
+  "email",
   "address",
+  "section_break_id",
+  "identification_type",
+  "identification_number",
+  "column_break_id2",
+  "identification_document",
+  "section_break_football",
+  "dominant_foot",
+  "preferred_position",
+  "secondary_position",
+  "column_break_football2",
+  "current_playing_level",
+  "previous_clubs",
+  "other_positions",
+  "section_break_experience",
+  "previous_experience",
+  "experience_details",
+  "section_break_medical",
+  "known_allergies",
+  "chronic_medical_conditions",
+  "column_break_medical2",
+  "previous_surgeries",
+  "current_medications",
+  "previous_serious_injuries",
   "section_break_emergency",
-  "emergency_contact_name",
-  "emergency_contact_number",
+  "emergency_contacts",
   "section_break_trial",
   "trial_batch",
-  "trial_date",
-  "position",
+  "sport",
+  "last_trial_period",
   "column_break_trial2",
   "preferred_team",
+  "joining_date",
+  "first_registration_date",
+  "section_break_history",
+  "total_trial_attempts",
+  "successful_qualifications",
+  "total_drops",
+  "column_break_history2",
   "registration_form",
   "notes",
+  "section_break_billing",
+  "customer",
   "section_break_conversion",
   "player",
   "converted_on"
@@ -52,15 +86,20 @@
    "reqd": 1
   },
   {
+   "fieldname": "middle_name",
+   "fieldtype": "Data",
+   "label": "Middle Name"
+  },
+  {
    "fieldname": "last_name",
    "fieldtype": "Data",
    "label": "Last Name"
   },
   {
-   "fieldname": "image",
+   "fieldname": "profile_photo",
    "fieldtype": "Attach Image",
    "hidden": 1,
-   "label": "Photo"
+   "label": "Profile Photo"
   },
   {
    "fieldname": "column_break_status",
@@ -86,6 +125,14 @@
    "options": "Initial Pool\nRound of 44\nFinal 22\nNot Selected"
   },
   {
+   "default": "0",
+   "fieldname": "is_athlete",
+   "fieldtype": "Check",
+   "label": "Is Athlete",
+   "read_only": 1,
+   "description": "Set automatically once this trialist is registered as a Player"
+  },
+  {
    "fieldname": "section_break_personal",
    "fieldtype": "Section Break",
    "label": "Personal Details"
@@ -99,29 +146,36 @@
   {
    "fieldname": "date_of_birth",
    "fieldtype": "Date",
-   "label": "Date of Birth"
+   "label": "Date Of Birth"
   },
   {
-   "fieldname": "mobile_number",
+   "fieldname": "age",
    "fieldtype": "Data",
-   "label": "Mobile Number",
-   "options": "Phone"
+   "label": "Age",
+   "read_only": 1,
+   "description": "Computed automatically from Date Of Birth"
+  },
+  {
+   "fieldname": "nationality",
+   "fieldtype": "Link",
+   "label": "Nationality",
+   "options": "Country"
   },
   {
    "fieldname": "column_break_personal2",
    "fieldtype": "Column Break"
   },
   {
-   "fieldname": "guardian_name",
+   "fieldname": "mobile_number",
    "fieldtype": "Data",
-   "label": "Guardian Name",
-   "description": "For trialists under 18"
+   "label": "Phone",
+   "options": "Phone"
   },
   {
-   "fieldname": "guardian_contact",
+   "fieldname": "email",
    "fieldtype": "Data",
-   "label": "Guardian Contact",
-   "options": "Phone"
+   "label": "Email",
+   "options": "Email"
   },
   {
    "fieldname": "address",
@@ -129,21 +183,137 @@
    "label": "Address"
   },
   {
+   "collapsible": 1,
+   "fieldname": "section_break_id",
+   "fieldtype": "Section Break",
+   "label": "Identification"
+  },
+  {
+   "fieldname": "identification_type",
+   "fieldtype": "Select",
+   "label": "Identification Type",
+   "options": "\nNational ID\nPassport\nBirth Certificate\nVoter ID\nSchool ID\nOther"
+  },
+  {
+   "fieldname": "identification_number",
+   "fieldtype": "Data",
+   "label": "Identification Number"
+  },
+  {
+   "fieldname": "column_break_id2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "identification_document",
+   "fieldtype": "Attach",
+   "label": "Identification Document"
+  },
+  {
+   "fieldname": "section_break_football",
+   "fieldtype": "Section Break",
+   "label": "Playing Profile"
+  },
+  {
+   "fieldname": "dominant_foot",
+   "fieldtype": "Select",
+   "label": "Dominant Foot",
+   "options": "\nLeft\nRight\nBoth"
+  },
+  {
+   "fieldname": "preferred_position",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Preferred Position",
+   "options": "\nGOALKEEPER\nLEFT BACK\nRIGHT BACK\nCENTER BACK\nDEFENSIVE MID FIELD\nMIDFIELD\nATTACKING MID FIELD\nLEFT WING FORWARD\nRIGHT WING FORWARD\nSUPPORTING STRIKER\nCENTER FORWARD"
+  },
+  {
+   "fieldname": "secondary_position",
+   "fieldtype": "Select",
+   "label": "Secondary Position",
+   "options": "\nGOALKEEPER\nLEFT BACK\nRIGHT BACK\nCENTER BACK\nDEFENSIVE MID FIELD\nMIDFIELD\nATTACKING MID FIELD\nLEFT WING FORWARD\nRIGHT WING FORWARD\nSUPPORTING STRIKER\nCENTER FORWARD"
+  },
+  {
+   "fieldname": "column_break_football2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "current_playing_level",
+   "fieldtype": "Select",
+   "label": "Current Playing Level",
+   "options": "\nBeginner\nIntermediate\nProfessional"
+  },
+  {
+   "fieldname": "previous_clubs",
+   "fieldtype": "Data",
+   "label": "Previous Club(s) (last 2 years)"
+  },
+  {
+   "fieldname": "other_positions",
+   "fieldtype": "Table",
+   "label": "Other Sports Interested In",
+   "options": "Sports Position Interest"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_experience",
+   "fieldtype": "Section Break",
+   "label": "Experience"
+  },
+  {
+   "fieldname": "previous_experience",
+   "fieldtype": "Small Text",
+   "label": "Previous Experience"
+  },
+  {
+   "fieldname": "experience_details",
+   "fieldtype": "Small Text",
+   "label": "Experience Details"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_medical",
+   "fieldtype": "Section Break",
+   "label": "Medical Information"
+  },
+  {
+   "fieldname": "known_allergies",
+   "fieldtype": "Small Text",
+   "label": "Known Allergies"
+  },
+  {
+   "fieldname": "chronic_medical_conditions",
+   "fieldtype": "Small Text",
+   "label": "Chronic Medical Conditions"
+  },
+  {
+   "fieldname": "column_break_medical2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "previous_surgeries",
+   "fieldtype": "Small Text",
+   "label": "Previous Surgeries"
+  },
+  {
+   "fieldname": "current_medications",
+   "fieldtype": "Small Text",
+   "label": "Current Medications"
+  },
+  {
+   "fieldname": "previous_serious_injuries",
+   "fieldtype": "Small Text",
+   "label": "Previous Serious Injuries"
+  },
+  {
    "fieldname": "section_break_emergency",
    "fieldtype": "Section Break",
-   "label": "Emergency Contact",
-   "collapsible": 1
+   "label": "Emergency Contacts"
   },
   {
-   "fieldname": "emergency_contact_name",
-   "fieldtype": "Data",
-   "label": "Emergency Contact Name"
-  },
-  {
-   "fieldname": "emergency_contact_number",
-   "fieldtype": "Data",
-   "label": "Emergency Contact Number",
-   "options": "Phone"
+   "fieldname": "emergency_contacts",
+   "fieldtype": "Table",
+   "label": "Emergency Contacts",
+   "options": "Sports Emergency Contact"
   },
   {
    "fieldname": "section_break_trial",
@@ -160,18 +330,18 @@
    "reqd": 1
   },
   {
-   "fetch_from": "trial_batch.trial_date",
-   "fieldname": "trial_date",
-   "fieldtype": "Date",
-   "label": "Trial Date",
+   "fetch_from": "trial_batch.sport",
+   "fieldname": "sport",
+   "fieldtype": "Data",
+   "label": "Last Sport Attempted",
    "read_only": 1
   },
   {
-   "fieldname": "position",
+   "fetch_from": "trial_batch.batch_name",
+   "fieldname": "last_trial_period",
    "fieldtype": "Data",
-   "in_list_view": 1,
-   "label": "Position Trialed For",
-   "description": "e.g. Striker, Goalkeeper, Midfielder"
+   "label": "Last Trial Period",
+   "read_only": 1
   },
   {
    "fieldname": "column_break_trial2",
@@ -185,6 +355,48 @@
    "description": "The team the trialist is grouped into during trials"
   },
   {
+   "default": "Today",
+   "fieldname": "joining_date",
+   "fieldtype": "Date",
+   "label": "Joining Date",
+   "description": "Date this trialist joined the current trial batch"
+  },
+  {
+   "default": "Today",
+   "fieldname": "first_registration_date",
+   "fieldtype": "Date",
+   "label": "First Registration Date",
+   "description": "The very first time this person ever registered as a trialist, if different from Joining Date above"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_history",
+   "fieldtype": "Section Break",
+   "label": "Trial History"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_trial_attempts",
+   "fieldtype": "Int",
+   "label": "Total Trial Attempts"
+  },
+  {
+   "default": "0",
+   "fieldname": "successful_qualifications",
+   "fieldtype": "Int",
+   "label": "Successful Qualifications"
+  },
+  {
+   "default": "0",
+   "fieldname": "total_drops",
+   "fieldtype": "Int",
+   "label": "Total Drops"
+  },
+  {
+   "fieldname": "column_break_history2",
+   "fieldtype": "Column Break"
+  },
+  {
    "fieldname": "registration_form",
    "fieldtype": "Attach",
    "label": "Scanned Registration Form"
@@ -196,6 +408,20 @@
   },
   {
    "collapsible": 1,
+   "fieldname": "section_break_billing",
+   "fieldtype": "Section Break",
+   "label": "Billing"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer",
+   "read_only": 1,
+   "description": "Linked automatically if a trial registration fee is configured — see registration fee notes in trialist.py"
+  },
+  {
+   "collapsible": 1,
    "collapsible_depends_on": "eval:doc.player",
    "fieldname": "section_break_conversion",
    "fieldtype": "Section Break",
@@ -204,7 +430,7 @@
   {
    "fieldname": "player",
    "fieldtype": "Link",
-   "label": "Converted Player",
+   "label": "Athlete Record",
    "options": "Player",
    "read_only": 1
   },

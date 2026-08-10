@@ -8,6 +8,7 @@
  "field_order": [
   "trial_date",
   "batch_name",
+  "sport",
   "column_break_1",
   "status",
   "location",
@@ -27,6 +28,16 @@
    "in_list_view": 1,
    "label": "Batch Name",
    "description": "e.g. \"2026 Mid-Year Trials\""
+  },
+  {
+   "default": "Soccer",
+   "fieldname": "sport",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Sport",
+   "options": "Soccer\nBasketball\nAthletics\nSwimming\nTennis\nRugby\nOther",
+   "reqd": 1
   },
   {
    "fieldname": "column_break_1",
