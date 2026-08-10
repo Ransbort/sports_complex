@@ -1,0 +1,236 @@
+{
+ "actions": [],
+ "autoname": "PLR-.YYYY.-.#####",
+ "creation": "2026-08-10 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "full_name",
+  "first_name",
+  "last_name",
+  "image",
+  "column_break_status",
+  "status",
+  "team",
+  "open_issues_count",
+  "section_break_personal",
+  "gender",
+  "date_of_birth",
+  "mobile_number",
+  "column_break_personal2",
+  "guardian_name",
+  "guardian_contact",
+  "address",
+  "section_break_emergency",
+  "emergency_contact_name",
+  "emergency_contact_number",
+  "section_break_squad",
+  "position",
+  "jersey_number",
+  "player_category",
+  "column_break_squad2",
+  "joining_date",
+  "contract_start_date",
+  "contract_end_date",
+  "section_break_origin",
+  "trialist"
+ ],
+ "fields": [
+  {
+   "fieldname": "full_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Full Name",
+   "read_only": 1,
+   "bold": 1
+  },
+  {
+   "fieldname": "first_name",
+   "fieldtype": "Data",
+   "label": "First Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "last_name",
+   "fieldtype": "Data",
+   "label": "Last Name"
+  },
+  {
+   "fieldname": "image",
+   "fieldtype": "Attach Image",
+   "hidden": 1,
+   "label": "Photo"
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Active\nInjured\nSuspended\nInactive"
+  },
+  {
+   "fieldname": "team",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Team",
+   "options": "Team"
+  },
+  {
+   "fieldname": "open_issues_count",
+   "fieldtype": "Int",
+   "label": "Open Progress Issues",
+   "read_only": 1,
+   "description": "Count of unresolved Player Progress Notes — kept in sync automatically"
+  },
+  {
+   "fieldname": "section_break_personal",
+   "fieldtype": "Section Break",
+   "label": "Personal Details"
+  },
+  {
+   "fieldname": "gender",
+   "fieldtype": "Select",
+   "label": "Gender",
+   "options": "Male\nFemale\nOther"
+  },
+  {
+   "fieldname": "date_of_birth",
+   "fieldtype": "Date",
+   "label": "Date of Birth"
+  },
+  {
+   "fieldname": "mobile_number",
+   "fieldtype": "Data",
+   "label": "Mobile Number",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "column_break_personal2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "guardian_name",
+   "fieldtype": "Data",
+   "label": "Guardian Name"
+  },
+  {
+   "fieldname": "guardian_contact",
+   "fieldtype": "Data",
+   "label": "Guardian Contact",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "address",
+   "fieldtype": "Small Text",
+   "label": "Address"
+  },
+  {
+   "fieldname": "section_break_emergency",
+   "fieldtype": "Section Break",
+   "label": "Emergency Contact",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "emergency_contact_name",
+   "fieldtype": "Data",
+   "label": "Emergency Contact Name"
+  },
+  {
+   "fieldname": "emergency_contact_number",
+   "fieldtype": "Data",
+   "label": "Emergency Contact Number",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "section_break_squad",
+   "fieldtype": "Section Break",
+   "label": "Squad Details"
+  },
+  {
+   "fieldname": "position",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Position"
+  },
+  {
+   "fieldname": "jersey_number",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Jersey Number"
+  },
+  {
+   "fieldname": "player_category",
+   "fieldtype": "Select",
+   "label": "Player Category",
+   "options": "\nFirst Team\nReserve\nAcademy\nYouth"
+  },
+  {
+   "fieldname": "column_break_squad2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Today",
+   "fieldname": "joining_date",
+   "fieldtype": "Date",
+   "label": "Joining Date"
+  },
+  {
+   "fieldname": "contract_start_date",
+   "fieldtype": "Date",
+   "label": "Contract Start Date"
+  },
+  {
+   "fieldname": "contract_end_date",
+   "fieldtype": "Date",
+   "label": "Contract End Date"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_origin",
+   "fieldtype": "Section Break",
+   "label": "Origin"
+  },
+  {
+   "fieldname": "trialist",
+   "fieldtype": "Link",
+   "label": "Converted From Trialist",
+   "options": "Trialist",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-10 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Sports Complex",
+ "name": "Player",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "full_name",
+ "track_changes": 1
+}

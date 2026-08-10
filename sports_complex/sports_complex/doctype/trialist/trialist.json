@@ -1,0 +1,245 @@
+{
+ "actions": [],
+ "autoname": "TRL-.YYYY.-.#####",
+ "creation": "2026-08-10 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "full_name",
+  "first_name",
+  "last_name",
+  "image",
+  "column_break_status",
+  "status",
+  "selection_round",
+  "section_break_personal",
+  "gender",
+  "date_of_birth",
+  "mobile_number",
+  "column_break_personal2",
+  "guardian_name",
+  "guardian_contact",
+  "address",
+  "section_break_emergency",
+  "emergency_contact_name",
+  "emergency_contact_number",
+  "section_break_trial",
+  "trial_batch",
+  "trial_date",
+  "position",
+  "column_break_trial2",
+  "preferred_team",
+  "registration_form",
+  "notes",
+  "section_break_conversion",
+  "player",
+  "converted_on"
+ ],
+ "fields": [
+  {
+   "fieldname": "full_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Full Name",
+   "read_only": 1,
+   "bold": 1
+  },
+  {
+   "fieldname": "first_name",
+   "fieldtype": "Data",
+   "label": "First Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "last_name",
+   "fieldtype": "Data",
+   "label": "Last Name"
+  },
+  {
+   "fieldname": "image",
+   "fieldtype": "Attach Image",
+   "hidden": 1,
+   "label": "Photo"
+  },
+  {
+   "fieldname": "column_break_status",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Registered",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Registered\nUnder Review\nSelected\nRejected\nConverted to Player",
+   "read_only": 1
+  },
+  {
+   "default": "Initial Pool",
+   "fieldname": "selection_round",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Selection Round",
+   "options": "Initial Pool\nRound of 44\nFinal 22\nNot Selected"
+  },
+  {
+   "fieldname": "section_break_personal",
+   "fieldtype": "Section Break",
+   "label": "Personal Details"
+  },
+  {
+   "fieldname": "gender",
+   "fieldtype": "Select",
+   "label": "Gender",
+   "options": "Male\nFemale\nOther"
+  },
+  {
+   "fieldname": "date_of_birth",
+   "fieldtype": "Date",
+   "label": "Date of Birth"
+  },
+  {
+   "fieldname": "mobile_number",
+   "fieldtype": "Data",
+   "label": "Mobile Number",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "column_break_personal2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "guardian_name",
+   "fieldtype": "Data",
+   "label": "Guardian Name",
+   "description": "For trialists under 18"
+  },
+  {
+   "fieldname": "guardian_contact",
+   "fieldtype": "Data",
+   "label": "Guardian Contact",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "address",
+   "fieldtype": "Small Text",
+   "label": "Address"
+  },
+  {
+   "fieldname": "section_break_emergency",
+   "fieldtype": "Section Break",
+   "label": "Emergency Contact",
+   "collapsible": 1
+  },
+  {
+   "fieldname": "emergency_contact_name",
+   "fieldtype": "Data",
+   "label": "Emergency Contact Name"
+  },
+  {
+   "fieldname": "emergency_contact_number",
+   "fieldtype": "Data",
+   "label": "Emergency Contact Number",
+   "options": "Phone"
+  },
+  {
+   "fieldname": "section_break_trial",
+   "fieldtype": "Section Break",
+   "label": "Trial Details"
+  },
+  {
+   "fieldname": "trial_batch",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Trial Batch",
+   "options": "Trial Batch",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "trial_batch.trial_date",
+   "fieldname": "trial_date",
+   "fieldtype": "Date",
+   "label": "Trial Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "position",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Position Trialed For",
+   "description": "e.g. Striker, Goalkeeper, Midfielder"
+  },
+  {
+   "fieldname": "column_break_trial2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "preferred_team",
+   "fieldtype": "Link",
+   "label": "Trial Group / Team",
+   "options": "Team",
+   "description": "The team the trialist is grouped into during trials"
+  },
+  {
+   "fieldname": "registration_form",
+   "fieldtype": "Attach",
+   "label": "Scanned Registration Form"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  },
+  {
+   "collapsible": 1,
+   "collapsible_depends_on": "eval:doc.player",
+   "fieldname": "section_break_conversion",
+   "fieldtype": "Section Break",
+   "label": "Player Conversion"
+  },
+  {
+   "fieldname": "player",
+   "fieldtype": "Link",
+   "label": "Converted Player",
+   "options": "Player",
+   "read_only": 1
+  },
+  {
+   "fieldname": "converted_on",
+   "fieldtype": "Date",
+   "label": "Converted On",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-10 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Sports Complex",
+ "name": "Trialist",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "full_name",
+ "track_changes": 1
+}
