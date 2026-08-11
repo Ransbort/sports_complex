@@ -4,7 +4,7 @@ app_publisher = "Ransbort"
 app_description = "Sports Complex Management: facilities, bookings, membership, coaching, tournaments, POS, and Paystack payments"
 app_email = "ransbort@outlook.com"
 app_license = "mit"
-required_apps = ["frappe"]
+required_apps = ["frappe", "healthcare"]
 
 # Includes in <head>
 # ------------------

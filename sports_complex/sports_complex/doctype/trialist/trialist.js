@@ -57,22 +57,15 @@ function send_to_clinic(frm) {
 		callback: function (r) {
 			if (r.message && r.message.status === "Success") {
 				frappe.show_alert({
-					message: __("Patient record ready — opening a new medical encounter"),
+					message: __("Sent to clinic — medical encounter {0} created, awaiting the doctor", [r.message.encounter]),
 					indicator: "blue",
-				}, 6);
+				}, 8);
 
+				// Deliberately no navigation - the clinic finds this
+				// encounter in their own Patient Encounter worklist;
+				// there's no reason to route a sports-complex user
+				// through it.
 				frm.reload_doc();
-
-				// Hand off to the doctor: a fresh, unsaved Patient
-				// Encounter pre-filled with the patient and trialist
-				// link, left for the doctor to complete (vitals,
-				// diagnosis, etc.) and set the Fitness Result before
-				// submitting - see healthcare_integration.py, which is
-				// what actually reads that verdict back onto this record.
-				frappe.new_doc("Patient Encounter", {
-					patient: r.message.patient,
-					trialist: frm.doc.name,
-				});
 			}
 		},
 	});

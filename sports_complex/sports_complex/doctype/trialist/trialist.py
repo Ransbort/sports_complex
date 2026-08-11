@@ -4,7 +4,24 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import getdate, today
+from frappe.utils import getdate, today, nowdate, nowtime
+
+
+def _get_or_create_trial_appointment_type():
+	"""Patient Encounter requires an appointment_type, but at "Send to
+	Clinic" time nobody has booked an actual appointment - any doctor at
+	the clinic picks the encounter up. Rather than depend on someone
+	having manually created a suitable Appointment Type first, provision
+	a dedicated one the first time it's needed."""
+
+	name = "Trial Medical Exam"
+	if not frappe.db.exists("Appointment Type", name):
+		frappe.get_doc({
+			"doctype": "Appointment Type",
+			"appointment_type": name,
+		}).insert(ignore_permissions=True)
+	return name
+
 
 
 class Trialist(Document):
@@ -69,11 +86,11 @@ def _guard_medically_cleared(trialist_doc):
 def send_to_clinic(trialist):
 	"""Front desk/sports-complex operator sends a registered trialist to
 	the clinic for their medical exam. Creates (or reuses) a linked
-	Patient in the Healthcare app and hands back its name so the
-	front-end can open a fresh Patient Encounter for the doctor to fill
-	in and submit — deliberately NOT inserting the Encounter here, since
-	Patient Encounter has mandatory fields (e.g. appointment_type) that
-	only the doctor filling in the form can sensibly supply.
+	Patient, then inserts a draft Patient Encounter (docstatus=0) against
+	it for the doctor to pick up at the clinic - deliberately NOT opened
+	or navigated to on the sports-complex side; the clinic finds it in
+	their own Patient Encounter worklist, since the doctor there has no
+	reason to be routed through the sports complex UI at all.
 
 	Safe to call again for a trialist whose previous encounter came back
 	"Not Cleared" (e.g. re-trialing after injury recovery) - only blocks
@@ -102,19 +119,32 @@ def send_to_clinic(trialist):
 			"sex": trialist_doc.gender,
 			"dob": trialist_doc.date_of_birth,
 			"mobile": trialist_doc.mobile_number,
+			"uid": trialist_doc.identification_number,
 		})
 		patient.insert(ignore_permissions=True)
 		trialist_doc.db_set("patient", patient.name)
 	else:
 		patient = frappe.get_doc("Patient", trialist_doc.patient)
 
+	encounter = frappe.get_doc({
+		"doctype": "Patient Encounter",
+		"patient": patient.name,
+		"patient_name": patient.patient_name,
+		"trialist": trialist_doc.name,
+		"appointment_type": _get_or_create_trial_appointment_type(),
+		"encounter_date": nowdate(),
+		"encounter_time": nowtime(),
+	})
+	encounter.insert(ignore_permissions=True)
+
 	trialist_doc.db_set("medical_clearance_status", "Pending")
-	trialist_doc.db_set("medical_encounter", None)
+	trialist_doc.db_set("medical_encounter", encounter.name)
 
 	return {
 		"status": "Success",
 		"patient": patient.name,
 		"patient_name": patient.patient_name,
+		"encounter": encounter.name,
 	}
 
 
