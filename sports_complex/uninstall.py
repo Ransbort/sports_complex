@@ -6,6 +6,8 @@ import os
 
 import frappe
 
+from sports_complex.setup import delete_custom_fields, get_custom_fields
+
 # Configure logger
 logger = logging.getLogger(__name__)
 
@@ -20,9 +22,9 @@ def before_uninstall():
 		log_message("Starting Sports Complex uninstallation", level="info")
 
 		remove_workspace_sidebars()
+		remove_custom_fields()
 
 		# TODO: add further cleanup steps here, e.g.:
-		# remove_custom_fields()
 		# remove_print_formats()
 		# reset_related_doctype_configs()
 
@@ -73,6 +75,19 @@ def remove_workspace_sidebars():
 		if frappe.db.exists("Workspace Sidebar", name):
 			frappe.delete_doc("Workspace Sidebar", name, ignore_permissions=True, force=True)
 			log_message(f"Removed Workspace Sidebar '{name}'", level="success")
+
+
+def remove_custom_fields():
+	"""
+	Delete the custom fields created by sports_complex.setup.make_custom_fields()
+	on install/migrate (Trialist/Player links on Sales Invoice, Trialist/
+	Fitness Result on Patient Encounter — see setup.py for the full list).
+	Reads the same get_custom_fields() definition rather than hardcoding
+	fieldnames here, so this stays in sync automatically as fields are
+	added to/removed from setup.py going forward.
+	"""
+	delete_custom_fields(get_custom_fields())
+	log_message("Removed custom fields defined in sports_complex.setup", level="success")
 
 
 def log_message(message, level="info", indent=0):

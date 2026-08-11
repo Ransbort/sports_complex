@@ -6,7 +6,7 @@
    "label": "Sports Complex Revenue Trend"
   }
  ],
- "content": "[{\"id\":\"2w3s_cLUWR\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Sports Complex Revenue Trend\",\"col\":12}},{\"id\":\"header1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"sc2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Check-In\",\"col\":3}},{\"id\":\"sc1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Facility Booking\",\"col\":3}},{\"id\":\"sc3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Member\",\"col\":3}},{\"id\":\"sc4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Tournament\",\"col\":3}},{\"id\":\"spacer1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"header2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Modules</b></span>\",\"col\":12}},{\"id\":\"U6LqRokJQu\",\"type\":\"card\",\"data\":{\"card_name\":\"Facility Management\",\"col\":4}},{\"id\":\"_SZo-BZLvO\",\"type\":\"card\",\"data\":{\"card_name\":\"Membership\",\"col\":4}},{\"id\":\"k1cDBdl07m\",\"type\":\"card\",\"data\":{\"card_name\":\"Booking Management\",\"col\":4}},{\"id\":\"MCc7WfkETf\",\"type\":\"card\",\"data\":{\"card_name\":\"Coaching\",\"col\":4}},{\"id\":\"GNpcSZ7CCB\",\"type\":\"card\",\"data\":{\"card_name\":\"Events & Tournaments\",\"col\":4}},{\"id\":\"F7f-UXWlPg\",\"type\":\"card\",\"data\":{\"card_name\":\"Inventory\",\"col\":4}}]",
+ "content": "[{\"id\":\"2w3s_cLUWR\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Sports Complex Revenue Trend\",\"col\":12}},{\"id\":\"header1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"sc2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Trialist\",\"col\":3}},{\"id\":\"sc1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Player\",\"col\":3}},{\"id\":\"sc3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Member\",\"col\":3}},{\"id\":\"sc4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Tournament\",\"col\":3}},{\"id\":\"spacer1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"header2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Modules</b></span>\",\"col\":12}},{\"id\":\"U6LqRokJQu\",\"type\":\"card\",\"data\":{\"card_name\":\"Facility Management\",\"col\":4}},{\"id\":\"_SZo-BZLvO\",\"type\":\"card\",\"data\":{\"card_name\":\"Membership\",\"col\":4}},{\"id\":\"k1cDBdl07m\",\"type\":\"card\",\"data\":{\"card_name\":\"Booking Management\",\"col\":4}},{\"id\":\"MCc7WfkETf\",\"type\":\"card\",\"data\":{\"card_name\":\"Coaching\",\"col\":4}},{\"id\":\"GNpcSZ7CCB\",\"type\":\"card\",\"data\":{\"card_name\":\"Events & Tournaments\",\"col\":4}},{\"id\":\"F7f-UXWlPg\",\"type\":\"card\",\"data\":{\"card_name\":\"Inventory\",\"col\":4}}]",
  "creation": "2026-08-04 00:00:00",
  "custom_blocks": [],
  "docstatus": 0,
@@ -168,55 +168,6 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Coaching",
-   "link_count": 4,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Team",
-   "link_count": 0,
-   "link_to": "Team",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Player Registration",
-   "link_count": 0,
-   "link_to": "Player Registration",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Training Schedule",
-   "link_count": 0,
-   "link_to": "Training Schedule",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Training Session",
-   "link_count": 0,
-   "link_to": "Training Session",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
    "label": "Events & Tournaments",
    "link_count": 5,
    "link_type": "DocType",
@@ -311,9 +262,58 @@
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Coaching",
+   "link_count": 4,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Team",
+   "link_count": 0,
+   "link_to": "Team",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Player",
+   "link_count": 0,
+   "link_to": "Player",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Training Schedule",
+   "link_count": 0,
+   "link_to": "Training Schedule",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Training Session",
+   "link_count": 0,
+   "link_to": "Training Session",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
- "modified": "2026-08-05 09:40:34.029439",
+ "modified": "2026-08-10 19:57:23.437322",
  "modified_by": "Administrator",
  "module": "Sports Complex",
  "name": "Sports Complex",
@@ -327,16 +327,16 @@
   {
    "color": "Grey",
    "doc_view": "List",
-   "label": "Facility Booking",
-   "link_to": "Facility Booking",
+   "label": "Trialist",
+   "link_to": "Trialist",
    "stats_filter": "[]",
    "type": "DocType"
   },
   {
-   "color": "Grey",
+   "color": "Green",
    "doc_view": "List",
-   "label": "Check-In",
-   "link_to": "Check-In",
+   "label": "Player",
+   "link_to": "Player",
    "stats_filter": "[]",
    "type": "DocType"
   },

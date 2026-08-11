@@ -3,14 +3,41 @@
 
 frappe.ui.form.on("Trialist", {
 	refresh: function (frm) {
-		// Only offer conversion on a saved, not-yet-converted trialist.
-		// Once player is set, the "Player Conversion" section itself
-		// shows the read-only link — no button needed, and re-running
-		// this would create a second Player against the same trialist.
-		if (!frm.doc.__islocal && !frm.doc.player) {
+		if (frm.doc.__islocal || frm.doc.player) {
+			// Nothing to do pre-save, and a converted trialist is done —
+			// see the "View Player" button below instead.
+		} else if (frm.doc.medical_clearance_status === "Cleared") {
+			// Cleared — sport-specific sections are unlocked (see
+			// depends_on in trialist.json) and conversion is allowed.
 			frm.add_custom_button(__("Mark as Player"), function () {
 				show_player_conversion_dialog(frm);
 			}).addClass("btn-primary");
+		} else if (frm.doc.medical_clearance_status === "Pending") {
+			// Already sent — nothing to click, just make the wait state
+			// visible instead of silently showing no button at all.
+			frm.dashboard.add_indicator(
+				__("Awaiting doctor's medical clearance"),
+				"orange"
+			);
+		} else {
+			// Not sent yet ("" or "Not Cleared" — Not Cleared allows
+			// re-sending, e.g. after injury recovery).
+			frm.add_custom_button(__("Send to Clinic"), function () {
+				send_to_clinic(frm);
+			}).addClass("btn-primary");
+
+			if (frm.doc.medical_clearance_status === "Not Cleared") {
+				frm.dashboard.add_indicator(
+					__("Previous medical result: Not Cleared"),
+					"red"
+				);
+			}
+		}
+
+		if (frm.doc.medical_encounter) {
+			frm.add_custom_button(__("View Medical Encounter"), function () {
+				frappe.set_route("Form", "Patient Encounter", frm.doc.medical_encounter);
+			});
 		}
 
 		if (frm.doc.player) {
@@ -20,6 +47,36 @@ frappe.ui.form.on("Trialist", {
 		}
 	},
 });
+
+function send_to_clinic(frm) {
+	frappe.call({
+		method: "sports_complex.sports_complex.doctype.trialist.trialist.send_to_clinic",
+		args: { trialist: frm.doc.name },
+		freeze: true,
+		freeze_message: __("Sending to clinic..."),
+		callback: function (r) {
+			if (r.message && r.message.status === "Success") {
+				frappe.show_alert({
+					message: __("Patient record ready — opening a new medical encounter"),
+					indicator: "blue",
+				}, 6);
+
+				frm.reload_doc();
+
+				// Hand off to the doctor: a fresh, unsaved Patient
+				// Encounter pre-filled with the patient and trialist
+				// link, left for the doctor to complete (vitals,
+				// diagnosis, etc.) and set the Fitness Result before
+				// submitting - see healthcare_integration.py, which is
+				// what actually reads that verdict back onto this record.
+				frappe.new_doc("Patient Encounter", {
+					patient: r.message.patient,
+					trialist: frm.doc.name,
+				});
+			}
+		},
+	});
+}
 
 function show_player_conversion_dialog(frm) {
 	// Only the fields that genuinely aren't already on the trialist's

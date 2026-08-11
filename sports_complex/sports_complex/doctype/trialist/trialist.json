@@ -29,6 +29,21 @@
   "identification_number",
   "column_break_id2",
   "identification_document",
+  "section_break_medical",
+  "known_allergies",
+  "chronic_medical_conditions",
+  "column_break_medical2",
+  "previous_surgeries",
+  "current_medications",
+  "previous_serious_injuries",
+  "section_break_emergency",
+  "emergency_contacts",
+  "section_break_medical_clearance",
+  "patient",
+  "medical_clearance_status",
+  "column_break_clearance",
+  "medical_encounter",
+  "medical_cleared_on",
   "section_break_football",
   "dominant_foot",
   "preferred_position",
@@ -40,15 +55,6 @@
   "section_break_experience",
   "previous_experience",
   "experience_details",
-  "section_break_medical",
-  "known_allergies",
-  "chronic_medical_conditions",
-  "column_break_medical2",
-  "previous_surgeries",
-  "current_medications",
-  "previous_serious_injuries",
-  "section_break_emergency",
-  "emergency_contacts",
   "section_break_trial",
   "trial_batch",
   "sport",
@@ -122,7 +128,8 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Selection Round",
-   "options": "Initial Pool\nRound of 44\nFinal 22\nNot Selected"
+   "options": "Initial Pool\nRound of 44\nFinal 22\nNot Selected",
+   "depends_on": "eval:doc.medical_clearance_status=='Cleared'"
   },
   {
    "default": "0",
@@ -209,67 +216,6 @@
    "label": "Identification Document"
   },
   {
-   "fieldname": "section_break_football",
-   "fieldtype": "Section Break",
-   "label": "Playing Profile"
-  },
-  {
-   "fieldname": "dominant_foot",
-   "fieldtype": "Select",
-   "label": "Dominant Foot",
-   "options": "\nLeft\nRight\nBoth"
-  },
-  {
-   "fieldname": "preferred_position",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "Preferred Position",
-   "options": "\nGOALKEEPER\nLEFT BACK\nRIGHT BACK\nCENTER BACK\nDEFENSIVE MID FIELD\nMIDFIELD\nATTACKING MID FIELD\nLEFT WING FORWARD\nRIGHT WING FORWARD\nSUPPORTING STRIKER\nCENTER FORWARD"
-  },
-  {
-   "fieldname": "secondary_position",
-   "fieldtype": "Select",
-   "label": "Secondary Position",
-   "options": "\nGOALKEEPER\nLEFT BACK\nRIGHT BACK\nCENTER BACK\nDEFENSIVE MID FIELD\nMIDFIELD\nATTACKING MID FIELD\nLEFT WING FORWARD\nRIGHT WING FORWARD\nSUPPORTING STRIKER\nCENTER FORWARD"
-  },
-  {
-   "fieldname": "column_break_football2",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "current_playing_level",
-   "fieldtype": "Select",
-   "label": "Current Playing Level",
-   "options": "\nBeginner\nIntermediate\nProfessional"
-  },
-  {
-   "fieldname": "previous_clubs",
-   "fieldtype": "Data",
-   "label": "Previous Club(s) (last 2 years)"
-  },
-  {
-   "fieldname": "other_positions",
-   "fieldtype": "Table",
-   "label": "Other Sports Interested In",
-   "options": "Sports Position Interest"
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "section_break_experience",
-   "fieldtype": "Section Break",
-   "label": "Experience"
-  },
-  {
-   "fieldname": "previous_experience",
-   "fieldtype": "Small Text",
-   "label": "Previous Experience"
-  },
-  {
-   "fieldname": "experience_details",
-   "fieldtype": "Small Text",
-   "label": "Experience Details"
-  },
-  {
    "collapsible": 1,
    "fieldname": "section_break_medical",
    "fieldtype": "Section Break",
@@ -316,9 +262,113 @@
    "options": "Sports Emergency Contact"
   },
   {
+   "fieldname": "section_break_medical_clearance",
+   "fieldtype": "Section Break",
+   "label": "Medical Clearance"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "label": "Linked Patient (Healthcare)",
+   "options": "Patient",
+   "read_only": 1,
+   "description": "Created automatically when sent to the clinic."
+  },
+  {
+   "fieldname": "medical_clearance_status",
+   "fieldtype": "Select",
+   "label": "Medical Clearance Status",
+   "options": "\nPending\nCleared\nNot Cleared",
+   "default": "",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_clearance",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "medical_encounter",
+   "fieldtype": "Link",
+   "label": "Medical Encounter",
+   "options": "Patient Encounter",
+   "read_only": 1
+  },
+  {
+   "fieldname": "medical_cleared_on",
+   "fieldtype": "Date",
+   "label": "Cleared On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_football",
+   "fieldtype": "Section Break",
+   "label": "Playing Profile",
+   "depends_on": "eval:doc.medical_clearance_status=='Cleared'"
+  },
+  {
+   "fieldname": "dominant_foot",
+   "fieldtype": "Select",
+   "label": "Dominant Foot",
+   "options": "\nLeft\nRight\nBoth"
+  },
+  {
+   "fieldname": "preferred_position",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Preferred Position",
+   "options": "\nGOALKEEPER\nLEFT BACK\nRIGHT BACK\nCENTER BACK\nDEFENSIVE MID FIELD\nMIDFIELD\nATTACKING MID FIELD\nLEFT WING FORWARD\nRIGHT WING FORWARD\nSUPPORTING STRIKER\nCENTER FORWARD"
+  },
+  {
+   "fieldname": "secondary_position",
+   "fieldtype": "Select",
+   "label": "Secondary Position",
+   "options": "\nGOALKEEPER\nLEFT BACK\nRIGHT BACK\nCENTER BACK\nDEFENSIVE MID FIELD\nMIDFIELD\nATTACKING MID FIELD\nLEFT WING FORWARD\nRIGHT WING FORWARD\nSUPPORTING STRIKER\nCENTER FORWARD"
+  },
+  {
+   "fieldname": "column_break_football2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "current_playing_level",
+   "fieldtype": "Select",
+   "label": "Current Playing Level",
+   "options": "\nBeginner\nIntermediate\nProfessional"
+  },
+  {
+   "fieldname": "previous_clubs",
+   "fieldtype": "Data",
+   "label": "Previous Club(s) (last 2 years)"
+  },
+  {
+   "fieldname": "other_positions",
+   "fieldtype": "Table",
+   "label": "Other Sports Interested In",
+   "options": "Sports Position Interest"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_experience",
+   "fieldtype": "Section Break",
+   "label": "Experience",
+   "depends_on": "eval:doc.medical_clearance_status=='Cleared'"
+  },
+  {
+   "fieldname": "previous_experience",
+   "fieldtype": "Small Text",
+   "label": "Previous Experience"
+  },
+  {
+   "fieldname": "experience_details",
+   "fieldtype": "Small Text",
+   "label": "Experience Details"
+  },
+  {
    "fieldname": "section_break_trial",
    "fieldtype": "Section Break",
-   "label": "Trial Details"
+   "label": "Trial Details",
+   "depends_on": "eval:doc.medical_clearance_status=='Cleared'"
   },
   {
    "fieldname": "trial_batch",
@@ -372,7 +422,8 @@
    "collapsible": 1,
    "fieldname": "section_break_history",
    "fieldtype": "Section Break",
-   "label": "Trial History"
+   "label": "Trial History",
+   "depends_on": "eval:doc.medical_clearance_status=='Cleared'"
   },
   {
    "default": "0",
@@ -410,7 +461,8 @@
    "collapsible": 1,
    "fieldname": "section_break_billing",
    "fieldtype": "Section Break",
-   "label": "Billing"
+   "label": "Billing",
+   "depends_on": "eval:doc.medical_clearance_status=='Cleared'"
   },
   {
    "fieldname": "customer",
@@ -418,7 +470,7 @@
    "label": "Customer",
    "options": "Customer",
    "read_only": 1,
-   "description": "Linked automatically if a trial registration fee is configured — see registration fee notes in trialist.py"
+   "description": "Linked automatically if a trial registration fee is configured \u2014 see registration fee notes in trialist.py"
   },
   {
    "collapsible": 1,

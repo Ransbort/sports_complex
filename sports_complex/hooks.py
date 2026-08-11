@@ -31,6 +31,14 @@ doc_events = {
         # hook `on_update` instead.
         "on_payment_authorized": "sports_complex.sports_complex.utils.paystack_hooks.on_payment_authorized",
     },
+    # Medical-clearance flow for the Trials & Player Registration module —
+    # see healthcare_integration.py. validate blocks submitting a trial
+    # medical encounter with no Fitness Result recorded; on_submit
+    # propagates the doctor's verdict back onto the linked Trialist.
+    "Patient Encounter": {
+        "validate": "sports_complex.sports_complex.healthcare_integration.validate_patient_encounter",
+        "on_submit": "sports_complex.sports_complex.healthcare_integration.on_patient_encounter_submit",
+    },
 }
 
 # Scheduled Tasks

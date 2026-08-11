@@ -49,6 +49,75 @@ def _guard_not_already_converted(trialist_doc):
 		)
 
 
+def _guard_medically_cleared(trialist_doc):
+	"""Final sport-side data entry (and conversion to Player) can't happen
+	until a doctor has cleared this trialist — see send_to_clinic() below
+	and healthcare_integration.on_patient_encounter_submit(), which is
+	what actually flips medical_clearance_status to "Cleared" once the
+	linked Patient Encounter is submitted with fitness_result="Fit"."""
+	if trialist_doc.medical_clearance_status != "Cleared":
+		frappe.throw(
+			_(
+				"Trialist {0} has not been medically cleared yet (status: {1}). "
+				"Send them to the clinic and wait for the doctor's clearance "
+				"before registering them as a Player."
+			).format(trialist_doc.name, trialist_doc.medical_clearance_status or _("Not Sent"))
+		)
+
+
+@frappe.whitelist()
+def send_to_clinic(trialist):
+	"""Front desk/sports-complex operator sends a registered trialist to
+	the clinic for their medical exam. Creates (or reuses) a linked
+	Patient in the Healthcare app and hands back its name so the
+	front-end can open a fresh Patient Encounter for the doctor to fill
+	in and submit — deliberately NOT inserting the Encounter here, since
+	Patient Encounter has mandatory fields (e.g. appointment_type) that
+	only the doctor filling in the form can sensibly supply.
+
+	Safe to call again for a trialist whose previous encounter came back
+	"Not Cleared" (e.g. re-trialing after injury recovery) - only blocks
+	re-sending someone who is already Cleared or already mid-review with
+	an outstanding encounter.
+	"""
+
+	trialist_doc = frappe.get_doc("Trialist", trialist)
+	_guard_not_already_converted(trialist_doc)
+
+	if trialist_doc.medical_clearance_status == "Cleared":
+		frappe.throw(_("Trialist {0} is already medically cleared.").format(trialist_doc.name))
+	if trialist_doc.medical_clearance_status == "Pending":
+		frappe.throw(
+			_(
+				"Trialist {0} already has a medical encounter ({1}) awaiting the "
+				"doctor's result."
+			).format(trialist_doc.name, trialist_doc.medical_encounter)
+		)
+
+	if not trialist_doc.patient:
+		patient = frappe.get_doc({
+			"doctype": "Patient",
+			"first_name": trialist_doc.first_name,
+			"last_name": trialist_doc.last_name,
+			"sex": trialist_doc.gender,
+			"dob": trialist_doc.date_of_birth,
+			"mobile": trialist_doc.mobile_number,
+		})
+		patient.insert(ignore_permissions=True)
+		trialist_doc.db_set("patient", patient.name)
+	else:
+		patient = frappe.get_doc("Patient", trialist_doc.patient)
+
+	trialist_doc.db_set("medical_clearance_status", "Pending")
+	trialist_doc.db_set("medical_encounter", None)
+
+	return {
+		"status": "Success",
+		"patient": patient.name,
+		"patient_name": patient.patient_name,
+	}
+
+
 def _copy_child_table(source_rows, target_doc, target_fieldname):
 	for row in source_rows or []:
 		target_doc.append(target_fieldname, row.as_dict())
@@ -71,6 +140,7 @@ def convert_trialist_to_player(trialist, team=None, jersey_number=None, player_c
 
 	trialist_doc = frappe.get_doc("Trialist", trialist)
 	_guard_not_already_converted(trialist_doc)
+	_guard_medically_cleared(trialist_doc)
 
 	player_doc = frappe.get_doc({
 		"doctype": "Player",

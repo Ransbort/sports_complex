@@ -2,10 +2,13 @@
 Installation and Migration hooks for Sports Complex
 
 This module relies on Frappe's fixture system for:
-- Custom fields (custom_field.json)
 - Roles (role.json)
 - Custom DocPerm (custom_docperm.json)
 - Print formats (print_format.json)
+
+Custom fields for the Trials & Player Registration module are created
+programmatically via sports_complex.setup.make_custom_fields() instead
+(see setup.py) - everything else still goes through fixtures as before.
 
 Fixtures are defined in hooks.py and synced automatically during install/migrate.
 This module handles post-fixture tasks (setting defaults, clearing cache, etc).
@@ -18,6 +21,8 @@ import os
 
 import frappe
 
+from sports_complex.setup import make_custom_fields
+
 # Configure logger
 logger = logging.getLogger(__name__)
 
@@ -28,6 +33,7 @@ def after_install():
 		log_message("Sports Complex: Running post-install setup", level="info")
 
 		sync_workspace_sidebars()
+		make_custom_fields()
 
 		# Clear cache to ensure changes take effect
 		frappe.clear_cache()
@@ -45,6 +51,7 @@ def after_migrate():
 	"""Hook that runs after bench migrate"""
 	try:
 		sync_workspace_sidebars()
+		make_custom_fields()
 
 		# Clear cache
 		frappe.clear_cache()
