@@ -6,28 +6,34 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import getdate, today, nowdate, nowtime
 
-
-def _get_or_create_trial_appointment_type():
-	"""Patient Encounter requires an appointment_type, but at "Send to
-	Clinic" time nobody has booked an actual appointment - any doctor at
-	the clinic picks the encounter up. Rather than depend on someone
-	having manually created a suitable Appointment Type first, provision
-	a dedicated one the first time it's needed."""
-
-	name = "Trial Medical Exam"
-	if not frappe.db.exists("Appointment Type", name):
-		frappe.get_doc({
-			"doctype": "Appointment Type",
-			"appointment_type": name,
-		}).insert(ignore_permissions=True)
-	return name
-
+from sports_complex.sports_complex.healthcare_integration import (
+	_get_or_create_trial_appointment_type,
+)
 
 
 class Trialist(Document):
 	def validate(self):
 		self.set_full_name()
 		self.set_age()
+		self.validate_patient_cleared()
+
+	def after_insert(self):
+		if self.patient:
+			frappe.db.set_value("Patient", self.patient, "sc_trialist", self.name)
+
+	def on_update(self):
+		# Keep Patient.sc_trialist in sync if the linked patient is ever
+		# changed after creation - shouldn't normally happen (the form
+		# only lets you pick a patient before the first save, see
+		# trialist.js), but safer than leaving a stale reverse-link if it
+		# ever is.
+		before = self.get_doc_before_save()
+		if not before or before.patient == self.patient:
+			return
+		if before.patient:
+			frappe.db.set_value("Patient", before.patient, "sc_trialist", None)
+		if self.patient:
+			frappe.db.set_value("Patient", self.patient, "sc_trialist", self.name)
 
 	def set_full_name(self):
 		self.full_name = " ".join(
@@ -36,6 +42,36 @@ class Trialist(Document):
 
 	def set_age(self):
 		self.age = _format_age(self.date_of_birth)
+
+	def validate_patient_cleared(self):
+		"""Server-side safety net for the medical-first flow: the Patient
+		picker (trial_candidate_patient_query() below, wired up in
+		trialist.js) only lists cleared, not-yet-converted patients, but
+		that's a UI-level filter only - someone could still set/change
+		`patient` directly (API, data import, editing a draft). Block
+		save if it doesn't actually point at a cleared, unconverted
+		Patient - a Trialist should never exist without a doctor having
+		signed off first.
+		"""
+		if not self.patient:
+			return
+
+		row = frappe.db.get_value(
+			"Patient", self.patient, ["sc_trial_clearance_status", "sc_trialist"], as_dict=True
+		)
+		if not row:
+			frappe.throw(_("Patient {0} not found.").format(self.patient))
+
+		if row.sc_trial_clearance_status != "Cleared":
+			frappe.throw(
+				_("Patient {0} has not been medically cleared for trials (status: {1}).").format(
+					self.patient, row.sc_trial_clearance_status or _("Not a trial candidate")
+				)
+			)
+		if row.sc_trialist and row.sc_trialist != self.name:
+			frappe.throw(
+				_("Patient {0} is already registered as Trialist {1}.").format(self.patient, row.sc_trialist)
+			)
 
 
 def _format_age(dob):
@@ -68,10 +104,12 @@ def _guard_not_already_converted(trialist_doc):
 
 def _guard_medically_cleared(trialist_doc):
 	"""Final sport-side data entry (and conversion to Player) can't happen
-	until a doctor has cleared this trialist — see send_to_clinic() below
-	and healthcare_integration.on_patient_encounter_submit(), which is
-	what actually flips medical_clearance_status to "Cleared" once the
-	linked Patient Encounter is submitted with fitness_result="Fit"."""
+	until a doctor has cleared this trialist. Under the medical-first
+	flow this is already true the moment the Trialist is created (see
+	validate_patient_cleared() above, which refuses to save a Trialist
+	against an un-cleared Patient) - this guard mainly matters for the
+	re-trial path, where medical_clearance_status can regress to
+	"Not Cleared"/"Pending" after send_to_clinic() below."""
 	if trialist_doc.medical_clearance_status != "Cleared":
 		frappe.throw(
 			_(
@@ -83,19 +121,86 @@ def _guard_medically_cleared(trialist_doc):
 
 
 @frappe.whitelist()
-def send_to_clinic(trialist):
-	"""Front desk/sports-complex operator sends a registered trialist to
-	the clinic for their medical exam. Creates (or reuses) a linked
-	Patient, then inserts a draft Patient Encounter (docstatus=0) against
-	it for the doctor to pick up at the clinic - deliberately NOT opened
-	or navigated to on the sports-complex side; the clinic finds it in
-	their own Patient Encounter worklist, since the doctor there has no
-	reason to be routed through the sports complex UI at all.
+def get_patient_snapshot(patient):
+	"""Pre-fill a new Trialist form from an already medically-cleared
+	Patient - see healthcare_integration.py's register_trial_candidate()/
+	on_patient_encounter_submit() for how a Patient gets to "Cleared" in
+	the first place. Sports staff pick the Patient (searchable by name,
+	see trial_candidate_patient_query() below) once medical has cleared
+	them; this carries across the general info medical/front-desk already
+	captured so it isn't re-typed.
 
-	Safe to call again for a trialist whose previous encounter came back
-	"Not Cleared" (e.g. re-trialing after injury recovery) - only blocks
-	re-sending someone who is already Cleared or already mid-review with
-	an outstanding encounter.
+	Gender note: Patient.sex is a Link to the Gender doctype and can hold
+	whatever a site has configured there, while Trialist.gender is a
+	fixed Select (Male/Female/Other) - only copied across when it's one
+	of those three exact values, otherwise left blank for the operator to
+	set rather than risking a "not a valid option" error on save.
+	"""
+	patient_doc = frappe.get_doc("Patient", patient)
+
+	if patient_doc.get("sc_trial_clearance_status") != "Cleared":
+		frappe.throw(
+			_("{0} has not been medically cleared for trials yet (status: {1}).").format(
+				patient_doc.patient_name, patient_doc.get("sc_trial_clearance_status") or _("Not a trial candidate")
+			)
+		)
+
+	existing_trialist = patient_doc.get("sc_trialist")
+	if existing_trialist:
+		frappe.throw(
+			_("{0} is already registered as Trialist {1}.").format(patient_doc.patient_name, existing_trialist)
+		)
+
+	gender = patient_doc.sex if patient_doc.sex in ("Male", "Female", "Other") else None
+
+	return {
+		"first_name": patient_doc.first_name,
+		"last_name": patient_doc.last_name,
+		"gender": gender,
+		"date_of_birth": patient_doc.dob,
+		"mobile_number": patient_doc.mobile,
+		"email": patient_doc.email,
+		"identification_number": patient_doc.get("uid"),
+		"known_allergies": patient_doc.get("allergies"),
+		"current_medications": patient_doc.get("medication"),
+		"medical_clearance_status": patient_doc.get("sc_trial_clearance_status"),
+		"medical_cleared_on": patient_doc.get("sc_trial_cleared_on"),
+		"medical_encounter": patient_doc.get("sc_trial_encounter"),
+	}
+
+
+@frappe.whitelist()
+def trial_candidate_patient_query(doctype, txt, searchfield, start, page_len, filters):
+	"""Link-field query for Trialist.patient (wired up in trialist.js) -
+	only surfaces Patients who are medically cleared and not yet
+	converted to a Trialist, so sports staff can't accidentally pick
+	someone who hasn't been through medicals, or register the same
+	person twice.
+	"""
+	return frappe.db.sql(
+		"""
+		SELECT name, patient_name
+		FROM `tabPatient`
+		WHERE sc_trial_clearance_status = 'Cleared'
+			AND (sc_trialist IS NULL OR sc_trialist = '')
+			AND (name LIKE %(txt)s OR patient_name LIKE %(txt)s)
+		ORDER BY patient_name
+		LIMIT %(page_len)s OFFSET %(start)s
+		""",
+		{"txt": f"%{txt}%", "start": start, "page_len": page_len},
+	)
+
+
+@frappe.whitelist()
+def send_to_clinic(trialist):
+	"""Re-trial path only: send an existing Trialist back to the clinic
+	for a fresh medical exam (e.g. re-attempting after injury recovery,
+	or a previous "Not Fit"/"Not Cleared" result). First-time candidates
+	never reach this function - see
+	healthcare_integration.register_trial_candidate() for how they get
+	their first medical exam, before any Trialist exists (medical-first
+	flow: Patient -> clinic -> cleared -> Trialist created from the
+	cleared Patient, not the other way around).
 	"""
 
 	trialist_doc = frappe.get_doc("Trialist", trialist)
@@ -110,27 +215,22 @@ def send_to_clinic(trialist):
 				"doctor's result."
 			).format(trialist_doc.name, trialist_doc.medical_encounter)
 		)
-
 	if not trialist_doc.patient:
-		patient = frappe.get_doc({
-			"doctype": "Patient",
-			"first_name": trialist_doc.first_name,
-			"last_name": trialist_doc.last_name,
-			"sex": trialist_doc.gender,
-			"dob": trialist_doc.date_of_birth,
-			"mobile": trialist_doc.mobile_number,
-			"uid": trialist_doc.identification_number,
-		})
-		patient.insert(ignore_permissions=True)
-		trialist_doc.db_set("patient", patient.name)
-	else:
-		patient = frappe.get_doc("Patient", trialist_doc.patient)
+		# Shouldn't happen - validate_patient_cleared() refuses to save a
+		# Trialist without a linked Patient in the first place - but
+		# guard against stray/legacy records rather than crashing below.
+		frappe.throw(
+			_("Trialist {0} has no linked Patient record - cannot send to clinic.").format(trialist_doc.name)
+		)
+
+	patient = frappe.get_doc("Patient", trialist_doc.patient)
 
 	encounter = frappe.get_doc({
 		"doctype": "Patient Encounter",
 		"patient": patient.name,
 		"patient_name": patient.patient_name,
 		"trialist": trialist_doc.name,
+		"is_trial_medical_exam": 1,
 		"appointment_type": _get_or_create_trial_appointment_type(),
 		"encounter_date": nowdate(),
 		"encounter_time": nowtime(),

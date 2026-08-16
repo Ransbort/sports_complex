@@ -6,6 +6,12 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "section_break_medical_clearance",
+  "patient",
+  "medical_clearance_status",
+  "column_break_clearance",
+  "medical_encounter",
+  "medical_cleared_on",
   "full_name",
   "first_name",
   "middle_name",
@@ -38,12 +44,6 @@
   "previous_serious_injuries",
   "section_break_emergency",
   "emergency_contacts",
-  "section_break_medical_clearance",
-  "patient",
-  "medical_clearance_status",
-  "column_break_clearance",
-  "medical_encounter",
-  "medical_cleared_on",
   "section_break_football",
   "dominant_foot",
   "preferred_position",
@@ -77,6 +77,46 @@
   "converted_on"
  ],
  "fields": [
+  {
+   "fieldname": "section_break_medical_clearance",
+   "fieldtype": "Section Break",
+   "label": "Source: Medically-Cleared Patient"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "label": "Patient (Healthcare)",
+   "options": "Patient",
+   "reqd": 1,
+   "description": "Select the already medically-cleared Patient this trialist registration is for - only cleared, not-yet-registered patients are shown. Personal, contact and medical info auto-fill from their clinic record once selected."
+  },
+  {
+   "fieldname": "medical_clearance_status",
+   "fieldtype": "Select",
+   "label": "Medical Clearance Status",
+   "options": "\nPending\nCleared\nNot Cleared",
+   "default": "",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_clearance",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "medical_encounter",
+   "fieldtype": "Link",
+   "label": "Medical Encounter",
+   "options": "Patient Encounter",
+   "read_only": 1
+  },
+  {
+   "fieldname": "medical_cleared_on",
+   "fieldtype": "Date",
+   "label": "Cleared On",
+   "read_only": 1
+  },
   {
    "fieldname": "full_name",
    "fieldtype": "Data",
@@ -224,12 +264,14 @@
   {
    "fieldname": "known_allergies",
    "fieldtype": "Small Text",
-   "label": "Known Allergies"
+   "label": "Known Allergies",
+   "description": "Auto-filled from the Patient's clinic record (Allergies) once a cleared Patient is selected above - edit here if the sports-side intake needs to add anything."
   },
   {
    "fieldname": "chronic_medical_conditions",
    "fieldtype": "Small Text",
-   "label": "Chronic Medical Conditions"
+   "label": "Chronic Medical Conditions",
+   "description": "Not auto-filled - see the linked Patient's Medical History for what the clinic recorded."
   },
   {
    "fieldname": "column_break_medical2",
@@ -238,17 +280,20 @@
   {
    "fieldname": "previous_surgeries",
    "fieldtype": "Small Text",
-   "label": "Previous Surgeries"
+   "label": "Previous Surgeries",
+   "description": "Not auto-filled - see the linked Patient's Medical History for what the clinic recorded."
   },
   {
    "fieldname": "current_medications",
    "fieldtype": "Small Text",
-   "label": "Current Medications"
+   "label": "Current Medications",
+   "description": "Auto-filled from the Patient's clinic record (Medication) once a cleared Patient is selected above."
   },
   {
    "fieldname": "previous_serious_injuries",
    "fieldtype": "Small Text",
-   "label": "Previous Serious Injuries"
+   "label": "Previous Serious Injuries",
+   "description": "Not auto-filled - see the linked Patient's Medical History for what the clinic recorded."
   },
   {
    "fieldname": "section_break_emergency",
@@ -260,46 +305,6 @@
    "fieldtype": "Table",
    "label": "Emergency Contacts",
    "options": "Sports Emergency Contact"
-  },
-  {
-   "fieldname": "section_break_medical_clearance",
-   "fieldtype": "Section Break",
-   "label": "Medical Clearance"
-  },
-  {
-   "fieldname": "patient",
-   "fieldtype": "Link",
-   "label": "Linked Patient (Healthcare)",
-   "options": "Patient",
-   "read_only": 1,
-   "description": "Created automatically when sent to the clinic."
-  },
-  {
-   "fieldname": "medical_clearance_status",
-   "fieldtype": "Select",
-   "label": "Medical Clearance Status",
-   "options": "\nPending\nCleared\nNot Cleared",
-   "default": "",
-   "read_only": 1,
-   "in_list_view": 1,
-   "in_standard_filter": 1
-  },
-  {
-   "fieldname": "column_break_clearance",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "medical_encounter",
-   "fieldtype": "Link",
-   "label": "Medical Encounter",
-   "options": "Patient Encounter",
-   "read_only": 1
-  },
-  {
-   "fieldname": "medical_cleared_on",
-   "fieldtype": "Date",
-   "label": "Cleared On",
-   "read_only": 1
   },
   {
    "fieldname": "section_break_football",
@@ -470,7 +475,7 @@
    "label": "Customer",
    "options": "Customer",
    "read_only": 1,
-   "description": "Linked automatically if a trial registration fee is configured \u2014 see registration fee notes in trialist.py"
+   "description": "Linked automatically if a trial registration fee is configured — see registration fee notes in trialist.py"
   },
   {
    "collapsible": 1,
@@ -495,7 +500,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-10 00:00:00.000000",
+ "modified": "2026-08-16 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Sports Complex",
  "name": "Trialist",

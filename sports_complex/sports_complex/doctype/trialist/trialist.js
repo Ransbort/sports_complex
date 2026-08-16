@@ -2,6 +2,56 @@
 // For license information, please see license.txt
 
 frappe.ui.form.on("Trialist", {
+	setup: function (frm) {
+		// Medical-first flow: only surface Patients who are already
+		// cleared for trials and not yet registered as a Trialist - see
+		// trial_candidate_patient_query() in trialist.py.
+		frm.set_query("patient", function () {
+			return {
+				query: "sports_complex.sports_complex.doctype.trialist.trialist.trial_candidate_patient_query",
+			};
+		});
+	},
+
+	patient: function (frm) {
+		// Pulls across everything medical/front-desk already captured
+		// for this cleared Patient, so sports staff only have to type
+		// the sport-specific fields (dominant foot, playing level,
+		// previous club, interests, experience, trial batch, etc.) -
+		// see get_patient_snapshot() in trialist.py.
+		if (!frm.doc.patient) {
+			return;
+		}
+
+		frappe.call({
+			method: "sports_complex.sports_complex.doctype.trialist.trialist.get_patient_snapshot",
+			args: { patient: frm.doc.patient },
+			freeze: true,
+			freeze_message: __("Loading patient details..."),
+			callback: function (r) {
+				if (!r.message) {
+					return;
+				}
+				const snapshot = r.message;
+				Object.keys(snapshot).forEach(function (fieldname) {
+					if (snapshot[fieldname] !== null && snapshot[fieldname] !== undefined) {
+						frm.set_value(fieldname, snapshot[fieldname]);
+					}
+				});
+				frappe.show_alert({
+					message: __("Patient details loaded - fill in the sport-specific sections below."),
+					indicator: "green",
+				}, 6);
+			},
+			error: function () {
+				// get_patient_snapshot() throws (e.g. not cleared yet, or
+				// already converted) - clear the pick so the form doesn't
+				// end up half-populated against an invalid patient.
+				frm.set_value("patient", "");
+			},
+		});
+	},
+
 	refresh: function (frm) {
 		if (frm.doc.__islocal || frm.doc.player) {
 			// Nothing to do pre-save, and a converted trialist is done —

@@ -11,6 +11,11 @@ from sports_complex.setup import delete_custom_fields, get_custom_fields
 # Configure logger
 logger = logging.getLogger(__name__)
 
+# Kept in sync with the names used in sports_complex.setup.make_client_scripts().
+CLIENT_SCRIPT_NAMES = [
+	"Sports Complex: Patient Trial Candidate Button",
+]
+
 
 def before_uninstall():
 	"""
@@ -23,6 +28,7 @@ def before_uninstall():
 
 		remove_workspace_sidebars()
 		remove_custom_fields()
+		remove_client_scripts()
 
 		# TODO: add further cleanup steps here, e.g.:
 		# remove_print_formats()
@@ -88,6 +94,16 @@ def remove_custom_fields():
 	"""
 	delete_custom_fields(get_custom_fields())
 	log_message("Removed custom fields defined in sports_complex.setup", level="success")
+
+
+def remove_client_scripts():
+	"""Delete the Client Script(s) created by
+	sports_complex.setup.make_client_scripts() (the "Register as Trial
+	Candidate" button on the Patient form)."""
+	for name in CLIENT_SCRIPT_NAMES:
+		if frappe.db.exists("Client Script", name):
+			frappe.delete_doc("Client Script", name, ignore_permissions=True, force=True)
+			log_message(f"Removed Client Script '{name}'", level="success")
 
 
 def log_message(message, level="info", indent=0):

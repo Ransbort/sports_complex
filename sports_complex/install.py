@@ -9,6 +9,10 @@ This module relies on Frappe's fixture system for:
 Custom fields for the Trials & Player Registration module are created
 programmatically via sports_complex.setup.make_custom_fields() instead
 (see setup.py) - everything else still goes through fixtures as before.
+The "Register as Trial Candidate" button on the Patient form is likewise
+provisioned programmatically, via sports_complex.setup.make_client_scripts()
+- see that module's docstring for why a Client Script instead of editing
+Healthcare's own patient.js.
 
 Fixtures are defined in hooks.py and synced automatically during install/migrate.
 This module handles post-fixture tasks (setting defaults, clearing cache, etc).
@@ -21,7 +25,7 @@ import os
 
 import frappe
 
-from sports_complex.setup import make_custom_fields
+from sports_complex.setup import make_custom_fields, make_client_scripts
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -34,6 +38,7 @@ def after_install():
 
 		sync_workspace_sidebars()
 		make_custom_fields()
+		make_client_scripts()
 
 		# Clear cache to ensure changes take effect
 		frappe.clear_cache()
@@ -52,6 +57,7 @@ def after_migrate():
 	try:
 		sync_workspace_sidebars()
 		make_custom_fields()
+		make_client_scripts()
 
 		# Clear cache
 		frappe.clear_cache()
