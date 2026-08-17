@@ -9,10 +9,12 @@ This module relies on Frappe's fixture system for:
 Custom fields for the Trials & Player Registration module are created
 programmatically via sports_complex.setup.make_custom_fields() instead
 (see setup.py) - everything else still goes through fixtures as before.
-The "Register as Trial Candidate" button on the Patient form is likewise
-provisioned programmatically, via sports_complex.setup.make_client_scripts()
-- see that module's docstring for why a Client Script instead of editing
-Healthcare's own patient.js.
+The configured Trial Appointment Type that drives that same module's
+medical-first flow, and the Client Script that hides Patient Encounter's
+Fitness Result field for non-trial encounters, are likewise provisioned
+programmatically via healthcare_integration.ensure_trial_appointment_type()
+and .ensure_fitness_result_visibility_script() - see that module's
+docstring for the full flow.
 
 Fixtures are defined in hooks.py and synced automatically during install/migrate.
 This module handles post-fixture tasks (setting defaults, clearing cache, etc).
@@ -25,7 +27,11 @@ import os
 
 import frappe
 
-from sports_complex.setup import make_custom_fields, make_client_scripts
+from sports_complex.setup import make_custom_fields
+from sports_complex.sports_complex.healthcare_integration import (
+	ensure_fitness_result_visibility_script,
+	ensure_trial_appointment_type,
+)
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -38,7 +44,8 @@ def after_install():
 
 		sync_workspace_sidebars()
 		make_custom_fields()
-		make_client_scripts()
+		ensure_trial_appointment_type()
+		ensure_fitness_result_visibility_script()
 
 		# Clear cache to ensure changes take effect
 		frappe.clear_cache()
@@ -57,7 +64,9 @@ def after_migrate():
 	try:
 		sync_workspace_sidebars()
 		make_custom_fields()
-		make_client_scripts()
+		ensure_trial_appointment_type()
+		ensure_fitness_result_visibility_script()
+		remove_stale_trial_medical_exam_field()
 
 		# Clear cache
 		frappe.clear_cache()
@@ -69,6 +78,28 @@ def after_migrate():
 		frappe.log_error(title="Sports Complex Migration Error", message=frappe.get_traceback())
 		log_message(f"Sports Complex: Migration error - {str(e)}", level="error")
 		raise
+
+
+def remove_stale_trial_medical_exam_field():
+	"""One-time cleanup: "Trial Medical Exam" (Patient Encounter.
+	is_trial_medical_exam) used to be a real, auto-set custom field, but
+	was dropped in favor of reading appointment_type directly everywhere
+	(see healthcare_integration.py) - it added nothing but a checkbox
+	nobody needed to look at. make_custom_fields()/create_custom_fields()
+	only ever adds or updates fields still listed in setup.py's
+	get_custom_fields() - it never deletes ones that have been removed
+	from that list - so without this, sites that had already migrated
+	while the field existed would be stuck with a permanently orphaned,
+	unused checkbox on the Patient Encounter form. Safe to run on every
+	migrate: a no-op once the field's gone.
+	"""
+	if frappe.db.exists("Custom Field", "Patient Encounter-is_trial_medical_exam"):
+		frappe.db.delete(
+			"Custom Field",
+			{"dt": "Patient Encounter", "fieldname": "is_trial_medical_exam"},
+		)
+		frappe.clear_cache(doctype="Patient Encounter")
+		log_message("Removed stale Patient Encounter.is_trial_medical_exam custom field", level="success")
 
 
 def sync_workspace_sidebars():

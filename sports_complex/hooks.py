@@ -31,11 +31,25 @@ doc_events = {
         # hook `on_update` instead.
         "on_payment_authorized": "sports_complex.sports_complex.utils.paystack_hooks.on_payment_authorized",
     },
-    # Medical-clearance flow for the Trials & Player Registration module —
-    # see healthcare_integration.py. validate blocks submitting a trial
-    # medical encounter with no Fitness Result recorded; on_submit
-    # propagates the doctor's verdict back onto the linked Trialist.
+    # Medical-first Trials & Player Registration flow — see
+    # healthcare_integration.py's module docstring for the full picture.
+    # A person enters the pipeline the moment a Patient Appointment with
+    # Appointment Type "Trialist" is created (Front Desk check-in, walk-in
+    # or pre-booked — no separate entry point needed); the doctor's
+    # verdict is recorded via the same "Trialist" Appointment Type
+    # inherited onto the resulting Patient Encounter.
+    "Patient Appointment": {
+        "after_insert": "sports_complex.sports_complex.healthcare_integration.on_patient_appointment_after_insert",
+    },
     "Patient Encounter": {
+        # Runs once, at creation, before "validate" - copies the Patient's
+        # existing Allergies/Medication onto the encounter's own
+        # known_allergies/current_medications fields so the doctor isn't
+        # retyping them (see healthcare_integration.
+        # sync_trial_medical_history_from_patient()). Deliberately not a
+        # live/ongoing sync - a later edit here or on the Patient record
+        # doesn't flow either way afterwards.
+        "before_insert": "sports_complex.sports_complex.healthcare_integration.sync_trial_medical_history_from_patient",
         "validate": "sports_complex.sports_complex.healthcare_integration.validate_patient_encounter",
         "on_submit": "sports_complex.sports_complex.healthcare_integration.on_patient_encounter_submit",
     },

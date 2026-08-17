@@ -177,7 +177,7 @@
    "fieldname": "identification_type",
    "fieldtype": "Select",
    "label": "Identification Type",
-   "options": "\nNational ID\nPassport\nBirth Certificate\nVoter ID\nSchool ID\nOther"
+   "options": "\nNational ID\nPassport\nBirth Certificate\nVoter ID\nSchool ID\nPatient UID\nOther"
   },
   {
    "fieldname": "identification_number",

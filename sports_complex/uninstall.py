@@ -11,11 +11,6 @@ from sports_complex.setup import delete_custom_fields, get_custom_fields
 # Configure logger
 logger = logging.getLogger(__name__)
 
-# Kept in sync with the names used in sports_complex.setup.make_client_scripts().
-CLIENT_SCRIPT_NAMES = [
-	"Sports Complex: Patient Trial Candidate Button",
-]
-
 
 def before_uninstall():
 	"""
@@ -28,7 +23,14 @@ def before_uninstall():
 
 		remove_workspace_sidebars()
 		remove_custom_fields()
-		remove_client_scripts()
+		remove_fitness_result_visibility_script()
+
+		# Deliberately NOT removing the configured Trial Appointment Type
+		# here (see healthcare_integration.ensure_trial_appointment_type()
+		# / get_trial_appointment_type()) - it may already be referenced
+		# by Patient Appointment/Patient Encounter history, and deleting
+		# reference/master data on uninstall is more likely to break
+		# things than help.
 
 		# TODO: add further cleanup steps here, e.g.:
 		# remove_print_formats()
@@ -96,14 +98,23 @@ def remove_custom_fields():
 	log_message("Removed custom fields defined in sports_complex.setup", level="success")
 
 
-def remove_client_scripts():
-	"""Delete the Client Script(s) created by
-	sports_complex.setup.make_client_scripts() (the "Register as Trial
-	Candidate" button on the Patient form)."""
-	for name in CLIENT_SCRIPT_NAMES:
-		if frappe.db.exists("Client Script", name):
-			frappe.delete_doc("Client Script", name, ignore_permissions=True, force=True)
-			log_message(f"Removed Client Script '{name}'", level="success")
+def remove_fitness_result_visibility_script():
+	"""Delete the Client Script created by healthcare_integration.
+	ensure_fitness_result_visibility_script() on install/migrate. Unlike
+	the Trial Appointment Type record (deliberately left in place, see
+	the comment in before_uninstall() above), this is pure client-side
+	presentation logic with no historical data hanging off it - safe, and
+	correct, to remove outright so Patient Encounter's Fitness Result
+	field goes back to always being visible once this app is gone.
+	"""
+	marker = "__sports_complex_fitness_result_visibility__"
+	existing_name = frappe.db.get_value(
+		"Client Script",
+		{"dt": "Patient Encounter", "view": "Form", "script": ("like", f"%{marker}%")},
+	)
+	if existing_name:
+		frappe.delete_doc("Client Script", existing_name, ignore_permissions=True, force=True)
+		log_message("Removed Patient Encounter Fitness Result visibility Client Script", level="success")
 
 
 def log_message(message, level="info", indent=0):

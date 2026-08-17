@@ -4,11 +4,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import getdate, today, nowdate, nowtime
-
-from sports_complex.sports_complex.healthcare_integration import (
-	_get_or_create_trial_appointment_type,
-)
+from frappe.utils import getdate, today
 
 
 class Trialist(Document):
@@ -52,9 +48,22 @@ class Trialist(Document):
 		save if it doesn't actually point at a cleared, unconverted
 		Patient - a Trialist should never exist without a doctor having
 		signed off first.
+
+		Only enforced when `patient` is being newly set (new record) or
+		changed on an existing one - NOT on every ordinary re-save. A
+		re-trial can leave the linked Patient's sc_trial_clearance_status
+		sitting at "Pending" for a while (new medical exam in progress);
+		without this guard, simply opening and saving the existing
+		Trialist during that window would incorrectly throw, even though
+		nothing about the Patient link itself changed.
 		"""
 		if not self.patient:
 			return
+
+		if not self.is_new():
+			before = self.get_doc_before_save()
+			if before and before.patient == self.patient:
+				return
 
 		row = frappe.db.get_value(
 			"Patient", self.patient, ["sc_trial_clearance_status", "sc_trialist"], as_dict=True
@@ -109,7 +118,9 @@ def _guard_medically_cleared(trialist_doc):
 	validate_patient_cleared() above, which refuses to save a Trialist
 	against an un-cleared Patient) - this guard mainly matters for the
 	re-trial path, where medical_clearance_status can regress to
-	"Not Cleared"/"Pending" after send_to_clinic() below."""
+	"Not Cleared"/"Pending" after a re-trial check-in (Front Desk,
+	Appointment Type "Trialist" - see healthcare_integration.py) puts a
+	fresh medical exam in progress."""
 	if trialist_doc.medical_clearance_status != "Cleared":
 		frappe.throw(
 			_(
@@ -123,9 +134,9 @@ def _guard_medically_cleared(trialist_doc):
 @frappe.whitelist()
 def get_patient_snapshot(patient):
 	"""Pre-fill a new Trialist form from an already medically-cleared
-	Patient - see healthcare_integration.py's register_trial_candidate()/
-	on_patient_encounter_submit() for how a Patient gets to "Cleared" in
-	the first place. Sports staff pick the Patient (searchable by name,
+	Patient - see healthcare_integration.py's on_patient_encounter_submit()
+	for how a Patient gets to "Cleared" in the first place. Sports staff
+	pick the Patient (searchable by name,
 	see trial_candidate_patient_query() below) once medical has cleared
 	them; this carries across the general info medical/front-desk already
 	captured so it isn't re-typed.
@@ -135,6 +146,15 @@ def get_patient_snapshot(patient):
 	fixed Select (Male/Female/Other) - only copied across when it's one
 	of those three exact values, otherwise left blank for the operator to
 	set rather than risking a "not a valid option" error on save.
+
+	known_allergies/chronic_medical_conditions/previous_surgeries/
+	current_medications/previous_serious_injuries all come from the
+	Patient's trial medical encounter (Patient.sc_trial_encounter), not
+	the Patient doctype's own allergies/medication fields - the doctor
+	records all five on the Patient Encounter during the trial-medical
+	exam itself (see healthcare_integration.py's
+	TRIAL_ONLY_ENCOUNTER_FIELDS), so a Patient who's never been through
+	one has nothing to carry across yet.
 	"""
 	patient_doc = frappe.get_doc("Patient", patient)
 
@@ -153,6 +173,24 @@ def get_patient_snapshot(patient):
 
 	gender = patient_doc.sex if patient_doc.sex in ("Male", "Female", "Other") else None
 
+	encounter_name = patient_doc.get("sc_trial_encounter")
+	encounter_history = (
+		frappe.db.get_value(
+			"Patient Encounter",
+			encounter_name,
+			[
+				"known_allergies",
+				"chronic_medical_conditions",
+				"previous_surgeries",
+				"current_medications",
+				"previous_serious_injuries",
+			],
+			as_dict=True,
+		)
+		if encounter_name
+		else None
+	) or {}
+
 	return {
 		"first_name": patient_doc.first_name,
 		"last_name": patient_doc.last_name,
@@ -160,13 +198,46 @@ def get_patient_snapshot(patient):
 		"date_of_birth": patient_doc.dob,
 		"mobile_number": patient_doc.mobile,
 		"email": patient_doc.email,
+		# Not a real identification document - Patient.uid is this
+		# person's internal Healthcare record ID, not a passport/national
+		# ID/etc. Tag it as such via identification_type rather than
+		# dropping it into identification_number unlabeled (which used to
+		# read as if it were a real ID number). Sports staff can still
+		# overwrite both fields with an actual document once/if the
+		# trialist provides one.
+		"identification_type": "Patient UID",
 		"identification_number": patient_doc.get("uid"),
-		"known_allergies": patient_doc.get("allergies"),
-		"current_medications": patient_doc.get("medication"),
+		"known_allergies": encounter_history.get("known_allergies"),
+		"chronic_medical_conditions": encounter_history.get("chronic_medical_conditions"),
+		"current_medications": encounter_history.get("current_medications"),
+		"previous_surgeries": encounter_history.get("previous_surgeries"),
+		"previous_serious_injuries": encounter_history.get("previous_serious_injuries"),
 		"medical_clearance_status": patient_doc.get("sc_trial_clearance_status"),
 		"medical_cleared_on": patient_doc.get("sc_trial_cleared_on"),
 		"medical_encounter": patient_doc.get("sc_trial_encounter"),
 	}
+
+
+@frappe.whitelist()
+def get_patient_uid(patient):
+	"""Returns just this Patient's own uid - nothing else off the Patient
+	record. Used by trialist.js to re-sync Identification Number whenever
+	Identification Type is (re-)selected as "Patient UID" after the
+	operator has changed it to something else (e.g. picked "Passport",
+	typed a number, then switched back) - get_patient_snapshot() above
+	only ever runs once, at Patient-pick time, so without this the two
+	fields could end up mismatched (Type says "Patient UID" but Number
+	still holds whatever was last typed).
+
+	A narrow wrapper, same reasoning as healthcare_integration.
+	get_trial_appointment_type_for_client() - exposes one non-sensitive
+	value without requiring the caller to have read access to the Patient
+	doctype itself (sports staff generally don't - see
+	trial_candidate_patient_query() below for why a raw SQL query is used
+	there rather than a permitted Link query, and get_patient_snapshot()
+	above for the same reasoning applied to the full pre-fill).
+	"""
+	return frappe.db.get_value("Patient", patient, "uid")
 
 
 @frappe.whitelist()
@@ -189,63 +260,6 @@ def trial_candidate_patient_query(doctype, txt, searchfield, start, page_len, fi
 		""",
 		{"txt": f"%{txt}%", "start": start, "page_len": page_len},
 	)
-
-
-@frappe.whitelist()
-def send_to_clinic(trialist):
-	"""Re-trial path only: send an existing Trialist back to the clinic
-	for a fresh medical exam (e.g. re-attempting after injury recovery,
-	or a previous "Not Fit"/"Not Cleared" result). First-time candidates
-	never reach this function - see
-	healthcare_integration.register_trial_candidate() for how they get
-	their first medical exam, before any Trialist exists (medical-first
-	flow: Patient -> clinic -> cleared -> Trialist created from the
-	cleared Patient, not the other way around).
-	"""
-
-	trialist_doc = frappe.get_doc("Trialist", trialist)
-	_guard_not_already_converted(trialist_doc)
-
-	if trialist_doc.medical_clearance_status == "Cleared":
-		frappe.throw(_("Trialist {0} is already medically cleared.").format(trialist_doc.name))
-	if trialist_doc.medical_clearance_status == "Pending":
-		frappe.throw(
-			_(
-				"Trialist {0} already has a medical encounter ({1}) awaiting the "
-				"doctor's result."
-			).format(trialist_doc.name, trialist_doc.medical_encounter)
-		)
-	if not trialist_doc.patient:
-		# Shouldn't happen - validate_patient_cleared() refuses to save a
-		# Trialist without a linked Patient in the first place - but
-		# guard against stray/legacy records rather than crashing below.
-		frappe.throw(
-			_("Trialist {0} has no linked Patient record - cannot send to clinic.").format(trialist_doc.name)
-		)
-
-	patient = frappe.get_doc("Patient", trialist_doc.patient)
-
-	encounter = frappe.get_doc({
-		"doctype": "Patient Encounter",
-		"patient": patient.name,
-		"patient_name": patient.patient_name,
-		"trialist": trialist_doc.name,
-		"is_trial_medical_exam": 1,
-		"appointment_type": _get_or_create_trial_appointment_type(),
-		"encounter_date": nowdate(),
-		"encounter_time": nowtime(),
-	})
-	encounter.insert(ignore_permissions=True)
-
-	trialist_doc.db_set("medical_clearance_status", "Pending")
-	trialist_doc.db_set("medical_encounter", encounter.name)
-
-	return {
-		"status": "Success",
-		"patient": patient.name,
-		"patient_name": patient.patient_name,
-		"encounter": encounter.name,
-	}
 
 
 def _copy_child_table(source_rows, target_doc, target_fieldname):

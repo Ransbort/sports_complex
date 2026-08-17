@@ -52,6 +52,29 @@ frappe.ui.form.on("Trialist", {
 		});
 	},
 
+	identification_type: function (frm) {
+		// get_patient_snapshot() only ever sets Identification Type/Number
+		// once, at Patient-pick time - if the operator later changes Type
+		// away from "Patient UID" (e.g. to enter a real Passport number)
+		// and then back again, Number would otherwise be left holding
+		// whatever was last typed instead of the Patient's actual UID.
+		// Re-sync it every time "Patient UID" is (re-)selected so the two
+		// fields can't drift out of matching each other.
+		if (frm.doc.identification_type !== "Patient UID" || !frm.doc.patient) {
+			return;
+		}
+
+		frappe.call({
+			method: "sports_complex.sports_complex.doctype.trialist.trialist.get_patient_uid",
+			args: { patient: frm.doc.patient },
+			callback: function (r) {
+				if (r.message) {
+					frm.set_value("identification_number", r.message);
+				}
+			},
+		});
+	},
+
 	refresh: function (frm) {
 		if (frm.doc.__islocal || frm.doc.player) {
 			// Nothing to do pre-save, and a converted trialist is done —
@@ -70,18 +93,15 @@ frappe.ui.form.on("Trialist", {
 				"orange"
 			);
 		} else {
-			// Not sent yet ("" or "Not Cleared" — Not Cleared allows
-			// re-sending, e.g. after injury recovery).
-			frm.add_custom_button(__("Send to Clinic"), function () {
-				send_to_clinic(frm);
-			}).addClass("btn-primary");
-
-			if (frm.doc.medical_clearance_status === "Not Cleared") {
-				frm.dashboard.add_indicator(
-					__("Previous medical result: Not Cleared"),
-					"red"
-				);
-			}
+			// Not sent yet ("" or "Not Cleared" — Not Cleared means a
+			// re-trial is needed, e.g. after injury recovery). There's no
+			// button to click here anymore: re-trials go through Front
+			// Desk's own check-in flow, exactly like a first-time exam
+			// (Appointment Type "Trialist") - see healthcare_integration.py.
+			frm.dashboard.add_indicator(
+				__("Not medically cleared - check the patient in at Front Desk with Appointment Type \"Trialist\" for a (re-)trial medical exam"),
+				frm.doc.medical_clearance_status === "Not Cleared" ? "red" : "orange"
+			);
 		}
 
 		if (frm.doc.medical_encounter) {
@@ -97,29 +117,6 @@ frappe.ui.form.on("Trialist", {
 		}
 	},
 });
-
-function send_to_clinic(frm) {
-	frappe.call({
-		method: "sports_complex.sports_complex.doctype.trialist.trialist.send_to_clinic",
-		args: { trialist: frm.doc.name },
-		freeze: true,
-		freeze_message: __("Sending to clinic..."),
-		callback: function (r) {
-			if (r.message && r.message.status === "Success") {
-				frappe.show_alert({
-					message: __("Sent to clinic — medical encounter {0} created, awaiting the doctor", [r.message.encounter]),
-					indicator: "blue",
-				}, 8);
-
-				// Deliberately no navigation - the clinic finds this
-				// encounter in their own Patient Encounter worklist;
-				// there's no reason to route a sports-complex user
-				// through it.
-				frm.reload_doc();
-			}
-		},
-	});
-}
 
 function show_player_conversion_dialog(frm) {
 	// Only the fields that genuinely aren't already on the trialist's

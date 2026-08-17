@@ -36,7 +36,9 @@
   "require_payment_before_confirmation",
   "column_break_pay_1",
   "allow_partial_payment",
-  "refund_processing_days"
+  "refund_processing_days",
+  "tab_trials",
+  "trial_appointment_type"
  ],
  "fields": [
   {
@@ -226,6 +228,19 @@
    "fieldname": "no_show_penalty_",
    "fieldtype": "Percent",
    "label": "No Show Penalty %"
+  },
+  {
+   "fieldname": "tab_trials",
+   "fieldtype": "Tab Break",
+   "label": "Trials"
+  },
+  {
+   "default": "Trialist",
+   "description": "The Appointment Type that puts someone into the Trials & Player Registration medical-first pipeline (see the Trialist doctype and healthcare_integration.py). Pick this Appointment Type at Front Desk check-in - walk-in or pre-booked, first exam or re-trial, it's all the same mechanism - to start or continue a trial. Changing this only affects appointments created after the change; existing history keeps whatever Appointment Type it was created with.",
+   "fieldname": "trial_appointment_type",
+   "fieldtype": "Link",
+   "label": "Trial Appointment Type",
+   "options": "Appointment Type"
   }
  ],
  "issingle": 1,

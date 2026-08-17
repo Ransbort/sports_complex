@@ -79,7 +79,7 @@ def get_custom_fields():
 				"insert_after": "sc_trial_section",
 				"reqd": 0,
 				"hidden": 0,
-				"description": "Ticked automatically when this person is registered for a trial medical exam - see the Sports Complex app's \"Register as Trial Candidate\" button.",
+				"description": "Ticked automatically the moment a Patient Appointment is created for this person with Appointment Type \"Trialist\" (Front Desk check-in - walk-in or pre-booked).",
 			},
 			{
 				"fieldname": "sc_trial_clearance_status",
@@ -128,36 +128,48 @@ def get_custom_fields():
 				"description": "Set once sports-complex staff register this cleared patient as a Trialist - prevents duplicate registration.",
 			},
 		],
-		# Medical-clearance flow: register_trial_candidate() in
-		# healthcare_integration.py opens a draft Patient Encounter for a
-		# first-time trial candidate (no Trialist yet); Trialist.send_to_clinic()
-		# does the same for a re-trial, but with `trialist` set. These
-		# fields are what let healthcare_integration.py tell the two apart
-		# and read the doctor's verdict.
+		# Medical-first flow (see healthcare_integration.py's module
+		# docstring): a Patient Appointment whose Appointment Type
+		# matches Sports Complex Setup's configured Trial Appointment
+		# Type (default "Trialist") is what puts someone in the
+		# pipeline, for both a first exam and a re-trial alike - no
+		# separate entry point or dedicated flag needed here.
+		# start_consultation() in front_desk.py (unmodified) already
+		# inherits appointment_type from the appointment onto the
+		# resulting Patient Encounter, so healthcare_integration.py's
+		# pipeline logic just reads doc.appointment_type directly.
 		#
 		# fitness_result is required (see
 		# healthcare_integration.validate_patient_encounter) whenever
-		# is_trial_medical_exam is set, so a trial encounter can't be
-		# submitted without an actual verdict for on_submit to propagate.
+		# appointment_type is the configured Trial Appointment Type, so a
+		# trial encounter can't be submitted without an actual verdict
+		# for on_submit to propagate.
 		"Patient Encounter": [
+			# Own Tab Break, same convention core Healthcare already uses
+			# for "Encounter Details"/"Notes" (see patient_encounter.json)
+			# - keeps every trial-only field below out of the doctor's way
+			# on an ordinary consultation instead of crowding the main
+			# tab. Hidden as a whole (not just field-by-field) by
+			# healthcare_integration.ensure_fitness_result_visibility_script()
+			# unless appointment_type matches the configured Trial
+			# Appointment Type.
 			{
-				"fieldname": "is_trial_medical_exam",
+				"fieldname": "sc_trial_tab",
 				"label": "Trial Medical Exam",
-				"fieldtype": "Check",
+				"fieldtype": "Tab Break",
 				"insert_after": "appointment_type",
-				"reqd": 0,
 				"hidden": 0,
-				"description": "This encounter is a trial candidate's medical screening - requires a Fitness Result before it can be submitted.",
 			},
 			{
 				"fieldname": "trialist",
 				"label": "Trialist",
 				"fieldtype": "Link",
 				"options": "Trialist",
-				"insert_after": "is_trial_medical_exam",
+				"insert_after": "sc_trial_tab",
 				"reqd": 0,
 				"hidden": 0,
-				"description": "Only set for a re-trial of an existing Trialist. Leave blank for a first-time trial candidate - see the linked Patient's own Trial Candidacy fields instead.",
+				"read_only": 1,
+				"description": "Auto-set on submit if this Patient already has a registered Trialist (i.e. this was a re-trial) - informational only, nothing to fill in here.",
 			},
 			{
 				"fieldname": "fitness_result",
@@ -168,90 +180,87 @@ def get_custom_fields():
 				"reqd": 0,
 				"hidden": 0,
 			},
+			# These five, together with fitness_result above, are only
+			# ever shown to the doctor when appointment_type matches the
+			# configured Trial Appointment Type - see
+			# healthcare_integration.ensure_fitness_result_visibility_script()
+			# for the Client Script that toggles the whole tab. Captured
+			# here (rather than only ever living as free text on
+			# Trialist) so the trial-medical exam's findings get carried
+			# across automatically and consistently when the Patient is
+			# later registered as a Trialist - see
+			# trialist.get_patient_snapshot(). Same field order as
+			# Trialist's own Medical Information section (see
+			# trialist.json).
+			#
+			# known_allergies/current_medications aren't free-typed from
+			# scratch: healthcare_integration.sync_trial_medical_history_
+			# from_patient() (before_insert hook) copies them in from the
+			# Patient's own, already-existing Allergies/Medication fields
+			# (Healthcare core - see patient.json) the moment a
+			# trial-medical encounter is created, so the doctor sees
+			# what's already on file rather than retyping it. That's a
+			# one-time copy, not a live mirror - editing either field here
+			# afterwards is never overwritten by a later save, and never
+			# writes back to the Patient record either.
+			#
+			# All five carry "allow_on_submit": 1 - Patient Encounter is
+			# normally locked after the doctor submits (that's what makes
+			# on_patient_encounter_submit() a reliable one-shot trigger for
+			# fitness_result specifically, which deliberately does NOT get
+			# this flag - a post-submit edit there wouldn't re-propagate
+			# to Patient/Trialist and would leave the recorded verdict and
+			# what actually happened out of sync). These five are just
+			# documentation though, with nothing downstream keyed off a
+			# one-time submit event, so there's no reason a doctor
+			# couldn't correct/add to them afterwards - and without this
+			# flag, trying to would fail validation.
+			{
+				"fieldname": "known_allergies",
+				"label": "Known Allergies",
+				"fieldtype": "Small Text",
+				"insert_after": "fitness_result",
+				"reqd": 0,
+				"hidden": 0,
+				"allow_on_submit": 1,
+				"description": "Pre-filled from the Patient's own Allergies field when this encounter is created - edit here if it needs updating.",
+			},
+			{
+				"fieldname": "chronic_medical_conditions",
+				"label": "Chronic Medical Conditions",
+				"fieldtype": "Small Text",
+				"insert_after": "known_allergies",
+				"reqd": 0,
+				"hidden": 0,
+				"allow_on_submit": 1,
+			},
+			{
+				"fieldname": "previous_surgeries",
+				"label": "Previous Surgeries",
+				"fieldtype": "Small Text",
+				"insert_after": "chronic_medical_conditions",
+				"reqd": 0,
+				"hidden": 0,
+				"allow_on_submit": 1,
+			},
+			{
+				"fieldname": "current_medications",
+				"label": "Current Medications",
+				"fieldtype": "Small Text",
+				"insert_after": "previous_surgeries",
+				"reqd": 0,
+				"hidden": 0,
+				"allow_on_submit": 1,
+				"description": "Pre-filled from the Patient's own Medication field when this encounter is created - edit here if it needs updating.",
+			},
+			{
+				"fieldname": "previous_serious_injuries",
+				"label": "Previous Serious Injuries",
+				"fieldtype": "Small Text",
+				"insert_after": "current_medications",
+				"reqd": 0,
+				"hidden": 0,
+				"allow_on_submit": 1,
+			},
 		],
 	}
-
-
-def make_client_scripts():
-	"""Adds a "Register as Trial Candidate" button to the Patient form
-	via a Client Script, instead of editing anything inside the
-	Healthcare app itself (same non-invasive approach as the doc_events
-	hooks in healthcare_integration.py). Idempotent - safe to call on
-	every after_install/after_migrate.
-	"""
-	_upsert_client_script(
-		name="Sports Complex: Patient Trial Candidate Button",
-		dt="Patient",
-		view="Form",
-		script=_PATIENT_TRIAL_CANDIDATE_SCRIPT,
-	)
-
-
-def _upsert_client_script(name, dt, view, script):
-	if frappe.db.exists("Client Script", name):
-		doc = frappe.get_doc("Client Script", name)
-	else:
-		doc = frappe.new_doc("Client Script")
-		doc.name = name
-
-	doc.dt = dt
-	doc.view = view
-	doc.script = script
-	doc.enabled = 1
-	doc.flags.ignore_permissions = True
-	doc.save(ignore_permissions=True)
-
-
-# Kept as a plain string (not a .js asset) since Client Script content is
-# stored/executed straight out of the database, not bundled - see
-# make_client_scripts() above.
-_PATIENT_TRIAL_CANDIDATE_SCRIPT = """
-frappe.ui.form.on("Patient", {
-	refresh: function(frm) {
-		if (frm.doc.__islocal) {
-			return;
-		}
-
-		if (frm.doc.sc_trialist) {
-			frm.add_custom_button(__("View Trialist Record"), function() {
-				frappe.set_route("Form", "Trialist", frm.doc.sc_trialist);
-			});
-			return;
-		}
-
-		if (frm.doc.sc_trial_clearance_status === "Pending") {
-			frm.dashboard.add_indicator(__("Trial medical exam awaiting doctor's result"), "orange");
-			return;
-		}
-
-		if (frm.doc.sc_trial_clearance_status === "Cleared") {
-			frm.dashboard.add_indicator(__("Medically cleared for trials - ready for sports registration"), "green");
-			return;
-		}
-
-		// Not yet a candidate, or a previous attempt came back "Not Cleared"
-		// (re-registering is allowed - a fresh trial medical exam is opened).
-		frm.add_custom_button(__("Register as Trial Candidate"), function() {
-			frappe.call({
-				method: "sports_complex.sports_complex.healthcare_integration.register_trial_candidate",
-				args: { patient: frm.doc.name },
-				freeze: true,
-				freeze_message: __("Opening trial medical exam..."),
-				callback: function(r) {
-					if (r.message && r.message.status === "Success") {
-						frappe.show_alert({
-							message: __("Registered as trial candidate - medical encounter {0} created, awaiting the doctor", [r.message.encounter]),
-							indicator: "blue"
-						}, 8);
-						frm.reload_doc();
-					}
-				}
-			});
-		}).addClass("btn-primary");
-
-		if (frm.doc.sc_trial_clearance_status === "Not Cleared") {
-			frm.dashboard.add_indicator(__("Previous trial medical result: Not Cleared"), "red");
-		}
-	}
-});
-"""

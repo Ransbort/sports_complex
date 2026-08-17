@@ -239,7 +239,7 @@
    "fieldname": "identification_type",
    "fieldtype": "Select",
    "label": "Identification Type",
-   "options": "\nNational ID\nPassport\nBirth Certificate\nVoter ID\nSchool ID\nOther"
+   "options": "\nNational ID\nPassport\nBirth Certificate\nVoter ID\nSchool ID\nPatient UID\nOther"
   },
   {
    "fieldname": "identification_number",
@@ -265,13 +265,13 @@
    "fieldname": "known_allergies",
    "fieldtype": "Small Text",
    "label": "Known Allergies",
-   "description": "Auto-filled from the Patient's clinic record (Allergies) once a cleared Patient is selected above - edit here if the sports-side intake needs to add anything."
+   "description": "Auto-filled from the Patient's trial medical encounter once a cleared Patient is selected above - edit here if the sports-side intake needs to add anything."
   },
   {
    "fieldname": "chronic_medical_conditions",
    "fieldtype": "Small Text",
    "label": "Chronic Medical Conditions",
-   "description": "Not auto-filled - see the linked Patient's Medical History for what the clinic recorded."
+   "description": "Auto-filled from the Patient's trial medical encounter once a cleared Patient is selected above - edit here if the sports-side intake needs to add anything."
   },
   {
    "fieldname": "column_break_medical2",
@@ -281,19 +281,19 @@
    "fieldname": "previous_surgeries",
    "fieldtype": "Small Text",
    "label": "Previous Surgeries",
-   "description": "Not auto-filled - see the linked Patient's Medical History for what the clinic recorded."
+   "description": "Auto-filled from the Patient's trial medical encounter once a cleared Patient is selected above - edit here if the sports-side intake needs to add anything."
   },
   {
    "fieldname": "current_medications",
    "fieldtype": "Small Text",
    "label": "Current Medications",
-   "description": "Auto-filled from the Patient's clinic record (Medication) once a cleared Patient is selected above."
+   "description": "Auto-filled from the Patient's trial medical encounter once a cleared Patient is selected above - edit here if the sports-side intake needs to add anything."
   },
   {
    "fieldname": "previous_serious_injuries",
    "fieldtype": "Small Text",
    "label": "Previous Serious Injuries",
-   "description": "Not auto-filled - see the linked Patient's Medical History for what the clinic recorded."
+   "description": "Auto-filled from the Patient's trial medical encounter once a cleared Patient is selected above - edit here if the sports-side intake needs to add anything."
   },
   {
    "fieldname": "section_break_emergency",
