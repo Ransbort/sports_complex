@@ -57,6 +57,8 @@ Relies on custom fields added by get_custom_fields() in setup.py:
     - trialist                      Link -> Trialist (auto-set, informational
                                      only — see _propagate_to_trialist() below)
     - fitness_result                Select "\nFit\nNot Fit"
+    - fitness_notes                 Small Text (doctor's reasoning behind
+                                     Fitness Result)
     - known_allergies               Small Text (pre-filled from Patient.
                                      allergies on creation - see
                                      sync_trial_medical_history_from_patient()
@@ -67,7 +69,7 @@ Relies on custom fields added by get_custom_fields() in setup.py:
                                      medication on creation, same as
                                      known_allergies above)
     - previous_serious_injuries     Small Text
-      (all seven fields above live together under the sc_trial_tab Tab
+      (all eight fields above live together under the sc_trial_tab Tab
       Break; the five Medical Information fields are captured by the
       doctor alongside the Fitness Result during a trial-medical
       encounter, and carried across onto the new Trialist by
@@ -80,9 +82,10 @@ hand first:
   - the Appointment Type record itself, via ensure_trial_appointment_type()
   - a Client Script on Patient Encounter's Form view, via
     ensure_fitness_result_visibility_script(), that hides the whole
-    "Trial Medical Exam" tab (sc_trial_tab, Fitness Result, and the five
-    Medical Information fields above — TRIAL_ONLY_ENCOUNTER_FIELDS)
-    entirely unless the open encounter's Appointment Type matches
+    "Trial Medical Exam" tab (sc_trial_tab, Fitness Result, Fitness
+    Assessment Notes, and the five Medical Information fields above —
+    TRIAL_ONLY_ENCOUNTER_FIELDS) entirely unless the open encounter's
+    Appointment Type matches
     get_trial_appointment_type() — doctors doing an ordinary (non-trial)
     consultation never see a tab that means nothing to them.
 """
@@ -155,17 +158,19 @@ def get_trial_appointment_type_for_client():
 # not just one, so there's no conflict either way).
 #
 # Covers the whole "Trial Medical Exam" Tab Break (sc_trial_tab) plus
-# fitness_result and the five Medical Information fields (known_allergies,
-# chronic_medical_conditions, previous_surgeries, current_medications,
-# previous_serious_injuries) added alongside it in setup.get_custom_fields()
-# - none of them mean anything outside a trial-medical encounter, so all
-# seven are toggled together. Toggling the Tab Break itself hides the tab
-# entirely rather than leaving an empty one in the tab bar; the individual
-# fields are toggled too, defensively, in case a future Frappe version ever
-# renders a hidden tab's fields some other way.
+# fitness_result, fitness_notes, and the five Medical Information fields
+# (known_allergies, chronic_medical_conditions, previous_surgeries,
+# current_medications, previous_serious_injuries) added alongside it in
+# setup.get_custom_fields() - none of them mean anything outside a
+# trial-medical encounter, so all eight are toggled together. Toggling the
+# Tab Break itself hides the tab entirely rather than leaving an empty one
+# in the tab bar; the individual fields are toggled too, defensively, in
+# case a future Frappe version ever renders a hidden tab's fields some
+# other way.
 TRIAL_ONLY_ENCOUNTER_FIELDS = [
 	"sc_trial_tab",
 	"fitness_result",
+	"fitness_notes",
 	"known_allergies",
 	"chronic_medical_conditions",
 	"previous_surgeries",

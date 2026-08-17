@@ -180,7 +180,18 @@ def get_custom_fields():
 				"reqd": 0,
 				"hidden": 0,
 			},
-			# These five, together with fitness_result above, are only
+			# Doctor's free-text reasoning behind the Fitness Result above.
+			{
+				"fieldname": "fitness_notes",
+				"label": "Fitness Assessment Notes",
+				"fieldtype": "Small Text",
+				"insert_after": "fitness_result",
+				"reqd": 0,
+				"hidden": 0,
+				"allow_on_submit": 1,
+				"description": "Doctor's notes on why the trialist was marked Fit or Not Fit.",
+			},
+			# These five, together with fitness_result/fitness_notes above, are only
 			# ever shown to the doctor when appointment_type matches the
 			# configured Trial Appointment Type - see
 			# healthcare_integration.ensure_fitness_result_visibility_script()
@@ -219,7 +230,7 @@ def get_custom_fields():
 				"fieldname": "known_allergies",
 				"label": "Known Allergies",
 				"fieldtype": "Small Text",
-				"insert_after": "fitness_result",
+				"insert_after": "fitness_notes",
 				"reqd": 0,
 				"hidden": 0,
 				"allow_on_submit": 1,
