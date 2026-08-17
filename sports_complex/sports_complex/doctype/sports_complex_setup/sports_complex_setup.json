@@ -235,8 +235,7 @@
    "label": "Trials"
   },
   {
-   "default": "Trialist",
-   "description": "The Appointment Type that puts someone into the Trials & Player Registration medical-first pipeline (see the Trialist doctype and healthcare_integration.py). Pick this Appointment Type at Front Desk check-in - walk-in or pre-booked, first exam or re-trial, it's all the same mechanism - to start or continue a trial. Changing this only affects appointments created after the change; existing history keeps whatever Appointment Type it was created with.",
+   "description": "The Appointment Type that puts someone into the Trials & Player Registration medical-first pipeline (see the Trialist doctype and healthcare_integration.py). Pick this Appointment Type at Front Desk check-in - walk-in or pre-booked, first exam or re-trial, it's all the same mechanism - to start or continue a trial. Changing this only affects appointments created after the change; existing history keeps whatever Appointment Type it was created with. Left blank until Sports Complex Setup is saved for the first time (or ensure_trial_appointment_type() runs on install/migrate) - healthcare_integration.get_trial_appointment_type() falls back to \"Trialist\" in code when this is empty, so nothing here depends on a DocField-level default. (Deliberately no \"default\" on this field: Frappe applies Link field defaults - including link validation - when a Single doctype like this one is first bootstrapped during bench migrate's schema sync, which runs before install.py's after_migrate() has had a chance to create the \"Trialist\" Appointment Type record via ensure_trial_appointment_type() - a hardcoded default here would make every fresh install fail with \"Could not find Appointment Type: Trialist\".)",
    "fieldname": "trial_appointment_type",
    "fieldtype": "Link",
    "label": "Trial Appointment Type",
