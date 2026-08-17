@@ -5,6 +5,17 @@ app_description = "Sports Complex Management: facilities, bookings, membership, 
 app_email = "ransbort@outlook.com"
 app_license = "mit"
 required_apps = ["frappe", "healthcare"]
+app_home = "/desk/healthcare"
+
+add_to_apps_screen = [
+	{
+		"name": app_name,
+		"logo": "/assets/sports_complex/images/sports_complex.svg",
+		"title": app_title,
+		"route": app_home,
+		"has_permission": "erpnext.check_app_permission",
+	}
+]
 
 # Includes in <head>
 # ------------------
