@@ -110,6 +110,45 @@ frappe.ui.form.on("Trialist", {
 			});
 		}
 
+		// Registration-fee billing - see create_registration_invoice() in
+		// trialist.py. Same "Cleared" gate as "Mark as Player" above: no
+		// bill until a doctor has actually signed off. The Trial
+		// Registration Cashier page (sports_complex/page/
+		// trial_registration_cashier) is the normal place to do this and
+		// collect payment, but the button here covers billing/checking a
+		// single trialist without leaving their record.
+		if (!frm.doc.__islocal && frm.doc.medical_clearance_status === "Cleared"
+			&& (!frm.doc.registration_fee_status || frm.doc.registration_fee_status === "Not Invoiced")) {
+			frm.add_custom_button(__("Create Registration Bill"), function () {
+				frappe.confirm(
+					__("Raise a Sales Invoice for the trial registration fee against {0}?", [frm.doc.full_name]),
+					function () {
+						frappe.call({
+							method: "sports_complex.sports_complex.doctype.trialist.trialist.create_registration_invoice",
+							args: { trialist: frm.doc.name },
+							freeze: true,
+							freeze_message: __("Creating bill..."),
+							callback: function (r) {
+								if (r.message && r.message.status === "Success") {
+									frappe.show_alert({
+										message: __("Registration bill {0} created", [r.message.invoice]),
+										indicator: "green",
+									}, 6);
+									frm.reload_doc();
+								}
+							},
+						});
+					}
+				);
+			}, __("Billing")).addClass("btn-primary");
+		}
+
+		if (frm.doc.registration_invoice) {
+			frm.add_custom_button(__("View Registration Invoice"), function () {
+				frappe.set_route("Form", "Sales Invoice", frm.doc.registration_invoice);
+			}, __("Billing"));
+		}
+
 		if (frm.doc.player) {
 			frm.add_custom_button(__("View Player"), function () {
 				frappe.set_route("Form", "Player", frm.doc.player);

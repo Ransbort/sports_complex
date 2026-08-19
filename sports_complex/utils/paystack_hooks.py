@@ -17,6 +17,14 @@ SOURCE_MAP = {
 	"training_session": ("Training Session", "payment_status", "Paid"),
 	"equipment_issue": ("Equipment Issue", "payment_status", "Paid"),
 	"equipment_return": ("Equipment Return", "payment_status", "Paid"),
+	# Trial Registration Fee invoices - see Trialist.create_registration_invoice()
+	# in doctype/trialist/trialist.py. Covers the case where a trialist's bill
+	# gets paid via frappe_paystack's own "Pay Now" button on the Sales
+	# Invoice directly, rather than through the Trial Registration Cashier
+	# page's manual Payment Entry flow (which sets this itself - see
+	# create_payment_entry() in page/trial_registration_cashier/
+	# trial_registration_cashier.py).
+	"trialist": ("Trialist", "registration_fee_status", "Paid"),
 }
 
 

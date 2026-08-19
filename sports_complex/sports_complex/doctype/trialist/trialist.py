@@ -4,7 +4,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import getdate, today
+from frappe.utils import flt, getdate, today
 
 
 class Trialist(Document):
@@ -13,9 +13,43 @@ class Trialist(Document):
 		self.set_age()
 		self.validate_patient_cleared()
 
+	def before_insert(self):
+		# Registration-fee invoices (create_registration_invoice() below) need
+		# somewhere to bill against - same 1:1 Customer pattern as Member.
+		# create_customer(). Runs before the Trialist itself is inserted so
+		# `customer` is already set on the very first save (matches Member's
+		# before_insert timing).
+		#
+		# before_insert fires before validate() in Frappe's save flow, so
+		# full_name isn't guaranteed to be set yet - compute it explicitly
+		# here rather than assuming set_full_name() (called from validate())
+		# has already run, otherwise the new Customer could get created with
+		# a blank/placeholder name.
+		self.set_full_name()
+		if not self.customer:
+			self.create_customer()
+
 	def after_insert(self):
 		if self.patient:
 			frappe.db.set_value("Patient", self.patient, "sc_trialist", self.name)
+
+	def create_customer(self):
+		"""Auto-create a 1:1 Customer record for this Trialist, same
+		reasoning as Member.create_customer() in member.py. Uses full_name
+		rather than a "trialist_name" field (Trialist has no such field -
+		see set_full_name()) and carries across email/mobile_number when
+		available, same as Member does with its own email/phone."""
+		customer = frappe.new_doc("Customer")
+		customer.customer_name = self.full_name or self.name
+		customer.customer_type = "Individual"
+		if self.email:
+			customer.email_id = self.email
+		if self.mobile_number:
+			customer.mobile_no = self.mobile_number
+		customer.flags.ignore_permissions = True
+		customer.insert()
+
+		self.customer = customer.name
 
 	def on_update(self):
 		# Keep Patient.sc_trialist in sync if the linked patient is ever
@@ -111,7 +145,16 @@ def _guard_not_already_converted(trialist_doc):
 		)
 
 
-def _guard_medically_cleared(trialist_doc):
+def _guard_not_already_invoiced(trialist_doc):
+	if trialist_doc.registration_fee_status in ("Invoiced", "Paid"):
+		frappe.throw(
+			_("Trialist {0} already has a registration invoice ({1}, status: {2}).").format(
+				trialist_doc.name, trialist_doc.registration_invoice, trialist_doc.registration_fee_status
+			)
+		)
+
+
+def _guard_medically_cleared(trialist_doc, action=None):
 	"""Final sport-side data entry (and conversion to Player) can't happen
 	until a doctor has cleared this trialist. Under the medical-first
 	flow this is already true the moment the Trialist is created (see
@@ -120,14 +163,20 @@ def _guard_medically_cleared(trialist_doc):
 	re-trial path, where medical_clearance_status can regress to
 	"Not Cleared"/"Pending" after a re-trial check-in (Front Desk,
 	Appointment Type "Trialist" - see healthcare_integration.py) puts a
-	fresh medical exam in progress."""
+	fresh medical exam in progress. `action` lets callers other than
+	convert_trialist_to_player (e.g. create_registration_invoice below)
+	substitute their own wording for what's being blocked."""
 	if trialist_doc.medical_clearance_status != "Cleared":
 		frappe.throw(
 			_(
 				"Trialist {0} has not been medically cleared yet (status: {1}). "
 				"Send them to the clinic and wait for the doctor's clearance "
-				"before registering them as a Player."
-			).format(trialist_doc.name, trialist_doc.medical_clearance_status or _("Not Sent"))
+				"before {2}."
+			).format(
+				trialist_doc.name,
+				trialist_doc.medical_clearance_status or _("Not Sent"),
+				action or _("registering them as a Player"),
+			)
 		)
 
 
@@ -343,4 +392,94 @@ def convert_trialist_to_player(trialist, team=None, jersey_number=None, player_c
 	return {
 		"status": "Success",
 		"player": player_doc.name,
+	}
+
+
+# Item Group the one-off "Trial Registration Fee" Item is filed under -
+# same convention as the item_group values hardcoded elsewhere in this app
+# (e.g. "Equipment Rental" in equipment_issue.py, "Tournament" in
+# tournament_registration.py): create this Item Group once on your site (or
+# change the value below to match your own catalogue) before the first bill
+# is raised - get_or_create_item() in utils/invoicing.py creates the Item
+# itself but not its Item Group.
+TRIAL_REGISTRATION_ITEM_GROUP = "Trials"
+TRIAL_REGISTRATION_ITEM_CODE = "Trial Registration Fee"
+
+
+@frappe.whitelist()
+def create_registration_invoice(trialist):
+	"""Once the doctor confirms a trialist to be fit [...] a bill can be
+	created for the trialist registration fee" - called from the Trial
+	Registration Cashier page (see sports_complex/page/
+	trial_registration_cashier) and from the "Create Registration Bill"
+	button on the Trialist form itself (trialist.js). Bills the flat fee
+	configured at Sports Complex Setup > Trials > Trial Registration Fee
+	against this Trialist's own Customer (see create_customer() above),
+	using the same make_linked_sales_invoice() helper Facility Booking/
+	Membership/Tournament Registration/etc. all use - stamps the `trialist`
+	back-link custom field already provisioned on Sales Invoice (see
+	get_custom_fields() in setup.py) so the invoice shows up against this
+	Trialist (and on the Trial Registration Cashier page's billing queue).
+
+	Only ever callable once a doctor has actually cleared this trialist
+	(medical_clearance_status == "Cleared") and only once per Trialist -
+	see _guard_medically_cleared()/_guard_not_already_invoiced() above.
+	Unlike make_linked_sales_invoice()'s other callers (e.g. Membership.
+	create_sales_invoice(), which leaves the invoice as a draft for
+	frappe_paystack's "Pay Now" button), this submits the invoice
+	immediately - the Trial Registration Cashier page deals with an
+	already-submitted invoice's outstanding_amount the same way Healthcare's
+	own Cashier Portal does (see cashier_portal.py's create_payment_entry()),
+	so a cashier can collect payment against it straight away.
+	"""
+	trialist_doc = frappe.get_doc("Trialist", trialist)
+	_guard_medically_cleared(trialist_doc, action=_("billing the registration fee"))
+	_guard_not_already_invoiced(trialist_doc)
+
+	fee = flt(frappe.get_cached_doc("Sports Complex Setup").get("trial_registration_fee"))
+	if fee <= 0:
+		frappe.throw(
+			_(
+				"No Trial Registration Fee is configured. Set one under Sports Complex "
+				"Setup > Trials > Trial Registration Fee before billing trialists."
+			)
+		)
+
+	if not trialist_doc.customer:
+		# Shouldn't normally happen - before_insert() always sets this on
+		# first save - but a Trialist created before this feature existed
+		# (or edited directly via the API) could still be missing one.
+		trialist_doc.create_customer()
+		trialist_doc.db_set("customer", trialist_doc.customer)
+
+	from sports_complex.utils.invoicing import make_linked_sales_invoice
+
+	si = make_linked_sales_invoice(
+		customer=trialist_doc.customer,
+		item_code=TRIAL_REGISTRATION_ITEM_CODE,
+		item_group=TRIAL_REGISTRATION_ITEM_GROUP,
+		amount=fee,
+		link_fieldname="trialist",
+		link_docname=trialist_doc.name,
+		description=_("Trial Registration Fee - {0}").format(trialist_doc.full_name),
+	)
+	si.submit()
+
+	trialist_doc.db_set("registration_fee_status", "Invoiced")
+	trialist_doc.db_set("registration_invoice", si.name)
+
+	frappe.publish_realtime(
+		event="trial_registration_invoiced",
+		message={
+			"trialist": trialist_doc.name,
+			"invoice": si.name,
+			"message": _("Registration bill {0} raised for {1}").format(si.name, trialist_doc.full_name),
+		},
+	)
+
+	return {
+		"status": "Success",
+		"invoice": si.name,
+		"outstanding_amount": si.outstanding_amount,
+		"currency": si.currency,
 	}

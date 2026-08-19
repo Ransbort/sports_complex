@@ -72,6 +72,9 @@
   "notes",
   "section_break_billing",
   "customer",
+  "column_break_billing2",
+  "registration_fee_status",
+  "registration_invoice",
   "section_break_conversion",
   "player",
   "converted_on"
@@ -475,7 +478,29 @@
    "label": "Customer",
    "options": "Customer",
    "read_only": 1,
-   "description": "Linked automatically if a trial registration fee is configured — see registration fee notes in trialist.py"
+   "description": "Auto-created 1:1 with this Trialist on first save — see create_customer() in trialist.py. Registration-fee invoices are billed against this Customer."
+  },
+  {
+   "fieldname": "column_break_billing2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Not Invoiced",
+   "fieldname": "registration_fee_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Registration Fee Status",
+   "options": "Not Invoiced\nInvoiced\nPaid",
+   "read_only": 1,
+   "description": "Not Invoiced until a doctor clears this trialist and a bill is raised (Trial Registration Cashier page, or the \"Create Registration Bill\" button below) - see create_registration_invoice() in trialist.py."
+  },
+  {
+   "fieldname": "registration_invoice",
+   "fieldtype": "Link",
+   "label": "Registration Invoice",
+   "options": "Sales Invoice",
+   "read_only": 1
   },
   {
    "collapsible": 1,

@@ -38,7 +38,8 @@
   "allow_partial_payment",
   "refund_processing_days",
   "tab_trials",
-  "trial_appointment_type"
+  "trial_appointment_type",
+  "trial_registration_fee"
  ],
  "fields": [
   {
@@ -240,6 +241,14 @@
    "fieldtype": "Link",
    "label": "Trial Appointment Type",
    "options": "Appointment Type"
+  },
+  {
+   "default": "0",
+   "description": "Flat one-off fee billed once a trialist is registered against a medically-cleared Patient (Trialist.create_registration_invoice). Billed via the Trial Registration Cashier page (or the Trialist form's \"Create Registration Bill\" button) - leave at 0 to disable trial-registration billing entirely (the button/page will refuse to create a zero-value bill and explain why).",
+   "fieldname": "trial_registration_fee",
+   "fieldtype": "Currency",
+   "label": "Trial Registration Fee",
+   "options": "default_currency"
   }
  ],
  "issingle": 1,
