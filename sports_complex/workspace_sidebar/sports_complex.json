@@ -89,6 +89,19 @@
   },
   {
    "doctype": "Workspace Sidebar Item",
+   "idx": 9,
+   "type": "Link",
+   "icon": "credit-card",
+   "label": "Trial Registration Cashier",
+   "link_to": "trial-registration-cashier",
+   "link_type": "Page",
+   "child": 0,
+   "parent": "Sports Complex",
+   "parentfield": "items",
+   "parenttype": "Workspace Sidebar"
+  },
+  {
+   "doctype": "Workspace Sidebar Item",
    "idx": 10,
    "type": "Section Break",
    "icon": "building-2",

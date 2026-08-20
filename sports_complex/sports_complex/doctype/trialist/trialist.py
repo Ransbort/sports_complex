@@ -395,15 +395,26 @@ def convert_trialist_to_player(trialist, team=None, jersey_number=None, player_c
 	}
 
 
-# Item Group the one-off "Trial Registration Fee" Item is filed under -
-# same convention as the item_group values hardcoded elsewhere in this app
-# (e.g. "Equipment Rental" in equipment_issue.py, "Tournament" in
-# tournament_registration.py): create this Item Group once on your site (or
-# change the value below to match your own catalogue) before the first bill
-# is raised - get_or_create_item() in utils/invoicing.py creates the Item
-# itself but not its Item Group.
-TRIAL_REGISTRATION_ITEM_GROUP = "Trials"
+# Fallback Item Group for the one-off "Trial Registration Fee" Item, used
+# only if Sports Complex Setup > Trials > Trial Registration Item Group is
+# left blank (see _get_trial_registration_item_group() below) - same
+# convention as the item_group values hardcoded elsewhere in this app (e.g.
+# "Equipment Rental" in equipment_issue.py, "Tournament" in
+# tournament_registration.py). Create this Item Group once on your site (or
+# configure a different one in Setup) before the first bill is raised -
+# get_or_create_item() in utils/invoicing.py creates the Item itself but not
+# its Item Group.
+DEFAULT_TRIAL_REGISTRATION_ITEM_GROUP = "Trials"
 TRIAL_REGISTRATION_ITEM_CODE = "Trial Registration Fee"
+
+
+def _get_trial_registration_item_group():
+	"""Configurable per site via Sports Complex Setup > Trials > Trial
+	Registration Item Group (falls back to "Trials" if that's ever left
+	blank) - same pattern as healthcare_integration.get_trial_appointment_type()
+	falling back to "Trialist"."""
+	settings = frappe.get_cached_doc("Sports Complex Setup")
+	return settings.get("trial_registration_item_group") or DEFAULT_TRIAL_REGISTRATION_ITEM_GROUP
 
 
 @frappe.whitelist()
@@ -457,7 +468,7 @@ def create_registration_invoice(trialist):
 	si = make_linked_sales_invoice(
 		customer=trialist_doc.customer,
 		item_code=TRIAL_REGISTRATION_ITEM_CODE,
-		item_group=TRIAL_REGISTRATION_ITEM_GROUP,
+		item_group=_get_trial_registration_item_group(),
 		amount=fee,
 		link_fieldname="trialist",
 		link_docname=trialist_doc.name,

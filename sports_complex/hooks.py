@@ -57,10 +57,18 @@ doc_events = {
         # existing Allergies/Medication onto the encounter's own
         # known_allergies/current_medications fields so the doctor isn't
         # retyping them (see healthcare_integration.
-        # sync_trial_medical_history_from_patient()). Deliberately not a
-        # live/ongoing sync - a later edit here or on the Patient record
-        # doesn't flow either way afterwards.
-        "before_insert": "sports_complex.sports_complex.healthcare_integration.sync_trial_medical_history_from_patient",
+        # sync_trial_medical_history_from_patient()), and separately
+        # populates the standard Lab Tests section with this trial's
+        # already-completed predetermined lab panel (see
+        # healthcare_integration.attach_trial_lab_results_to_encounter() -
+        # "Lab stage" section of that module's docstring). Both are
+        # deliberately one-time, at-creation copies, not a live/ongoing
+        # sync - a later edit here or on the source record doesn't flow
+        # either way afterwards.
+        "before_insert": [
+            "sports_complex.sports_complex.healthcare_integration.sync_trial_medical_history_from_patient",
+            "sports_complex.sports_complex.healthcare_integration.attach_trial_lab_results_to_encounter",
+        ],
         "validate": "sports_complex.sports_complex.healthcare_integration.validate_patient_encounter",
         "on_submit": "sports_complex.sports_complex.healthcare_integration.on_patient_encounter_submit",
     },

@@ -3,10 +3,18 @@
 
 """Hooks into the Healthcare app's Patient Appointment / Patient Encounter
 doctypes, wired up via this app's hooks.py. Keeps the trial-candidacy
-pipeline in sync with the doctor's verdict, without this app needing to
-modify anything inside the Healthcare app itself — including Front Desk
-(healthcare/page/front_desk/front_desk.py), which stays completely
-untouched.
+pipeline in sync with the doctor's verdict.
+
+This module still owns every bit of trial-specific decision-making, but as
+of the predetermined-lab stage below, Front Desk itself
+(healthcare/page/front_desk/front_desk.py and front_desk.js) is no longer
+completely untouched — it has three small, generic extension points added
+to it (a "lab" tab alongside checkin/queue/nurse/doctor, a
+tab_for_status entry, and a _route_after_vitals() hook called from
+save_vitals()). None of those three contain trial-specific logic
+themselves; they only ever call into this module. See
+route_trial_after_vitals() below for exactly where control crosses back
+over.
 
 Registration flow (medical-first, per the team's confirmed redesign):
   1. A person enters the pipeline the moment ANY Patient Appointment gets
@@ -15,15 +23,32 @@ Registration flow (medical-first, per the team's confirmed redesign):
      "Trialist" — see get_trial_appointment_type() below) — a walk-in
      check-in or a pre-booked appointment, first exam or a re-trial, it's
      all the exact same mechanism now. Front Desk's own check-in flow
-     (checkin/queue/nurse/doctor tabs) is used as-is; nothing sports-
+     (checkin/queue/nurse/lab/doctor tabs) is used as-is; nothing sports-
      specific needs to exist there. on_patient_appointment_after_insert()
      below reacts to that and flags the Patient as a trial candidate.
   2. The person goes through Front Desk's normal queue - Nurse Station
-     takes vitals, then the doctor calls start_consultation(), which
-     creates the actual Patient Encounter and inherits appointment_type
-     from the appointment automatically (see front_desk.py - no changes
-     needed there for this to work). The doctor records a Fitness Result
-     and submits.
+     takes vitals. For a trial appointment, save_vitals() no longer sends
+     them straight to the doctor: route_trial_after_vitals() below
+     intercepts (via front_desk.py's _route_after_vitals() extension
+     point), auto-creates one Lab Test per row configured under Sports
+     Complex Setup > Trials > Required Lab Tests (create_trial_lab_panel()
+     below - already paid for by the same consultation fee charged at
+     check-in, never billed a second time), and parks the appointment on
+     a new "With Lab" queue_status / Lab tab instead of "With Doctor".
+     Lab staff work those tests exactly like any other Lab Test, then a
+     lab tech (or, for an incomplete panel, a front-desk/nursing override
+     — see send_trial_to_doctor() below) sends the appointment on to the
+     Doctor Queue. Only then does the doctor call start_consultation(),
+     which creates the actual Patient Encounter, inherits appointment_type
+     from the appointment automatically, and — via
+     attach_trial_lab_results_to_encounter() below, hooked on the
+     Encounter's own before_insert — arrives pre-populated with the
+     completed lab results in its normal Lab Tests section, nothing for
+     the doctor to go hunting for. The doctor records a Fitness Result
+     and submits. If Sports Complex Setup's Required Lab Tests table is
+     left empty, route_trial_after_vitals() declines to claim the
+     appointment and it goes straight to the doctor as before - the lab
+     stage is opt-in per site, not a hard requirement of the trial flow.
   3. on_patient_encounter_submit() below reads that verdict. It always
      updates the originating Patient's own trial-candidacy fields; if
      that Patient already has a registered Trialist (sc_trialist set —
@@ -74,11 +99,21 @@ Relies on custom fields added by get_custom_fields() in setup.py:
       doctor alongside the Fitness Result during a trial-medical
       encounter, and carried across onto the new Trialist by
       get_patient_snapshot() in trialist.py)
+  Lab Test:
+    - sc_trial_appointment      Link -> Patient Appointment (auto-set only
+                                 on the Lab Tests create_trial_lab_panel()
+                                 itself creates - see that function)
 
-...plus the "trial_appointment_type" field on the Sports Complex Setup
-single doctype (Trials tab), and two things auto-provisioned by
-install.py's after_install/after_migrate so nobody has to create them by
-hand first:
+Plus, on the Healthcare app's own Healthcare Settings single (added by
+healthcare/setup.py, not this app, since it's Front Desk tab-access
+plumbing rather than anything trial-specific):
+  - front_desk_lab_roles           Small Text, default "Laboratory User"
+  - front_desk_lab_override_roles  Small Text, default "Nursing User,Physician"
+
+...plus the "trial_appointment_type" and "trial_required_lab_tests" fields
+on the Sports Complex Setup single doctype (Trials tab), and four things
+auto-provisioned by install.py's after_install/after_migrate so nobody has
+to create them by hand first:
   - the Appointment Type record itself, via ensure_trial_appointment_type()
   - a Client Script on Patient Encounter's Form view, via
     ensure_fitness_result_visibility_script(), that hides the whole
@@ -88,13 +123,19 @@ hand first:
     Appointment Type matches
     get_trial_appointment_type() — doctors doing an ordinary (non-trial)
     consultation never see a tab that means nothing to them.
+  - a Property Setter on Patient Appointment.queue_status, via
+    ensure_queue_status_with_lab_option(), that appends "With Lab" to the
+    Select options Healthcare's own setup.py defines for that field —
+    layered on top rather than editing that field's own definition, so
+    it survives Healthcare's own after_migrate re-syncing its Custom
+    Field record.
 """
 
 import json
 
 import frappe
 from frappe import _
-from frappe.utils import today
+from frappe.utils import nowdate, today
 
 # Used only if Sports Complex Setup's Trial Appointment Type field has
 # never been set (e.g. a brand new site before Setup has been opened
@@ -261,6 +302,332 @@ def ensure_fitness_result_visibility_script():
 			"enabled": 1,
 			"script": FITNESS_RESULT_VISIBILITY_SCRIPT,
 		}).insert(ignore_permissions=True)
+
+
+# =============================================================================
+# LAB STAGE — predetermined labs between vitals and the doctor
+#
+# For a trial appointment, save_vitals() (front_desk.py) no longer sends the
+# patient straight to the doctor. route_trial_after_vitals() below is what
+# front_desk.py's _route_after_vitals() extension point calls; everything
+# from queue_status through the Lab tab's data and the eventual handoff back
+# to the doctor lives here, not in front_desk.py/js.
+# =============================================================================
+
+WITH_LAB_STATUS = "With Lab"
+
+
+def ensure_queue_status_with_lab_option():
+	"""Idempotently layer a Property Setter on top of Patient Appointment.
+	queue_status so WITH_LAB_STATUS is a valid option, without editing the
+	Custom Field Healthcare's own setup.py owns. A Property Setter is used
+	specifically because it's *not* touched when Healthcare's own
+	after_migrate re-runs create_custom_fields(update=True) on that same
+	Custom Field — editing the Custom Field's `options` directly here
+	would just get silently reverted on the next bench migrate.
+
+	Always recomputed from the Custom Field's own base options (not
+	whatever the field currently resolves to, which could already include
+	a previous run's Property Setter) so this is safe to call repeatedly
+	and never doubles up "With Lab" in the list.
+	"""
+	base_options = frappe.db.get_value(
+		"Custom Field", {"dt": "Patient Appointment", "fieldname": "queue_status"}, "options"
+	)
+	if not base_options:
+		# Healthcare's own setup.py hasn't run yet on this site (fresh
+		# install ordering) - nothing to layer on top of yet. Healthcare's
+		# after_install/after_migrate always runs make_custom_fields()
+		# too, so a later bench migrate picks this back up.
+		return
+
+	options_list = base_options.split("\n")
+	if WITH_LAB_STATUS in options_list:
+		return
+
+	# Slot it in right after "With Nurse" so the list still reads as one
+	# coherent, ordered pipeline wherever it's shown as a plain Select
+	# (list filters, reports) - not load-bearing for the code itself,
+	# which only ever compares queue_status by exact string.
+	if "With Nurse" in options_list:
+		insert_at = options_list.index("With Nurse") + 1
+		options_list.insert(insert_at, WITH_LAB_STATUS)
+	else:
+		options_list.append(WITH_LAB_STATUS)
+
+	from frappe.custom.doctype.property_setter.property_setter import make_property_setter
+
+	make_property_setter(
+		"Patient Appointment",
+		"queue_status",
+		"options",
+		"\n".join(options_list),
+		"Text",
+	)
+
+
+def _trial_lab_panel_templates():
+	"""Lab Test Template names configured under Sports Complex Setup >
+	Trials > Required Lab Tests, in row order. Empty list means the lab
+	stage is switched off for this site - route_trial_after_vitals()
+	treats that as "nothing to gate on", not an error.
+	"""
+	settings = frappe.get_cached_doc("Sports Complex Setup")
+	return [
+		row.lab_test_template
+		for row in settings.get("trial_required_lab_tests") or []
+		if row.lab_test_template
+	]
+
+
+def create_trial_lab_panel(appointment):
+	"""Auto-create one Lab Test per row in the configured trial panel,
+	directly against the Patient - no Patient Encounter exists yet at
+	this point (same reason Vital Signs links via `appointment` rather
+	than `encounter` in front_desk.py's save_vitals()).
+
+	custom_invoice is pointed at the SAME Sales Invoice that already paid
+	for this appointment's consultation fee at check-in
+	(consultation_invoice) rather than creating a fresh invoice per test
+	the way lab_portal.create_lab_request()/accept_*_lab_request() do for
+	an ordinary lab request - the trial's one check-in payment is meant to
+	cover vitals + this panel + the doctor visit as a single bundled fee
+	(see Sports Complex Setup > Trials > Required Lab Tests' description),
+	so nothing here should ever raise a second bill. Setting custom_invoice
+	is also what puts these straight into Lab Portal's existing "Pending
+	Labs" tab (custom_invoice IS NOT NULL AND status != 'Completed') with
+	zero changes needed to lab_portal.py - there's no "accept" step to
+	invoice, since it's already covered.
+
+	Idempotent: skips any template that already has a Lab Test for this
+	appointment, so a retried/duplicated call (e.g. save_vitals() somehow
+	invoked twice) never creates a second panel.
+	"""
+	templates = _trial_lab_panel_templates()
+	if not templates:
+		return []
+
+	appt = frappe.db.get_value(
+		"Patient Appointment", appointment, ["patient", "consultation_invoice"], as_dict=True
+	)
+	if not appt or not appt.patient:
+		return []
+
+	patient = frappe.get_cached_doc("Patient", appt.patient)
+
+	existing = {
+		row.template
+		for row in frappe.get_all(
+			"Lab Test", filters={"sc_trial_appointment": appointment}, fields=["template"]
+		)
+	}
+
+	created = []
+	for template in templates:
+		if template in existing:
+			4continue
+		lab_test = frappe.get_doc(
+			{
+				"doctype": "Lab Test",
+				"patient": patient.name,
+				"patient_name": patient.patient_name,
+				"patient_sex": patient.sex,
+				"template": template,
+				"status": "Draft",
+				"sc_trial_appointment": appointment,
+				"custom_invoice": appt.consultation_invoice,
+			}
+		)
+		lab_test.insert(ignore_permissions=True)
+		created.append(lab_test.name)
+
+	return created
+
+
+def route_trial_after_vitals(appointment, appointment_type):
+	"""Called from front_desk.py's _route_after_vitals() extension point,
+	right after save_vitals() submits the Vital Signs doc. Returns True if
+	this appointment was claimed and fully routed here (queue_status +
+	notification both handled) - False tells front_desk.py to run its own
+	default "straight to the doctor" path instead.
+
+	Two cases return False, both deliberately: a non-trial appointment
+	(nothing to do with this module), and a trial appointment whose site
+	has never configured any Required Lab Tests (Sports Complex Setup >
+	Trials) - the lab stage is opt-in per site, not a hard requirement of
+	the trial flow, so an unconfigured panel behaves exactly like the
+	pre-lab-stage flow always did.
+	"""
+	if appointment_type != get_trial_appointment_type():
+		return False
+
+	created = create_trial_lab_panel(appointment)
+	if not created:
+		return False
+
+	frappe.db.set_value("Patient Appointment", appointment, "queue_status", WITH_LAB_STATUS)
+
+	patient_name = frappe.db.get_value("Patient Appointment", appointment, "patient_name")
+	frappe.publish_realtime(
+		event="queue_update",
+		message={
+			"department": "laboratory",
+			"message": f"{patient_name} ready for trial labs ({len(created)} test(s))",
+			"appointment": appointment,
+		},
+	)
+	return True
+
+
+def _configured_roles(fieldname, default_roles=None):
+	configured = frappe.db.get_single_value("Healthcare Settings", fieldname)
+	roles = {r.strip() for r in (configured or "").split(",") if r.strip()}
+	return roles or (set(default_roles) if default_roles else set())
+
+
+def user_can_access_lab_tab(user=None):
+	"""Mirrors front_desk.py's own _user_can_access_tab() (deliberately
+	re-implemented rather than imported - that function is a private,
+	underscore-prefixed helper in another app, not something to reach
+	across app boundaries for). Reads the same Healthcare Settings
+	front_desk_lab_roles field front_desk.py's get_front_desk_settings()
+	already surfaces to the client for hide/show purposes; this is the
+	server-side enforcement side of that same check.
+	"""
+	user = user or frappe.session.user
+	if user == "Administrator" or "System Manager" in frappe.get_roles(user):
+		return True
+	roles = _configured_roles("front_desk_lab_roles")
+	if not roles:
+		return True
+	return bool(roles & set(frappe.get_roles(user)))
+
+
+def user_can_override_lab_gate(user=None):
+	"""Whether `user` may send a trial appointment to the doctor from the
+	Lab tab before every required test is Completed (front_desk_lab_
+	override_roles in Healthcare Settings - see send_trial_to_doctor()).
+	"""
+	user = user or frappe.session.user
+	if user == "Administrator" or "System Manager" in frappe.get_roles(user):
+		return True
+	roles = _configured_roles("front_desk_lab_override_roles")
+	if not roles:
+		return False
+	return bool(roles & set(frappe.get_roles(user)))
+
+
+def _trial_lab_test_rows(appointment):
+	return frappe.get_all(
+		"Lab Test",
+		filters={"sc_trial_appointment": appointment},
+		fields=["name", "template", "status"],
+		order_by="creation asc",
+	)
+
+
+@frappe.whitelist()
+def get_trial_lab_queue(date=None):
+	"""Feeds the Lab tab: every trial appointment currently sitting at
+	WITH_LAB_STATUS for `date` (default today), each with its panel's
+	per-test status so the front-end can show progress and enable/disable
+	the Send to Doctor action without a second round-trip per row.
+	"""
+	if not user_can_access_lab_tab():
+		frappe.throw(_("You are not permitted to access the Lab area of Front Desk."), frappe.PermissionError)
+
+	date = date or nowdate()
+	rows = frappe.get_all(
+		"Patient Appointment",
+		filters={"appointment_date": date, "queue_status": WITH_LAB_STATUS},
+		fields=["name", "patient", "patient_name", "practitioner", "practitioner_name", "appointment_time"],
+		order_by="appointment_time asc",
+	)
+	for row in rows:
+		row["encounter_time"] = row.pop("appointment_time")
+		tests = _trial_lab_test_rows(row["name"])
+		row["tests"] = tests
+		row["tests_total"] = len(tests)
+		row["tests_completed"] = sum(1 for t in tests if t.status == "Completed")
+		row["ready_for_doctor"] = bool(tests) and row["tests_completed"] == row["tests_total"]
+	return rows
+
+
+@frappe.whitelist()
+def send_trial_to_doctor(appointment, override_reason=None):
+	"""The Lab tab's "Send to Doctor" action. Any user with Lab tab access
+	may send an appointment on once every configured test is Completed.
+	Sending it on early requires both front_desk_lab_override_roles
+	membership AND a non-blank reason, which is recorded as a comment on
+	the Patient Appointment for an audit trail.
+	"""
+	tests = _trial_lab_test_rows(appointment)
+	incomplete = [t for t in tests if t.status != "Completed"]
+
+	if incomplete:
+		if not user_can_override_lab_gate():
+			frappe.throw(
+				_("{0} of {1} required lab test(s) are not yet Completed.").format(
+					len(incomplete), len(tests)
+				)
+			)
+		if not (override_reason or "").strip():
+			frappe.throw(_("A reason is required to send this patient to the doctor before labs are complete."))
+	elif not user_can_access_lab_tab():
+		frappe.throw(_("You are not permitted to access the Lab area of Front Desk."), frappe.PermissionError)
+
+	frappe.db.set_value("Patient Appointment", appointment, "queue_status", "With Doctor")
+
+	if incomplete:
+		frappe.get_doc("Patient Appointment", appointment).add_comment(
+			"Comment",
+			text=_("Sent to doctor with {0} lab test(s) still incomplete. Reason: {1}").format(
+				len(incomplete), override_reason
+			),
+		)
+
+	patient_name = frappe.db.get_value("Patient Appointment", appointment, "patient_name")
+	frappe.publish_realtime(
+		event="queue_update",
+		message={
+			"department": "doctor",
+			"message": f"{patient_name} ready for consultation",
+			"encounter": None,
+		},
+	)
+	return {"status": "Success"}
+
+
+def attach_trial_lab_results_to_encounter(doc, method=None):
+	"""Hooked on Patient Encounter's before_insert (alongside
+	sync_trial_medical_history_from_patient - see hooks.py), so it fires
+	the moment start_consultation() (front_desk.py, unmodified) builds the
+	Encounter. Populates the Encounter's own, standard Lab Tests section
+	(lab_test_prescription, the same child table doctor-ordered labs use)
+	with this trial's already-completed panel, so the doctor sees the
+	results in the normal place - nothing new to look for, and nothing
+	billed again (invoiced=1 here, since custom_invoice was already set
+	to the consultation invoice back in create_trial_lab_panel()).
+	"""
+	if doc.appointment_type != get_trial_appointment_type() or not doc.appointment:
+		return
+
+	completed = frappe.get_all(
+		"Lab Test",
+		filters={"sc_trial_appointment": doc.appointment, "status": "Completed"},
+		fields=["name", "template"],
+		order_by="creation asc",
+	)
+	for lab_test in completed:
+		doc.append(
+			"lab_test_prescription",
+			{
+				"lab_test_code": lab_test.template,
+				"custom_lab_test": lab_test.name,
+				"invoiced": 1,
+				"lab_test_created": 1,
+			},
+		)
 
 
 def on_patient_appointment_after_insert(doc, method=None):

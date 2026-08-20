@@ -274,4 +274,30 @@ def get_custom_fields():
 				"allow_on_submit": 1,
 			},
 		],
+		# Predetermined trial-lab pipeline (see healthcare_integration.py's
+		# module docstring, "Lab stage" section, and
+		# create_trial_lab_panel()/route_trial_after_vitals() below it).
+		# sc_trial_appointment is what lets us ask "which Lab Tests belong
+		# to this trialist's visit" - Lab Test has no such link out of the
+		# box (its only encounter-side link is the optional `prescription`
+		# field, which doesn't exist yet at the point these get created -
+		# no Patient Encounter exists until the doctor starts the
+		# consultation, same reason Vital Signs links via `appointment`
+		# rather than `encounter` - see front_desk.py's save_vitals()).
+		"Lab Test": [
+			{
+				"fieldname": "sc_trial_appointment",
+				"label": "Trial Appointment",
+				"fieldtype": "Link",
+				"options": "Patient Appointment",
+				"insert_after": "patient",
+				"reqd": 0,
+				"hidden": 0,
+				"read_only": 1,
+				"no_copy": 1,
+				"in_standard_filter": 1,
+				"search_index": 1,
+				"description": "Auto-set when this Lab Test was auto-created as part of a trialist's predetermined lab panel (see Sports Complex Setup > Trials > Required Lab Tests). Blank for every ordinary lab request.",
+			},
+		],
 	}

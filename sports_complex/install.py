@@ -30,6 +30,7 @@ import frappe
 from sports_complex.setup import make_custom_fields
 from sports_complex.sports_complex.healthcare_integration import (
 	ensure_fitness_result_visibility_script,
+	ensure_queue_status_with_lab_option,
 	ensure_trial_appointment_type,
 )
 
@@ -46,6 +47,7 @@ def after_install():
 		make_custom_fields()
 		ensure_trial_appointment_type()
 		ensure_fitness_result_visibility_script()
+		ensure_queue_status_with_lab_option()
 
 		# Clear cache to ensure changes take effect
 		frappe.clear_cache()
@@ -66,6 +68,7 @@ def after_migrate():
 		make_custom_fields()
 		ensure_trial_appointment_type()
 		ensure_fitness_result_visibility_script()
+		ensure_queue_status_with_lab_option()
 		remove_stale_trial_medical_exam_field()
 
 		# Clear cache

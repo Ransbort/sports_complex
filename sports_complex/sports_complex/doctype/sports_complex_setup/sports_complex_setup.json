@@ -39,7 +39,10 @@
   "refund_processing_days",
   "tab_trials",
   "trial_appointment_type",
-  "trial_registration_fee"
+  "trial_registration_fee",
+  "trial_registration_item_group",
+  "trial_lab_section",
+  "trial_required_lab_tests"
  ],
  "fields": [
   {
@@ -249,6 +252,26 @@
    "fieldtype": "Currency",
    "label": "Trial Registration Fee",
    "options": "default_currency"
+  },
+  {
+   "description": "Item Group the auto-created \"Trial Registration Fee\" Item is filed under (Trialist.create_registration_invoice). Falls back to \"Trials\" in code if left blank - create that Item Group once on your site, or point this at an existing one instead (e.g. \"Services\"). Only affects the Item's classification, not the fee itself.",
+   "fieldname": "trial_registration_item_group",
+   "fieldtype": "Link",
+   "label": "Trial Registration Item Group",
+   "options": "Item Group"
+  },
+  {
+   "collapsible": 0,
+   "description": "Every trialist checked in under the Trial Appointment Type above gets one Lab Test per row here, auto-created the moment the nurse saves vitals (see healthcare_integration.route_trial_after_vitals()) - covered by the same consultation fee charged at check-in, never billed separately. The trialist moves to the Doctor Queue only once every test here is Completed (or a front-desk/nursing override sends them through early). Leave empty to skip the lab stage entirely - vitals will go straight to the Doctor Queue as before.",
+   "fieldname": "trial_lab_section",
+   "fieldtype": "Section Break",
+   "label": "Required Lab Tests"
+  },
+  {
+   "fieldname": "trial_required_lab_tests",
+   "fieldtype": "Table",
+   "label": "Required Lab Tests for Trial Medical Exam",
+   "options": "Trial Required Lab Test"
   }
  ],
  "issingle": 1,
