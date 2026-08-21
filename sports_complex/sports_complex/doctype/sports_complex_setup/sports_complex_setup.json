@@ -157,10 +157,10 @@
   },
   {
    "default": "24",
-   "description": "Bookings cancelled within this many hours of start time may incur the no-show penalty",
+   "description": "Bookings cancelled within this many hours of start time may incur the no-show penalty. Distinct from the self-service Cancellation Window (Hours) field above, which blocks the cancellation outright rather than penalizing it - despite this field's name, the value here is in hours, not minutes.",
    "fieldname": "auto_cancel_unpaid_after_minutes",
    "fieldtype": "Int",
-   "label": "Cancellation Window (hours)"
+   "label": "No-Show Penalty Window (hours)"
   },
   {
    "fieldname": "tab_payment",

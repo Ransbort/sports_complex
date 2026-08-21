@@ -13,6 +13,7 @@ frappe.ui.form.on("Facility Booking", {
 		// Colour the booking status indicator
 		const status_colors = {
 			Draft: "grey",
+			"Payment Pending": "yellow",
 			Confirmed: "blue",
 			"Checked-In": "orange",
 			Completed: "green",

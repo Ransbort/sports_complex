@@ -113,7 +113,7 @@
   {
    "fieldname": "booking_status",
    "fieldtype": "Select",
-   "options": "Draft\nConfirmed\nChecked-In\nCompleted\nCancelled\nNo-show",
+   "options": "Draft\nPayment Pending\nConfirmed\nChecked-In\nCompleted\nCancelled\nNo-show",
    "default": "Draft",
    "label": "Booking Status",
    "read_only": 1,

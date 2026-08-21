@@ -32,15 +32,22 @@ before_uninstall = "sports_complex.uninstall.before_uninstall"
 # ---------------
 doc_events = {
     "Sales Invoice": {
-        # frappe_paystack fires its own payment-confirmed handler; we
-        # additionally listen here to flow payment status back onto
-        # whichever source doc created the invoice (Facility Booking,
-        # Membership, Tournament Registration, Training Session,
-        # Equipment Issue/Return — see utils/paystack_hooks.py).
-        # NOTE: confirm this is the exact hook name your frappe_paystack
-        # fork calls — some forks fire a custom event or expect you to
-        # hook `on_update` instead.
+        # Kept as a fallback in case a future Payment Entry-based flow (or
+        # a different frappe_paystack fork) fires it, but this event isn't
+        # actually raised by the frappe_paystack integration this app uses
+        # today — see utils/paystack_hooks.py's module docstring. This
+        # used to point at a `utils` package that didn't exist anywhere in
+        # the app; Facility Booking's Payment Pending -> Confirmed flow
+        # now genuinely runs off the hook below instead.
         "on_payment_authorized": "sports_complex.sports_complex.utils.paystack_hooks.on_payment_authorized",
+    },
+    "Paystack Payment Log": {
+        # The hook that actually fires: frappe_paystack's verify_transaction()
+        # (checkout page's synchronous fallback) and its webhook handler
+        # both just save() this doctype once a payment settles. Flows
+        # payment status back onto Facility Booking today — see
+        # utils/paystack_hooks.py and FacilityBooking.mark_paid_and_confirm().
+        "on_update": "sports_complex.sports_complex.utils.paystack_hooks.on_payment_log_update",
     },
     # Medical-first Trials & Player Registration flow — see
     # healthcare_integration.py's module docstring for the full picture.
