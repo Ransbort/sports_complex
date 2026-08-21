@@ -425,7 +425,7 @@ def create_trial_lab_panel(appointment):
 	created = []
 	for template in templates:
 		if template in existing:
-			4continue
+			continue
 		lab_test = frappe.get_doc(
 			{
 				"doctype": "Lab Test",
