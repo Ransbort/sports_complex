@@ -1,12 +1,15 @@
 # Copyright (c) 2026, Your Company and contributors
 # For license information, please see license.txt
 
+import hashlib
+import hmac
 from datetime import timedelta
 
 import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import cint, flt, get_datetime, now_datetime, time_diff_in_hours
+from frappe.utils.password import get_encryption_key
 
 STAFF_ROLES = {"System Manager", "Sports Complex Manager", "Sports Complex Staff"}
 
@@ -358,31 +361,58 @@ def get_booking_events(start, end, filters=None):
 
 
 def resolve_session_customer():
-	"""Resolve the logged-in portal user to their Customer via Contact -
-	the same lookup frappe_paystack's my-payments page already uses
-	(frappe.db.get_value("Contact", {"email_id": frappe.session.user},
-	"customer")). Kept as a local copy rather than an import so this
-	module doesn't take a hard dependency on frappe_paystack being
-	installed - only get_booking_payment_link() below actually needs
-	frappe_paystack, and it imports it lazily for the same reason.
+	"""Resolve the logged-in portal user to their Customer via Contact.
+
+	Delegates to frappe_paystack's resolve_customer_by_email() - the
+	version that used to live here directly (frappe.db.get_value(
+	"Contact", {"email_id": ...}, "customer")) copied a bug that was
+	already present in frappe_paystack's own my-payments/my-payment
+	pages: "customer" isn't a real column on Contact (a Customer links to
+	a Contact via the Dynamic Link child table, not a fetched field), so
+	it would have raised an "Unknown column" SQL error the first time
+	this actually ran against a real Contact record. Fixed in one place
+	now that frappe_paystack is a declared required_apps dependency (see
+	hooks.py) rather than duplicated here to avoid one.
 	"""
 	if not frappe.session.user or frappe.session.user == "Guest":
 		return None
-	return frappe.db.get_value("Contact", {"email_id": frappe.session.user}, "customer")
+	from frappe_paystack.utils import resolve_customer_by_email
+
+	return resolve_customer_by_email(frappe.session.user)
 
 
 def _is_booking_staff():
 	return bool(set(frappe.get_roles()) & STAFF_ROLES)
 
 
-def _ensure_booking_access(booking, session_customer):
+def get_booking_access_token(booking_name):
+	"""HMAC of the booking name, signed with the site's own encryption
+	key. Lets a guest who was never logged in (and never will be, for
+	this booking) view/pay for/cancel their own booking through a signed
+	link, while keeping booking names unguessable by enumeration - same
+	construction the buzz app uses for its guest ticket-booking access
+	(get_booking_access_token in api/booking/services.py) - see
+	BOOKING_RECOMMENDATIONS.md.
+	"""
+	key = get_encryption_key().encode()
+	return hmac.new(key, booking_name.encode(), hashlib.sha256).hexdigest()
+
+
+def verify_booking_access_token(booking_name, token):
+	return bool(token) and hmac.compare_digest(get_booking_access_token(booking_name), token)
+
+
+def _ensure_booking_access(booking, session_customer=None, token=None):
 	"""Staff can always act on any booking; a logged-in customer only on
-	their own - mirrors the ownership check frappe_paystack's my-payment
-	page uses for the same reason (prevent one customer from reading or
-	paying for another customer's booking by guessing/incrementing a
-	booking name).
+	their own (mirrors the ownership check frappe_paystack's my-payment
+	page uses, for the same reason: stop one customer reading or paying
+	for another customer's booking by guessing/incrementing a booking
+	name); a guest with a valid access token only on the one booking that
+	token was issued for.
 	"""
 	if _is_booking_staff():
+		return
+	if verify_booking_access_token(booking.name, token):
 		return
 	if not session_customer or session_customer != booking.customer:
 		frappe.throw(_("You are not allowed to access this booking"), frappe.PermissionError)
@@ -521,16 +551,18 @@ def create_booking(court, booking_date, start_time, end_time):
 	return result
 
 
-@frappe.whitelist()
-def get_booking_payment_link(facility_booking):
+@frappe.whitelist(allow_guest=True)
+def get_booking_payment_link(facility_booking, token=None):
 	"""Return a Paystack checkout URL for this booking's Sales Invoice.
 	Delegates to frappe_paystack's own create_payment_link() (the same
 	generic helper every other checkout flow in this codebase already
 	uses) instead of duplicating its Paystack-settings/currency
-	resolution here.
+	resolution here. allow_guest=True so a guest booking's own access
+	token (see get_booking_access_token) is enough to pay - _ensure_
+	booking_access still enforces that it's *this* booking's token.
 	"""
 	booking = frappe.get_doc("Facility Booking", facility_booking)
-	_ensure_booking_access(booking, resolve_session_customer())
+	_ensure_booking_access(booking, resolve_session_customer(), token)
 
 	if not booking.sales_invoice:
 		frappe.throw(_("This booking has no invoice yet - submit it first"))
@@ -538,3 +570,100 @@ def get_booking_payment_link(facility_booking):
 	from frappe_paystack.api import create_payment_link
 
 	return create_payment_link("Sales Invoice", booking.sales_invoice)
+
+
+@frappe.whitelist(allow_guest=True)
+def list_bookable_courts():
+	"""Court's own desk permissions (Facility Manager / Front Desk /
+	System Manager only - a separate role set from Facility Booking's
+	own Sports Complex Manager/Staff, worth reconciling separately) don't
+	include Guest or Customer, so a self-service booking page can't just
+	frappe.call frappe.client.get_list against Court directly. This is
+	the read-only, guest-safe equivalent - just enough to populate a
+	booking page's court picker.
+	"""
+	return frappe.get_all(
+		"Court",
+		filters={"status": ("!=", "Maintenance")},
+		fields=["name", "sports_facility", "court_number", "surface_type"],
+		order_by="sports_facility asc, court_number asc",
+	)
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def create_guest_booking(court, booking_date, start_time, end_time, email, otp, full_name, phone=None):
+	"""Guest counterpart to create_booking(): verifies the emailed OTP,
+	resolves (or creates) a Member/Customer for that email, then runs the
+	booking through the exact same validate() chain create_booking()
+	does. Returns an HMAC access token instead of relying on a session,
+	since this caller was never logged in and never will be for this
+	booking - see get_booking_access_token.
+	"""
+	from sports_complex.utils.guest_booking import (
+		resolve_or_create_guest_customer,
+		verify_booking_otp,
+	)
+
+	verify_booking_otp(email, otp)
+	customer = resolve_or_create_guest_customer(email, full_name, phone)
+
+	booking = frappe.new_doc("Facility Booking")
+	booking.customer = customer
+	booking.court = court
+	booking.booking_date = booking_date
+	booking.start_time = start_time
+	booking.end_time = end_time
+	booking.rate = frappe.get_cached_doc("Court", court).get_effective_hourly_rate()
+	booking.flags.ignore_permissions = True
+	booking.insert()
+	booking.submit()
+
+	token = get_booking_access_token(booking.name)
+	result = {"booking": booking.name, "booking_status": booking.booking_status, "token": token}
+	if booking.booking_status == "Payment Pending":
+		result["payment_link"] = get_booking_payment_link(booking.name, token=token)
+	return result
+
+
+@frappe.whitelist(allow_guest=True)
+def get_booking_status(facility_booking, token=None):
+	"""Feed the booking confirmation/status page - works for a logged-in
+	customer (session ownership), a guest with their access token, or
+	staff, via the same _ensure_booking_access check every other guest-
+	reachable method here uses.
+	"""
+	booking = frappe.get_doc("Facility Booking", facility_booking)
+	_ensure_booking_access(booking, resolve_session_customer(), token)
+
+	return {
+		"name": booking.name,
+		"court": booking.court,
+		"booking_date": str(booking.booking_date) if booking.booking_date else None,
+		"start_time": str(booking.start_time) if booking.start_time else None,
+		"end_time": str(booking.end_time) if booking.end_time else None,
+		"booking_status": booking.booking_status,
+		"payment_status": booking.payment_status,
+		"total_amount": booking.total_amount,
+		"sales_invoice": booking.sales_invoice,
+	}
+
+
+@frappe.whitelist(allow_guest=True, methods=["POST"])
+def request_cancellation(facility_booking, token=None, reason=None):
+	"""Self-service cancellation for a logged-in customer or a guest with
+	a valid access token. Booking Cancellation's own validate() already
+	enforces the Cancellation Window (Hours) setting (see
+	booking_cancellation.py) - this just supplies the ownership check
+	that doctype's desk-only permissions don't, the same way create_
+	booking()/create_guest_booking() do for Facility Booking itself.
+	"""
+	booking = frappe.get_doc("Facility Booking", facility_booking)
+	_ensure_booking_access(booking, resolve_session_customer(), token)
+
+	cancellation = frappe.new_doc("Booking Cancellation")
+	cancellation.facility_booking = booking.name
+	cancellation.reason = reason
+	cancellation.flags.ignore_permissions = True
+	cancellation.insert()
+	cancellation.submit()
+	return {"cancelled": True}

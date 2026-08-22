@@ -1,0 +1,172 @@
+{% extends "templates/web.html" %}
+{% block title %}{{ _("Booking Confirmation") }}{% endblock %}
+
+{% block page_content %}
+<div id="app" class="booking-confirmation">
+    <div class="container bk-page" style="max-width: 560px;">
+        <div v-if="!doc" class="alert alert-danger shadow-sm border-0 rounded-4 d-flex align-items-center p-4 w-100" role="alert">
+            <div class="me-3"><i class="bi bi-x-circle-fill" style="font-size: 2rem;"></i></div>
+            <div>
+                <h5 class="alert-heading mb-1 fw-bold">Booking Not Found</h5>
+                <p class="mb-0">This booking couldn't be found, or you don't have access to it.</p>
+            </div>
+        </div>
+
+        <div v-else class="bk-card card border-0 rounded-4 w-100">
+            <div class="card-body p-0">
+                <div class="bk-card-header">
+                    <i class="bi bi-calendar2-check"></i>
+                    <span>Booking [[ doc.name ]]</span>
+                    <span class="badge bk-status-badge ms-auto" :class="statusBadgeClass">[[ doc.booking_status ]]</span>
+                </div>
+                <ul class="list-group list-group-flush">
+                    <li class="list-group-item bk-row">
+                        <span class="bk-label">Court</span>
+                        <span class="badge bk-badge">[[ doc.court ]]</span>
+                    </li>
+                    <li class="list-group-item bk-row">
+                        <span class="bk-label">Date</span>
+                        <span class="badge bk-badge">[[ doc.booking_date ]]</span>
+                    </li>
+                    <li class="list-group-item bk-row">
+                        <span class="bk-label">Time</span>
+                        <span class="badge bk-badge">[[ doc.start_time ]] &ndash; [[ doc.end_time ]]</span>
+                    </li>
+                    <li class="list-group-item bk-row bk-row-total">
+                        <span class="bk-label">Amount</span>
+                        <span class="badge bk-badge bk-badge-total">[[ formatAmount(doc.total_amount) ]]</span>
+                    </li>
+                </ul>
+                <div class="bk-card-footer">
+                    <a v-if="doc.booking_status === 'Payment Pending'" href="#" class="btn btn-success bk-btn"
+                       :class="{disabled: paying}" @click.prevent="payNow">
+                        <span v-if="paying" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        [[ paying ? 'Opening…' : 'Pay Now' ]]
+                    </a>
+                    <button v-if="canCancel" type="button" class="btn btn-outline-danger bk-btn mt-2" :disabled="cancelling" @click="cancelBooking">
+                        [[ cancelling ? 'Cancelling…' : 'Cancel Booking' ]]
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .booking-confirmation .bk-page {
+        min-height: 70vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 1rem;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .booking-confirmation .bk-card {
+        box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
+        border: 1px solid rgba(15, 23, 42, 0.06);
+    }
+
+    .booking-confirmation .bk-card-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 1.25rem 1.5rem;
+        font-weight: 600;
+        font-size: 1.05rem;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+        color: #1f2937;
+    }
+
+    .booking-confirmation .bk-card-header i {
+        font-size: 1.15rem;
+        color: #16a34a;
+    }
+
+    .booking-confirmation .bk-status-badge {
+        font-size: 0.75rem;
+        font-weight: 700;
+        padding: 0.35rem 0.7rem;
+        border-radius: 999px;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    .booking-confirmation .bk-badge-grey { background-color: #f3f4f6; color: #4b5563; }
+    .booking-confirmation .bk-badge-yellow { background-color: #fef3c7; color: #92400e; }
+    .booking-confirmation .bk-badge-blue { background-color: #dbeafe; color: #1d4ed8; }
+    .booking-confirmation .bk-badge-red { background-color: #fee2e2; color: #b91c1c; }
+
+    .booking-confirmation .bk-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem 1rem;
+        padding: 0.9rem 1.5rem;
+        border-color: rgba(15, 23, 42, 0.06);
+    }
+
+    .booking-confirmation .bk-row-total {
+        background-color: rgba(22, 163, 74, 0.05);
+    }
+
+    .booking-confirmation .bk-label {
+        color: #6b7280;
+        font-weight: 500;
+        font-size: 0.9rem;
+    }
+
+    .booking-confirmation .bk-row-total .bk-label {
+        color: #1f2937;
+        font-weight: 600;
+    }
+
+    .booking-confirmation .bk-badge {
+        background-color: #f3f4f6;
+        color: #1f2937;
+        font-weight: 600;
+        font-size: 0.85rem;
+        padding: 0.4rem 0.75rem;
+        border-radius: 999px;
+    }
+
+    .booking-confirmation .bk-badge-total {
+        background-color: #16a34a;
+        color: #ffffff;
+        font-size: 0.95rem;
+    }
+
+    .booking-confirmation .bk-card-footer {
+        padding: 1.5rem;
+    }
+
+    .booking-confirmation .bk-btn {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        font-weight: 600;
+        font-size: 1rem;
+        border-radius: 0.65rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .booking-confirmation .btn-success.bk-btn {
+        background-color: #16a34a;
+        border-color: #16a34a;
+    }
+</style>
+{% endblock %}
+
+{% block script %}
+<script src="/assets/frappe_paystack/js/vue.global.js"></script>
+<script src="/assets/frappe_paystack/js/sweetalert2@11.js"></script>
+<script>
+  window.doc = {{ doc_json | safe }};
+  window.token = {{ token_json | safe }};
+</script>
+<script src="/assets/sports_complex/js/booking-confirmation/index.js"></script>
+{% endblock %}

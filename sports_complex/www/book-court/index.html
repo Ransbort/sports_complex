@@ -1,0 +1,228 @@
+{% extends "templates/web.html" %}
+{% block title %}{{ _("Book a Court") }}{% endblock %}
+
+{% block page_content %}
+<div id="app" class="book-court">
+    <div class="container bk-page">
+        <div class="bk-card card border-0 rounded-4">
+            <div class="card-body p-0">
+                <div class="bk-card-header">
+                    <i class="bi bi-calendar2-check"></i>
+                    <span>Book a Court</span>
+                </div>
+
+                <!-- Step 1: pick court + date, check availability -->
+                <div v-if="step === 'browse'" class="bk-body">
+                    <div class="mb-3">
+                        <label class="form-label bk-label">Court</label>
+                        <select class="form-select" v-model="selectedCourt">
+                            <option value="" disabled>Choose a court</option>
+                            <option v-for="c in courts" :key="c.name" :value="c.name">
+                                [[ c.name ]][[ c.surface_type ? ' - ' + c.surface_type : '' ]]
+                            </option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label bk-label">Date</label>
+                        <input type="date" class="form-control" v-model="selectedDate" :min="today">
+                    </div>
+                    <button class="btn btn-success bk-btn" :disabled="!selectedCourt || !selectedDate || loadingSlots"
+                            @click="checkAvailability">
+                        <span v-if="loadingSlots" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        [[ loadingSlots ? 'Checking…' : 'Check Availability' ]]
+                    </button>
+
+                    <div v-if="slotsChecked" class="mt-4">
+                        <p v-if="!slots.length" class="text-muted mb-0">No open slots for this court on this date.</p>
+                        <div v-else class="bk-slots">
+                            <button v-for="s in slots" :key="s.start_time" type="button" class="btn btn-outline-success bk-slot"
+                                    @click="selectSlot(s)">
+                                [[ s.start_time ]] &ndash; [[ s.end_time ]]
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: confirm identity + book -->
+                <div v-else-if="step === 'details'" class="bk-body">
+                    <p class="bk-slot-summary">
+                        <i class="bi bi-clock"></i>
+                        [[ selectedCourt ]] &middot; [[ selectedDate ]] &middot; [[ selectedSlot.start_time ]]&ndash;[[ selectedSlot.end_time ]]
+                    </p>
+
+                    <template v-if="!isGuest">
+                        <button class="btn btn-success bk-btn" :disabled="booking" @click="confirmBooking">
+                            <span v-if="booking" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                            [[ booking ? 'Booking…' : 'Confirm Booking' ]]
+                        </button>
+                    </template>
+
+                    <template v-else>
+                        <form v-if="!otpSent" class="bk-form" @submit.prevent="sendOtp">
+                            <div class="mb-3">
+                                <label class="form-label bk-label">Full Name</label>
+                                <input type="text" class="form-control" v-model="guestName" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label bk-label">Email</label>
+                                <input type="email" class="form-control" v-model="guestEmail" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label bk-label">Phone (optional)</label>
+                                <input type="tel" class="form-control" v-model="guestPhone">
+                            </div>
+                            <button type="submit" class="btn btn-success bk-btn" :disabled="!canSendOtp || sendingOtp">
+                                <span v-if="sendingOtp" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                [[ sendingOtp ? 'Sending…' : 'Send Verification Code' ]]
+                            </button>
+                        </form>
+                        <form v-else class="bk-form" @submit.prevent="confirmGuestBooking">
+                            <p class="text-muted">A verification code was sent to <strong>[[ guestEmail ]]</strong>.</p>
+                            <div class="mb-3">
+                                <label class="form-label bk-label">Verification Code</label>
+                                <input type="text" inputmode="numeric" maxlength="6" class="form-control" v-model="guestOtp" required>
+                            </div>
+                            <button type="submit" class="btn btn-success bk-btn" :disabled="!guestOtp || booking">
+                                <span v-if="booking" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                [[ booking ? 'Booking…' : 'Verify & Book' ]]
+                            </button>
+                        </form>
+                    </template>
+
+                    <button type="button" class="btn btn-link bk-back" @click="step = 'browse'">&larr; Choose a different slot</button>
+                </div>
+
+                <!-- Step 3: result -->
+                <div v-else-if="step === 'result'" class="bk-body text-center">
+                    <i class="bi bi-check-circle-fill bk-result-icon"></i>
+                    <h5 class="fw-bold mt-3">Booking [[ result.booking_status === 'Confirmed' ? 'Confirmed' : 'Created' ]]</h5>
+                    <p class="text-muted mb-4">Reference: <span class="badge bk-badge">[[ result.booking ]]</span></p>
+                    <a v-if="result.payment_link" :href="result.payment_link" target="_blank" class="btn btn-success bk-btn">Pay Now</a>
+                    <a :href="confirmationUrl" class="btn bk-btn" :class="result.payment_link ? 'btn-outline-success mt-2' : 'btn-success'">View Booking</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .book-court .bk-page {
+        min-height: 70vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 1rem;
+    }
+
+    .book-court .bk-card {
+        width: 100%;
+        max-width: 480px;
+        box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
+        border: 1px solid rgba(15, 23, 42, 0.06);
+    }
+
+    .book-court .bk-card-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 1.25rem 1.5rem;
+        font-weight: 600;
+        font-size: 1.05rem;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+        color: #1f2937;
+    }
+
+    .book-court .bk-card-header i {
+        font-size: 1.15rem;
+        color: #16a34a;
+    }
+
+    .book-court .bk-body {
+        padding: 1.5rem;
+    }
+
+    .book-court .bk-label {
+        color: #6b7280;
+        font-weight: 500;
+        font-size: 0.9rem;
+    }
+
+    .book-court .bk-btn {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        font-weight: 600;
+        font-size: 1rem;
+        border-radius: 0.65rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .book-court .btn-success.bk-btn {
+        background-color: #16a34a;
+        border-color: #16a34a;
+    }
+
+    .book-court .btn-success.bk-btn:hover:not(:disabled) {
+        background-color: #15803d;
+        border-color: #15803d;
+    }
+
+    .book-court .bk-slots {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .book-court .bk-slot {
+        border-radius: 0.5rem;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .book-court .bk-slot-summary {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        background-color: rgba(22, 163, 74, 0.08);
+        color: #1f2937;
+        font-weight: 600;
+        padding: 0.75rem 1rem;
+        border-radius: 0.65rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .book-court .bk-back {
+        display: block;
+        width: 100%;
+        text-align: center;
+        margin-top: 0.75rem;
+        color: #6b7280;
+    }
+
+    .book-court .bk-result-icon {
+        font-size: 3rem;
+        color: #16a34a;
+    }
+
+    .book-court .bk-badge {
+        background-color: #f3f4f6;
+        color: #1f2937;
+        font-weight: 600;
+        font-size: 0.85rem;
+        padding: 0.4rem 0.75rem;
+        border-radius: 999px;
+    }
+</style>
+{% endblock %}
+
+{% block script %}
+<script src="/assets/frappe_paystack/js/vue.global.js"></script>
+<script src="/assets/frappe_paystack/js/sweetalert2@11.js"></script>
+<script>
+  window.courts = {{ courts_json | safe }};
+  window.isGuest = {{ 1 if is_guest else 0 }};
+</script>
+<script src="/assets/sports_complex/js/book-court/index.js"></script>
+{% endblock %}

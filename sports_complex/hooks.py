@@ -4,7 +4,7 @@ app_publisher = "Ransbort"
 app_description = "Sports Complex Management: facilities, bookings, membership, coaching, tournaments, POS, and Paystack payments"
 app_email = "ransbort@outlook.com"
 app_license = "mit"
-required_apps = ["frappe", "healthcare"]
+required_apps = ["frappe", "healthcare", "frappe_paystack"]
 app_home = "/desk/healthcare"
 
 add_to_apps_screen = [
@@ -28,26 +28,41 @@ after_install = "sports_complex.install.after_install"
 after_migrate = "sports_complex.install.after_migrate"
 before_uninstall = "sports_complex.uninstall.before_uninstall"
 
+# Website Route Rules
+# --------------------
+# /book-court needs no rule (default www/book-court routing handles it);
+# /booking-confirmation/<name> takes a path segment, same as
+# frappe_paystack's own /my-payment/<reference> rule.
+website_route_rules = [
+    {"from_route": "/booking-confirmation/<booking>", "to_route": "booking-confirmation"},
+]
+
 # Document Events
 # ---------------
 doc_events = {
     "Sales Invoice": {
-        # Kept as a fallback in case a future Payment Entry-based flow (or
-        # a different frappe_paystack fork) fires it, but this event isn't
-        # actually raised by the frappe_paystack integration this app uses
-        # today — see utils/paystack_hooks.py's module docstring. This
-        # used to point at a `utils` package that didn't exist anywhere in
-        # the app; Facility Booking's Payment Pending -> Confirmed flow
-        # now genuinely runs off the hook below instead.
-        "on_payment_authorized": "sports_complex.sports_complex.utils.paystack_hooks.on_payment_authorized",
+        # This path had one extra ".sports_complex" segment - this module
+        # is sports_complex.utils.paystack_hooks (apps/sports_complex/
+        # sports_complex/utils/), not sports_complex.sports_complex.utils.
+        # paystack_hooks - so this handler was never actually importable;
+        # Frappe resolves a doc_event's target lazily on first fire rather
+        # than at app load, so this would have crashed the first time (if
+        # ever) this event actually fired instead of failing loudly during
+        # development. Kept as a fallback in case a future Payment
+        # Entry-based flow (or a different frappe_paystack fork) fires it,
+        # but this event isn't actually raised by the frappe_paystack
+        # integration this app uses today - see utils/paystack_hooks.py's
+        # module docstring; the hook below is what actually runs.
+        "on_payment_authorized": "sports_complex.utils.paystack_hooks.on_payment_authorized",
     },
     "Paystack Payment Log": {
         # The hook that actually fires: frappe_paystack's verify_transaction()
         # (checkout page's synchronous fallback) and its webhook handler
         # both just save() this doctype once a payment settles. Flows
-        # payment status back onto Facility Booking today — see
-        # utils/paystack_hooks.py and FacilityBooking.mark_paid_and_confirm().
-        "on_update": "sports_complex.sports_complex.utils.paystack_hooks.on_payment_log_update",
+        # payment status (and, for Facility Booking, booking_status) back
+        # onto whichever source doc created the invoice - see
+        # utils/paystack_hooks.py.
+        "on_update": "sports_complex.utils.paystack_hooks.on_payment_log_update",
     },
     # Medical-first Trials & Player Registration flow — see
     # healthcare_integration.py's module docstring for the full picture.
