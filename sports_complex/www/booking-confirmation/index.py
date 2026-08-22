@@ -6,10 +6,12 @@ import frappe
 from sports_complex.sports_complex.doctype.facility_booking.facility_booking import (
 	get_booking_status,
 )
+from sports_complex.sports_complex.theme import get_theme_context
 
 
 def get_context(context):
 	context.title = "Booking Confirmation"
+	context.update(get_theme_context())
 
 	booking_name = frappe.form_dict.get("booking")
 	token = frappe.form_dict.get("token")

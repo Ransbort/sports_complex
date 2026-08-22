@@ -11,7 +11,7 @@ def make_attached_image_public(doc, fieldname):
 	breaks silently on any public-facing page: a Guest's <img> or
 	background-image request for a private file's URL gets a 403 and
 	nothing renders. This is almost certainly why Court/Sports Facility
-	photos weren't showing up on the public /book-court grid.
+	photos weren't showing up on the public /book-facility grid.
 
 	Call from validate() on any doctype with a public-facing image field
 	(Court.image, Sports Facility.image). Flips the linked File to

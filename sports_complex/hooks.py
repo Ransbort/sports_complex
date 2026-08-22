@@ -19,8 +19,18 @@ add_to_apps_screen = [
 
 # Includes in <head>
 # ------------------
+# app_include_css/js only load in the Desk (back-office UI) - unused here.
 # app_include_css = "/assets/sports_complex/css/sports_complex.css"
 # app_include_js = "/assets/sports_complex/js/sports_complex.js"
+
+# web_include_css/js would load on every PUBLIC page site-wide, not just
+# this app's own pages - too broad for a "Login"/footer tweak that only
+# makes sense on the guest booking flow this app adds. That tweak now
+# lives in each of this app's own www page templates instead (see
+# www/facilities, www/book-facility, www/my-bookings, www/booking-
+# confirmation) - public/css/sports_complex.css and public/js/
+# sports_complex.js are unused leftovers from that approach, kept on disk
+# but no longer referenced from anywhere.
 
 # Installation
 # ------------
@@ -30,12 +40,22 @@ before_uninstall = "sports_complex.uninstall.before_uninstall"
 
 # Website Route Rules
 # --------------------
-# /book-court needs no rule (default www/book-court routing handles it);
+# /book-facility needs no rule (default www/book-facility routing handles it);
 # /booking-confirmation/<name> takes a path segment, same as
 # frappe_paystack's own /my-payment/<reference> rule.
 website_route_rules = [
     {"from_route": "/booking-confirmation/<booking>", "to_route": "booking-confirmation"},
 ]
+
+# Dashboards
+# ----------
+# Adds Facility Booking to the Customer form's existing "Connections"
+# dashboard (alongside whatever ERPNext already shows there - Sales Order,
+# Sales Invoice, etc.) rather than a custom table on the Facility Booking
+# form. See sports_complex/utils/customer_dashboard.py.
+override_doctype_dashboards = {
+    "Customer": "sports_complex.utils.customer_dashboard.get_data",
+}
 
 # Document Events
 # ---------------

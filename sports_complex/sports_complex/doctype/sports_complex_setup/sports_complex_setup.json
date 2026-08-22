@@ -42,7 +42,11 @@
   "trial_registration_fee",
   "trial_registration_item_group",
   "trial_lab_section",
-  "trial_required_lab_tests"
+  "trial_required_lab_tests",
+  "tab_website",
+  "theme_color",
+  "tab_integrations",
+  "google_calendar"
  ],
  "fields": [
   {
@@ -239,7 +243,7 @@
    "label": "Trials"
   },
   {
-   "description": "The Appointment Type that puts someone into the Trials & Player Registration medical-first pipeline (see the Trialist doctype and healthcare_integration.py). Pick this Appointment Type at Front Desk check-in - walk-in or pre-booked, first exam or re-trial, it's all the same mechanism - to start or continue a trial. Changing this only affects appointments created after the change; existing history keeps whatever Appointment Type it was created with. Left blank until Sports Complex Setup is saved for the first time (or ensure_trial_appointment_type() runs on install/migrate) - healthcare_integration.get_trial_appointment_type() falls back to \"Trialist\" in code when this is empty, so nothing here depends on a DocField-level default. (Deliberately no \"default\" on this field: Frappe applies Link field defaults - including link validation - when a Single doctype like this one is first bootstrapped during bench migrate's schema sync, which runs before install.py's after_migrate() has had a chance to create the \"Trialist\" Appointment Type record via ensure_trial_appointment_type() - a hardcoded default here would make every fresh install fail with \"Could not find Appointment Type: Trialist\".)",
+   "description": "The Appointment Type that triggers the trialist workflow",
    "fieldname": "trial_appointment_type",
    "fieldtype": "Link",
    "label": "Trial Appointment Type",
@@ -247,14 +251,14 @@
   },
   {
    "default": "0",
-   "description": "Flat one-off fee billed once a trialist is registered against a medically-cleared Patient (Trialist.create_registration_invoice). Billed via the Trial Registration Cashier page (or the Trialist form's \"Create Registration Bill\" button) - leave at 0 to disable trial-registration billing entirely (the button/page will refuse to create a zero-value bill and explain why).",
+   "description": "Flat one-off fee billed once a trialist is registered against a medically-cleared Patient (Trialist.create_registration_invoice). Billed via the Trial Registration Cashier page (or the Trialist form's \"Create Registration Bill\" button) - leave at 0 to disable trial-registration billing entirely.",
    "fieldname": "trial_registration_fee",
    "fieldtype": "Currency",
    "label": "Trial Registration Fee",
    "options": "default_currency"
   },
   {
-   "description": "Item Group the auto-created \"Trial Registration Fee\" Item is filed under (Trialist.create_registration_invoice). Falls back to \"Trials\" in code if left blank - create that Item Group once on your site, or point this at an existing one instead (e.g. \"Services\"). Only affects the Item's classification, not the fee itself.",
+   "description": "Item Group under which the Trial Registration Fee item is created (see Trial Registration Item in the Item master). Leave empty to skip trial-registration billing entirely.",
    "fieldname": "trial_registration_item_group",
    "fieldtype": "Link",
    "label": "Trial Registration Item Group",
@@ -272,6 +276,30 @@
    "fieldtype": "Table",
    "label": "Required Lab Tests for Trial Medical Exam",
    "options": "Trial Required Lab Test"
+  },
+  {
+   "fieldname": "tab_website",
+   "fieldtype": "Tab Break",
+   "label": "Website"
+  },
+  {
+   "default": "#16a34a",
+   "description": "Accent color for the public guest booking pages (Sports Complex, Book a Facility, My Bookings, Booking Confirmation) - buttons, icons, badges, and highlights. Leave as the default to keep the original green.",
+   "fieldname": "theme_color",
+   "fieldtype": "Color",
+   "label": "Theme Color"
+  },
+  {
+   "fieldname": "tab_integrations",
+   "fieldtype": "Tab Break",
+   "label": "Integrations"
+  },
+  {
+   "fieldname": "google_calendar",
+   "fieldtype": "Link",
+   "options": "Google Calendar",
+   "label": "Booking Calendar (Google)",
+   "description": "Confirmed Facility Bookings are pushed here as Events - see Integrations > Google Calendar to authorize/configure the calendar itself first. Leave empty to turn off calendar sync entirely."
   }
  ],
  "issingle": 1,

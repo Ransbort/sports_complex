@@ -16,6 +16,8 @@
  "field_order": [
   "naming_series",
   "customer",
+  "email",
+  "phone",
   "court",
   "column_break_1",
   "booking_date",
@@ -29,6 +31,8 @@
   "booking_status",
   "payment_status",
   "sales_invoice",
+  "google_calendar_event",
+  "notes",
   "amended_from"
  ],
  "fields": [
@@ -48,6 +52,20 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "description": "Member's linked Customer record"
+  },
+  {
+   "fieldname": "email",
+   "fieldtype": "Data",
+   "options": "Email",
+   "label": "Email",
+   "description": "Captured from the customer/guest at the time of booking."
+  },
+  {
+   "fieldname": "phone",
+   "fieldtype": "Data",
+   "options": "Phone",
+   "label": "Phone",
+   "description": "Captured from the customer/guest at the time of booking. May be blank if not provided."
   },
   {
    "fieldname": "court",
@@ -138,6 +156,22 @@
    "label": "Sales Invoice",
    "read_only": 1,
    "no_copy": 1
+  },
+  {
+   "fieldname": "google_calendar_event",
+   "fieldtype": "Link",
+   "options": "Event",
+   "label": "Google Calendar Event",
+   "read_only": 1,
+   "no_copy": 1,
+   "hidden": 1,
+   "description": "Set automatically once this booking is Confirmed - see utils/google_calendar_sync.py. Configure the target calendar on Sports Complex Setup > Integrations."
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes",
+   "description": "Any special requests or information provided by the guest/customer at the time of booking."
   },
   {
    "fieldname": "amended_from",

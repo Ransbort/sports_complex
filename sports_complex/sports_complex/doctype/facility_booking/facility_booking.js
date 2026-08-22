@@ -10,6 +10,19 @@ frappe.ui.form.on("Facility Booking", {
 			});
 		}
 
+		// Jump to this customer's full booking history - the Facility
+		// Booking List View already has Customer and Facility as standard
+		// filters and shows Status/Payment Status columns, so this routes
+		// there instead of duplicating that table on the form itself. Same
+		// customer also shows up under a "Facility Bookings" connection on
+		// the Customer form's own dashboard - see hooks.py's
+		// override_doctype_dashboards and utils/customer_dashboard.py.
+		if (!frm.is_new() && frm.doc.customer) {
+			frm.add_custom_button(__("View All Bookings"), () => {
+				frappe.set_route("List", "Facility Booking", { customer: frm.doc.customer });
+			});
+		}
+
 		// Colour the booking status indicator
 		const status_colors = {
 			Draft: "grey",
@@ -42,7 +55,7 @@ frappe.ui.form.on("Facility Booking", {
 		// retired Court doctype's migration patch). Sports Facility uses
 		// its own status vocabulary (Active/Under Maintenance/Inactive),
 		// matching the same filter list_bookable_facilities() uses for
-		// the self-service /book-court page - only Active facilities are
+		// the self-service /book-facility page - only Active facilities are
 		// offered here; double-booking / maintenance-window overlap is
 		// still enforced server-side regardless.
 		frm.set_query("court", () => {

@@ -1,6 +1,18 @@
 {% extends "templates/web.html" %}
 {% block title %}{{ _("Booking Confirmation") }}{% endblock %}
 
+{# Suppresses the site's shared top nav/footer for this page - safe even
+   if templates/web.html doesn't define blocks by these names (an
+   unmatched block override is simply unused, not an error), which is
+   why this replaces the earlier CSS/JS-only approach: that guessed at
+   this theme's navbar/footer class names and, on this site, matched
+   something far bigger than intended, blanking the whole page instead
+   of just the chrome around it. The JS fallback in the script block
+   below still runs too, for the case where this site's web.html does
+   NOT define these blocks under these names. #}
+{% block navbar %}{% endblock %}
+{% block footer %}{% endblock %}
+
 {% block page_content %}
 <div id="app" class="booking-confirmation">
     <div class="container bk-page" style="max-width: 560px;">
@@ -24,6 +36,14 @@
                         <span class="bk-label">Facility</span>
                         <span class="badge bk-badge">[[ doc.sports_facility ]]</span>
                     </li>
+                    <li v-if="doc.venue_name || doc.venue_address" class="list-group-item bk-venue-block">
+                        <span class="bk-label d-block mb-1">Venue</span>
+                        <div v-if="doc.venue_name" class="bk-venue-name">[[ doc.venue_name ]]</div>
+                        <div v-if="doc.venue_address" class="bk-venue-address">[[ doc.venue_address ]]<span v-if="doc.venue_city">, [[ doc.venue_city ]]</span></div>
+                        <a v-if="directionsUrl" :href="directionsUrl" target="_blank" rel="noopener noreferrer" class="bk-directions-link">
+                            <i class="bi bi-signpost-2-fill"></i> Get Directions
+                        </a>
+                    </li>
                     <li class="list-group-item bk-row">
                         <span class="bk-label">Date</span>
                         <span class="badge bk-badge">[[ doc.booking_date ]]</span>
@@ -46,6 +66,7 @@
                     <button v-if="canCancel" type="button" class="btn btn-outline-danger bk-btn mt-2" :disabled="cancelling" @click="cancelBooking">
                         [[ cancelling ? 'Cancelling…' : 'Cancel Booking' ]]
                     </button>
+                    <a href="/my-bookings" class="btn btn-link bk-back">&larr; My Bookings</a>
                 </div>
             </div>
         </div>
@@ -53,8 +74,53 @@
 </div>
 
 <style>
-    /* Same icon-font gap as the book-court page - see the comment there. */
+    /* Same icon-font gap as the book-facility page - see the comment there. */
     @import url("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css");
+
+    .booking-confirmation {
+        /* Configurable via Sports Complex Setup > Website > Theme Color
+           (see get_theme_context() in sports_complex/theme.py). Scoped to
+           this page's own root element rather than :root, so it can't
+           affect anything outside this page. --sc-primary-rgb is the same
+           color as an "r, g, b" triple, for rgba() tints without
+           duplicating color-parsing logic in CSS. */
+        --sc-primary: {{ theme_color }};
+        --sc-primary-hover: {{ theme_color_hover }};
+        --sc-primary-rgb: {{ theme_color_rgb }};
+    }
+
+    /* Bootstrap's own .btn-success/.btn-outline-success ship with a fixed
+       green (independent of --sc-primary) - most buttons on this page
+       already get themed via a more specific .bk-btn combo selector (see
+       below), but this catches any bare use of the Bootstrap classes too,
+       so nothing is left in the old hardcoded green. */
+    .booking-confirmation .btn-success {
+        background-color: var(--sc-primary);
+        border-color: var(--sc-primary);
+        color: #fff;
+    }
+
+    .booking-confirmation .btn-success:hover,
+    .booking-confirmation .btn-success:focus,
+    .booking-confirmation .btn-success:active {
+        background-color: var(--sc-primary-hover);
+        border-color: var(--sc-primary-hover);
+        color: #fff;
+    }
+
+    .booking-confirmation .btn-outline-success {
+        color: var(--sc-primary);
+        border-color: var(--sc-primary);
+        background-color: transparent;
+    }
+
+    .booking-confirmation .btn-outline-success:hover,
+    .booking-confirmation .btn-outline-success:focus,
+    .booking-confirmation .btn-outline-success:active {
+        background-color: var(--sc-primary);
+        border-color: var(--sc-primary);
+        color: #fff;
+    }
 
     .booking-confirmation .bk-page {
         min-height: 70vh;
@@ -85,7 +151,7 @@
 
     .booking-confirmation .bk-card-header i {
         font-size: 1.15rem;
-        color: #16a34a;
+        color: var(--sc-primary);
     }
 
     .booking-confirmation .bk-status-badge {
@@ -113,7 +179,7 @@
     }
 
     .booking-confirmation .bk-row-total {
-        background-color: rgba(22, 163, 74, 0.05);
+        background-color: rgba(var(--sc-primary-rgb), 0.05);
     }
 
     .booking-confirmation .bk-label {
@@ -137,9 +203,41 @@
     }
 
     .booking-confirmation .bk-badge-total {
-        background-color: #16a34a;
+        background-color: var(--sc-primary);
         color: #ffffff;
         font-size: 0.95rem;
+    }
+
+    .booking-confirmation .bk-venue-block {
+        padding: 0.9rem 1.5rem;
+        border-color: rgba(15, 23, 42, 0.06);
+    }
+
+    .booking-confirmation .bk-venue-name {
+        font-weight: 600;
+        font-size: 0.92rem;
+        color: #1f2937;
+    }
+
+    .booking-confirmation .bk-venue-address {
+        color: #6b7280;
+        font-size: 0.85rem;
+        margin-top: 0.15rem;
+    }
+
+    .booking-confirmation .bk-directions-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        margin-top: 0.5rem;
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--sc-primary);
+        text-decoration: none;
+    }
+
+    .booking-confirmation .bk-directions-link:hover {
+        text-decoration: underline;
     }
 
     .booking-confirmation .bk-card-footer {
@@ -158,8 +256,16 @@
     }
 
     .booking-confirmation .btn-success.bk-btn {
-        background-color: #16a34a;
-        border-color: #16a34a;
+        background-color: var(--sc-primary);
+        border-color: var(--sc-primary);
+    }
+
+    .booking-confirmation .bk-back {
+        display: block;
+        width: 100%;
+        text-align: center;
+        margin-top: 0.75rem;
+        color: #6b7280;
     }
 </style>
 {% endblock %}
@@ -170,6 +276,77 @@
 <script>
   window.doc = {{ doc_json | safe }};
   window.token = {{ token_json | safe }};
+</script>
+<script>
+  // Fallback for the navbar/footer block overrides above, in case this
+  // site's web.html doesn't define blocks by those names. Deliberately
+  // conservative after an earlier version of this
+  // hid the whole page: every candidate element is checked against
+  // containsMainContent() before being touched, so this can never hide
+  // this page's own root content by mistake, even if a match turns out
+  // broader than expected.
+  (function () {
+    function mainContentRoot() {
+      return document.querySelector("#app") || document.querySelector(".sc-landing");
+    }
+    function containsMainContent(el) {
+      var root = mainContentRoot();
+      return !!(root && el && el.contains(root));
+    }
+    function hideSiteNav() {
+      var anchors = document.querySelectorAll("a[href]");
+      for (var i = 0; i < anchors.length; i++) {
+        var path;
+        try {
+          path = new URL(anchors[i].getAttribute("href"), window.location.origin).pathname;
+        } catch (e) {
+          continue;
+        }
+        if (path === "/login") {
+          var bar = anchors[i].closest("nav") || anchors[i].closest("header") || anchors[i].closest(".navbar");
+          if (bar && !containsMainContent(bar)) {
+            bar.style.display = "none";
+          }
+          break;
+        }
+      }
+    }
+    function hidePoweredByFooter() {
+      var nodes = document.querySelectorAll("body *");
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (el.children.length === 0 && /powered by/i.test(el.textContent || "")) {
+          var target = el.closest("footer") || el.closest(".web-footer") || el.parentElement || el;
+          if (target && !containsMainContent(target)) {
+            target.style.display = "none";
+          }
+        }
+      }
+    }
+    function run() {
+      // Each hider runs in its own try/catch so a failure in one (an
+      // unexpected DOM shape, a browser API gap) can never stop the
+      // other from running - and, more importantly, can never be
+      // mistaken for something wrong with the rest of the page, which
+      // is unrelated to this script entirely.
+      try {
+        hideSiteNav();
+      } catch (e) {
+        /* non-fatal: nav just stays visible */
+      }
+      try {
+        hidePoweredByFooter();
+      } catch (e) {
+        /* non-fatal: footer just stays visible */
+      }
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", run);
+    } else {
+      run();
+    }
+    setTimeout(run, 800);
+  })();
 </script>
 <script src="/assets/sports_complex/js/booking-confirmation/index.js"></script>
 {% endblock %}

@@ -62,7 +62,19 @@ function locate_on_map(frm, silent) {
 		frm.refresh_field("location");
 
 		if (!silent) {
-			frappe.show_alert({ message: __("Found: {0}", [data.display_name]), indicator: "green" });
+			// approximate: true means geocode_venue_address() had to fall
+			// back past the address as typed (e.g. a Plus Code it couldn't
+			// resolve got stripped, or it landed on the city center) -
+			// worth a different-colored alert so the admin knows to check
+			// the pin rather than assuming it's exactly on the venue.
+			if (data.approximate) {
+				frappe.show_alert({
+					message: __("Approximate location: {0} - please check the pin and drag it if needed.", [data.display_name]),
+					indicator: "orange",
+				}, 7);
+			} else {
+				frappe.show_alert({ message: __("Found: {0}", [data.display_name]), indicator: "green" });
+			}
 		}
 	}).catch(() => {
 		// silent (auto) lookups fail quietly - a vague city name may not

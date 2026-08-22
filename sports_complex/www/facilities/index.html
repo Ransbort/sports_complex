@@ -1,0 +1,301 @@
+{% extends "templates/web.html" %}
+{% block title %}{{ _("Sports Complex") }}{% endblock %}
+
+{# Suppresses the site's shared top nav/footer for this page - safe even
+   if templates/web.html doesn't define blocks by these names (an
+   unmatched block override is simply unused, not an error), which is
+   why this replaces the earlier CSS/JS-only approach: that guessed at
+   this theme's navbar/footer class names and, on this site, matched
+   something far bigger than intended, blanking the whole page instead
+   of just the chrome around it. The JS fallback in the script block
+   below still runs too, for the case where this site's web.html does
+   NOT define these blocks under these names. #}
+{% block navbar %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block page_content %}
+<div class="sc-landing">
+    <div class="sc-landing-inner">
+        <div class="sc-landing-icon{% if app_logo %} sc-landing-icon-logo{% endif %}">
+            {% if app_logo %}
+            <img src="{{ app_logo }}" alt="{{ _('Sports Complex') }}" class="sc-landing-logo">
+            {% else %}
+            <i class="bi bi-trophy-fill"></i>
+            {% endif %}
+        </div>
+        <h1 class="sc-landing-title">Sports Complex</h1>
+        <p class="sc-landing-subtitle">Book any facility online - courts, pools, and more - with real-time availability and instant confirmation.</p>
+
+        <div class="sc-landing-actions">
+            <a href="/book-facility" class="sc-action sc-action-primary">
+                <i class="bi bi-calendar2-check"></i>
+                <span class="sc-action-title">Book a Facility</span>
+                <span class="sc-action-desc">Browse facilities and reserve a time slot</span>
+            </a>
+            <a href="/my-bookings" class="sc-action sc-action-secondary">
+                <i class="bi bi-list-check"></i>
+                <span class="sc-action-title">My Bookings</span>
+                <span class="sc-action-desc">View, pay for, or cancel a booking</span>
+            </a>
+        </div>
+
+        <ul class="sc-landing-features">
+            <li><i class="bi bi-lightning-charge-fill"></i> Instant confirmation</li>
+            <li><i class="bi bi-credit-card-fill"></i> Secure online payment</li>
+            <li><i class="bi bi-person-check-fill"></i> No account needed to book</li>
+        </ul>
+    </div>
+</div>
+
+<style>
+    /* Same icon-font gap as the other guest-facing pages - see book-facility. */
+    @import url("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css");
+
+    /* 90vh rather than a full 100vh - templates/web.html still wraps this
+       in the site's own header/footer chrome (same constraint every other
+       page here has - see book-facility/my-bookings's own min-height: 70vh),
+       so a true edge-to-edge 100vh would push the footer below the fold
+       instead of sitting right under it. This is as "fullscreen" as the
+       shared site template allows without overriding it. */
+    .sc-landing {
+        /* Configurable via Sports Complex Setup > Website > Theme Color
+           (see get_theme_context() in sports_complex/theme.py). Scoped to
+           this page's own root element rather than :root, so it can't
+           affect anything outside this page. --sc-primary-rgb is the same
+           color as an "r, g, b" triple, for building rgba() tints/shadows
+           below without duplicating the color-parsing logic in CSS. */
+        --sc-primary: {{ theme_color }};
+        --sc-primary-hover: {{ theme_color_hover }};
+        --sc-primary-rgb: {{ theme_color_rgb }};
+        min-height: 90vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 3rem 1.5rem;
+        background: radial-gradient(circle at top, rgba(var(--sc-primary-rgb), 0.08), transparent 60%);
+    }
+
+    .sc-landing-inner {
+        max-width: 640px;
+        width: 100%;
+        text-align: center;
+    }
+
+    .sc-landing-icon {
+        width: 4.5rem;
+        height: 4.5rem;
+        margin: 0 auto 1.5rem;
+        border-radius: 50%;
+        background-color: rgba(var(--sc-primary-rgb), 0.12);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .sc-landing-icon i {
+        font-size: 2rem;
+        color: var(--sc-primary);
+    }
+
+    /* When a real logo is configured (Website Settings > App Logo), skip
+       the icon's tinted circle background - most logos aren't a flat
+       green glyph, so the tint would clash - and let the container's
+       width follow the logo's own aspect ratio instead of staying a
+       fixed square. Height stays pinned to the original icon size so
+       the hero's vertical rhythm doesn't shift. */
+    .sc-landing-icon-logo {
+        width: auto;
+        background-color: transparent;
+    }
+
+    .sc-landing-logo {
+        max-height: 100%;
+        max-width: 220px;
+        object-fit: contain;
+    }
+
+    .sc-landing-title {
+        font-weight: 800;
+        font-size: 2.25rem;
+        color: #1f2937;
+        margin-bottom: 0.5rem;
+    }
+
+    .sc-landing-subtitle {
+        color: #6b7280;
+        font-size: 1.05rem;
+        max-width: 480px;
+        margin: 0 auto 2.5rem;
+    }
+
+    .sc-landing-actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2.5rem;
+    }
+
+    .sc-action {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.35rem;
+        padding: 2rem 1.5rem;
+        border-radius: 1rem;
+        text-decoration: none;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .sc-action:hover {
+        transform: translateY(-3px);
+        text-decoration: none;
+    }
+
+    .sc-action i {
+        font-size: 2rem;
+        margin-bottom: 0.4rem;
+    }
+
+    .sc-action-title {
+        font-weight: 700;
+        font-size: 1.15rem;
+    }
+
+    .sc-action-desc {
+        font-size: 0.85rem;
+        font-weight: 400;
+    }
+
+    .sc-action-primary {
+        background-color: var(--sc-primary);
+        color: #fff;
+        box-shadow: 0 10px 28px rgba(var(--sc-primary-rgb), 0.28);
+    }
+
+    .sc-action-primary:hover {
+        background-color: var(--sc-primary-hover);
+        color: #fff;
+    }
+
+    .sc-action-primary .sc-action-desc {
+        color: rgba(255, 255, 255, 0.85);
+    }
+
+    .sc-action-secondary {
+        background-color: #fff;
+        color: #1f2937;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+    }
+
+    .sc-action-secondary i {
+        color: var(--sc-primary);
+    }
+
+    .sc-action-secondary:hover {
+        color: #1f2937;
+        border-color: rgba(var(--sc-primary-rgb), 0.3);
+    }
+
+    .sc-action-secondary .sc-action-desc {
+        color: #6b7280;
+    }
+
+    .sc-landing-features {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.5rem 1.25rem;
+        color: #6b7280;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+
+    .sc-landing-features li {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .sc-landing-features i {
+        color: var(--sc-primary);
+    }
+</style>
+{% endblock %}
+
+{% block script %}
+<script>
+  // Fallback for the navbar/footer block overrides above, in case this
+  // site's web.html doesn't define blocks by those names. Deliberately
+  // conservative after an earlier version of this
+  // hid the whole page: every candidate element is checked against
+  // containsMainContent() before being touched, so this can never hide
+  // this page's own root content by mistake, even if a match turns out
+  // broader than expected.
+  (function () {
+    function mainContentRoot() {
+      return document.querySelector("#app") || document.querySelector(".sc-landing");
+    }
+    function containsMainContent(el) {
+      var root = mainContentRoot();
+      return !!(root && el && el.contains(root));
+    }
+    function hideSiteNav() {
+      var anchors = document.querySelectorAll("a[href]");
+      for (var i = 0; i < anchors.length; i++) {
+        var path;
+        try {
+          path = new URL(anchors[i].getAttribute("href"), window.location.origin).pathname;
+        } catch (e) {
+          continue;
+        }
+        if (path === "/login") {
+          var bar = anchors[i].closest("nav") || anchors[i].closest("header") || anchors[i].closest(".navbar");
+          if (bar && !containsMainContent(bar)) {
+            bar.style.display = "none";
+          }
+          break;
+        }
+      }
+    }
+    function hidePoweredByFooter() {
+      var nodes = document.querySelectorAll("body *");
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (el.children.length === 0 && /powered by/i.test(el.textContent || "")) {
+          var target = el.closest("footer") || el.closest(".web-footer") || el.parentElement || el;
+          if (target && !containsMainContent(target)) {
+            target.style.display = "none";
+          }
+        }
+      }
+    }
+    function run() {
+      // Each hider runs in its own try/catch so a failure in one (an
+      // unexpected DOM shape, a browser API gap) can never stop the
+      // other from running - and, more importantly, can never be
+      // mistaken for something wrong with the rest of the page, which
+      // is unrelated to this script entirely.
+      try {
+        hideSiteNav();
+      } catch (e) {
+        /* non-fatal: nav just stays visible */
+      }
+      try {
+        hidePoweredByFooter();
+      } catch (e) {
+        /* non-fatal: footer just stays visible */
+      }
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", run);
+    } else {
+      run();
+    }
+    setTimeout(run, 800);
+  })();
+</script>
+{% endblock %}

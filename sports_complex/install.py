@@ -48,6 +48,7 @@ def after_install():
 		ensure_trial_appointment_type()
 		ensure_fitness_result_visibility_script()
 		ensure_queue_status_with_lab_option()
+		remove_global_nav_overrides()
 
 		# Clear cache to ensure changes take effect
 		frappe.clear_cache()
@@ -70,6 +71,7 @@ def after_migrate():
 		ensure_fitness_result_visibility_script()
 		ensure_queue_status_with_lab_option()
 		remove_stale_trial_medical_exam_field()
+		remove_global_nav_overrides()
 
 		# Clear cache
 		frappe.clear_cache()
@@ -103,6 +105,49 @@ def remove_stale_trial_medical_exam_field():
 		)
 		frappe.clear_cache(doctype="Patient Encounter")
 		log_message("Removed stale Patient Encounter.is_trial_medical_exam custom field", level="success")
+
+
+def remove_global_nav_overrides():
+	"""One-time cleanup, kept permanently idempotent: an earlier version
+	of this file added a site-wide "My Bookings" Top Bar Item and pointed
+	the whole site's Home Page at /facilities via Website Settings (plus
+	hooks.py loaded a Login-hiding CSS/JS pair on every public page).
+	Website Settings is one global record shared by every app/module on
+	this site, not something scoped to sports_complex - so all of that
+	leaked into pages that have nothing to do with facility booking.
+
+	This undoes both Website Settings changes; the Login/footer hiding
+	is undone simply by hooks.py no longer loading that CSS/JS at all.
+	Each of this app's own guest-facing pages (facilities, book-facility,
+	my-bookings, booking-confirmation) now carries the equivalent
+	Login/footer/nav hiding directly in its own <style>/<script> blocks
+	instead, so it only ever affects those four pages.
+
+	Safe to run on every migrate: a no-op once already undone. Note the
+	Home Page is cleared back to unset rather than restored to whatever
+	it held before this app first touched it - that prior value was never
+	captured anywhere durable, only printed to the migrate console at the
+	time. If a custom Home Page was configured before, it needs to be set
+	again manually from Website Settings in the Desk.
+	"""
+	settings = frappe.get_single("Website Settings")
+	changed = False
+
+	kept_items = [row for row in settings.get("top_bar_items", []) if (row.url or "").rstrip("/") != "/my-bookings"]
+	if len(kept_items) != len(settings.get("top_bar_items", [])):
+		settings.set("top_bar_items", kept_items)
+		changed = True
+
+	if settings.home_page == "facilities":
+		settings.home_page = ""
+		changed = True
+
+	if not changed:
+		return
+
+	settings.flags.ignore_permissions = True
+	settings.save(ignore_permissions=True)
+	log_message("Removed site-wide My Bookings nav item / Home Page override (now page-scoped instead)", level="success")
 
 
 def sync_workspace_sidebars():

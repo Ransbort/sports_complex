@@ -6,7 +6,7 @@
    "label": "Sports Complex Revenue Trend"
   }
  ],
- "content": "[{\"id\":\"2w3s_cLUWR\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Sports Complex Revenue Trend\",\"col\":12}},{\"id\":\"header1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"sc2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Trialist\",\"col\":3}},{\"id\":\"sc1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Player\",\"col\":3}},{\"id\":\"sc3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Member\",\"col\":3}},{\"id\":\"sc4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Tournament\",\"col\":3}},{\"id\":\"sc5\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Trial Registration Cashier\",\"col\":3}},{\"id\":\"spacer1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"header2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Modules</b></span>\",\"col\":12}},{\"id\":\"U6LqRokJQu\",\"type\":\"card\",\"data\":{\"card_name\":\"Facility Management\",\"col\":4}},{\"id\":\"_SZo-BZLvO\",\"type\":\"card\",\"data\":{\"card_name\":\"Membership\",\"col\":4}},{\"id\":\"k1cDBdl07m\",\"type\":\"card\",\"data\":{\"card_name\":\"Booking Management\",\"col\":4}},{\"id\":\"MCc7WfkETf\",\"type\":\"card\",\"data\":{\"card_name\":\"Coaching\",\"col\":4}},{\"id\":\"GNpcSZ7CCB\",\"type\":\"card\",\"data\":{\"card_name\":\"Events & Tournaments\",\"col\":4}},{\"id\":\"F7f-UXWlPg\",\"type\":\"card\",\"data\":{\"card_name\":\"Inventory\",\"col\":4}}]",
+ "content": "[{\"id\":\"2w3s_cLUWR\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Sports Complex Revenue Trend\",\"col\":12}},{\"id\":\"header1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"sc2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Trialist\",\"col\":3}},{\"id\":\"sc1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Player\",\"col\":3}},{\"id\":\"sc3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Member\",\"col\":3}},{\"id\":\"sc4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Tournament\",\"col\":3}},{\"id\":\"sc5\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Trial Registration Cashier\",\"col\":3}},{\"id\":\"sc6\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Facility Check-In\",\"col\":3}},{\"id\":\"spacer1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"header2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Modules</b></span>\",\"col\":12}},{\"id\":\"U6LqRokJQu\",\"type\":\"card\",\"data\":{\"card_name\":\"Facility Management\",\"col\":4}},{\"id\":\"_SZo-BZLvO\",\"type\":\"card\",\"data\":{\"card_name\":\"Membership\",\"col\":4}},{\"id\":\"k1cDBdl07m\",\"type\":\"card\",\"data\":{\"card_name\":\"Booking Management\",\"col\":4}},{\"id\":\"MCc7WfkETf\",\"type\":\"card\",\"data\":{\"card_name\":\"Coaching\",\"col\":4}},{\"id\":\"GNpcSZ7CCB\",\"type\":\"card\",\"data\":{\"card_name\":\"Events & Tournaments\",\"col\":4}},{\"id\":\"F7f-UXWlPg\",\"type\":\"card\",\"data\":{\"card_name\":\"Inventory\",\"col\":4}}]",
  "creation": "2026-08-04 00:00:00",
  "custom_blocks": [],
  "docstatus": 0,
@@ -110,10 +110,30 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Booking Management",
-   "link_count": 4,
+   "link_count": 6,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Facility Booking",
+   "link_count": 0,
+   "link_to": "Facility Booking",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Booking Report",
+   "link_count": 0,
+   "link_to": "Booking Report",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
   },
   {
    "hidden": 0,
@@ -326,6 +346,13 @@
    "color": "Blue",
    "label": "Trial Registration Cashier",
    "link_to": "trial-registration-cashier",
+   "stats_filter": "[]",
+   "type": "Page"
+  },
+  {
+   "color": "Orange",
+   "label": "Facility Check-In",
+   "link_to": "facility-checkin",
    "stats_filter": "[]",
    "type": "Page"
   },

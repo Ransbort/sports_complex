@@ -1,0 +1,23 @@
+/* Site-wide public nav tweak for the guest-facing sports complex booking
+   flow: the automatic "Login" link Frappe's website theme shows in the
+   top navbar isn't useful to someone here to book a facility as a guest
+   (see /book-facility, /my-bookings - both already support a full guest
+   flow with no account needed), so it's hidden here rather than left
+   pointing people at a sign-in they don't need.
+
+   Loaded on every public web page via hooks.py's web_include_css - NOT
+   app_include_css, which only applies to the Desk - so this never
+   touches the admin/back-office UI, only the public-facing site.
+
+   CSS-only and purely a visual hide (the /login route itself still
+   exists and still works if someone navigates to it directly - nothing
+   here disables it), covering the handful of selectors Frappe's default
+   website theme is known to use for this link. See sports_complex.js in
+   this same folder for a href-based fallback in case a given theme/
+   version doesn't use any of these. */
+#navbar-login,
+.navbar-login,
+li.nav-login,
+a.btn-login {
+    display: none !important;
+}

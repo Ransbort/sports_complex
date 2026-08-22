@@ -4,7 +4,7 @@
 """One-off cleanup: Sports Facility.image values set before
 make_attached_image_public() shipped (see sports_complex/utils/
 attachments.py) are still pointing at private File records, which 403 for
-a Guest loading the public /book-court grid - the image is set (so the
+a Guest loading the public /book-facility grid - the image is set (so the
 card shows a blank/broken background instead of the "no photo" icon
 placeholder), it just can't actually be fetched without a logged-in
 session.

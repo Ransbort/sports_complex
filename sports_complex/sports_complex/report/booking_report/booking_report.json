@@ -6,5 +6,5 @@
  "module": "Sports Complex",
  "is_standard": "Yes",
  "ref_doctype": "Facility Booking",
- "query": "select fb.name as \"Booking:Link/Facility Booking:140\", fb.booking_date as \"Date:Date:100\", fb.court as \"Facility:Link/Sports Facility:120\", fb.customer as \"Customer:Link/Customer:160\", fb.booking_status as \"Status:Data:110\", fb.payment_status as \"Payment Status:Data:110\", fb.total_amount as \"Amount:Currency:110\", fb.sales_invoice as \"Sales Invoice:Link/Sales Invoice:140\" from `tabFacility Booking` fb order by fb.booking_date desc"
+ "query": "select fb.name as \"Booking:Link/Facility Booking:140\", fb.booking_date as \"Date:Date:100\", fb.start_time as \"Start Time:Time:100\", fb.end_time as \"End Time:Time:100\", fb.court as \"Facility:Link/Sports Facility:120\", fb.customer as \"Customer:Link/Customer:160\", fb.booking_status as \"Status:Data:110\", fb.payment_status as \"Payment Status:Data:110\", fb.total_amount as \"Amount:Currency:110\", fb.sales_invoice as \"Sales Invoice:Link/Sales Invoice:140\" from `tabFacility Booking` fb order by fb.booking_date desc, fb.start_time desc"
 }

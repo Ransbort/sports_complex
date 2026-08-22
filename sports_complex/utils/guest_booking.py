@@ -12,14 +12,30 @@ frappe.cache() rather than a dedicated doctype since the code is
 short-lived, single-use, and not worth persisting.
 """
 
+import hashlib
+import hmac
 import random
+import time
 
 import frappe
 from frappe import _
 from frappe.rate_limiter import rate_limit
+from frappe.utils.password import get_encryption_key
 
 OTP_CACHE_PREFIX = "sc_booking_otp"
 OTP_TTL_SECONDS = 10 * 60
+
+# "Remember this device" for the My Bookings page: after a guest proves
+# email ownership once via OTP, list_my_bookings() (facility_booking.py)
+# hands back a signed, self-contained token - email + expiry, HMAC'd with
+# the site's own encryption key, same construction facility_booking.
+# get_booking_access_token() uses for per-booking access links - that the
+# browser stores and replays instead of requesting a fresh OTP every
+# visit. Stateless by design (no server-side storage or revocation list),
+# same trust model as those per-booking tokens, just for the coarser
+# "which email is this" identity check this page needs instead of "which
+# booking".
+REMEMBER_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60  # 30 days
 
 
 def _otp_cache_key(email):
@@ -63,6 +79,44 @@ def verify_booking_otp(email, otp):
 	if not cached or not otp or str(otp).strip() != cached:
 		frappe.throw(_("Invalid or expired verification code"))
 	frappe.cache().delete_value(_otp_cache_key(email))
+
+
+def _remember_token_signature(email, expires_at):
+	key = get_encryption_key().encode()
+	msg = f"{email.strip().lower()}:{expires_at}".encode()
+	return hmac.new(key, msg, hashlib.sha256).hexdigest()
+
+
+def issue_my_bookings_remember_token(email):
+	"""A fresh token good for REMEMBER_TOKEN_TTL_SECONDS from now. Called
+	every time list_my_bookings() re-establishes a guest's identity -
+	whether via a fresh OTP or an already-valid remember token - so
+	returning within the window keeps sliding it forward, rather than the
+	guest getting logged out exactly 30 days after the one time they
+	typed a code.
+	"""
+	email = (email or "").strip().lower()
+	expires_at = int(time.time()) + REMEMBER_TOKEN_TTL_SECONDS
+	return f"{expires_at}.{_remember_token_signature(email, expires_at)}"
+
+
+def verify_my_bookings_remember_token(email, token):
+	"""True if token is a valid, unexpired remember-token for this email.
+	Never raises - a missing/malformed/expired/tampered token should just
+	fall back to asking for a fresh OTP, not surface as an error for
+	something the guest didn't do this visit.
+	"""
+	email = (email or "").strip().lower()
+	if not email or not token:
+		return False
+	try:
+		expires_at_str, signature = token.split(".", 1)
+		expires_at = int(expires_at_str)
+	except (ValueError, AttributeError):
+		return False
+	if expires_at < int(time.time()):
+		return False
+	return hmac.compare_digest(_remember_token_signature(email, expires_at), signature)
 
 
 def resolve_or_create_guest_customer(email, full_name, phone=None):

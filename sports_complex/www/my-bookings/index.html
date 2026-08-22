@@ -1,0 +1,676 @@
+{% extends "templates/web.html" %}
+{% block title %}{{ _("My Bookings") }}{% endblock %}
+
+{# Suppresses the site's shared top nav/footer for this page - safe even
+   if templates/web.html doesn't define blocks by these names (an
+   unmatched block override is simply unused, not an error), which is
+   why this replaces the earlier CSS/JS-only approach: that guessed at
+   this theme's navbar/footer class names and, on this site, matched
+   something far bigger than intended, blanking the whole page instead
+   of just the chrome around it. The JS fallback in the script block
+   below still runs too, for the case where this site's web.html does
+   NOT define these blocks under these names. #}
+{% block navbar %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block page_content %}
+<div id="app" class="my-bookings">
+    <!-- Identity gate: a logged-in customer skips this entirely (see
+         showAuthGate in the JS); a guest sees it until their remembered
+         token silently checks out or they verify a fresh email/OTP. Kept
+         as the original narrow centered card - it's a short-lived login-
+         like step, not the destination, so it doesn't need the full-screen
+         treatment the bookings table below gets. -->
+    <div v-if="showAuthGate" class="container bk-page">
+        <div class="bk-page-inner">
+            <a href="/facilities" class="btn btn-link bk-back-top">&larr; Home</a>
+            <div class="bk-card card border-0 rounded-4 w-100">
+                <div class="card-body p-0">
+                    <div class="bk-card-header">
+                        <i class="bi bi-calendar2-week"></i>
+                        <span>My Bookings</span>
+                    </div>
+
+                <div class="bk-body">
+                    <!-- Silently checking a remembered identity (see
+                         checkingRemembered/tryRememberedLogin in the JS)
+                         before falling back to the email form below -
+                         keeps a returning guest from seeing the form flash
+                         for a moment before their bookings load. -->
+                    <template v-if="checkingRemembered">
+                        <div class="text-center py-4">
+                            <span class="spinner-border spinner-border-sm text-success" role="status" aria-hidden="true"></span>
+                        </div>
+                    </template>
+
+                    <!-- Guest identity step: no session to trust, so prove
+                         ownership of the email the same way booking as a
+                         guest does - a one-time code sent to it. -->
+                    <template v-else>
+                        <p class="text-muted mb-3">Enter the email you booked with to look up your bookings.</p>
+
+                        <form v-if="!otpSent" class="bk-form" @submit.prevent="sendOtp">
+                            <div class="mb-3">
+                                <label class="form-label bk-label">Email</label>
+                                <input type="email" class="form-control" v-model="guestEmail" required>
+                            </div>
+                            <button type="submit" class="btn btn-success bk-btn" :disabled="!canSendOtp || sendingOtp">
+                                <span v-if="sendingOtp" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                [[ sendingOtp ? 'Sending…' : 'Send Verification Code' ]]
+                            </button>
+                        </form>
+
+                        <form v-else class="bk-form" @submit.prevent="verifyAndLoad">
+                            <p class="text-muted">A verification code was sent to <strong>[[ guestEmail ]]</strong>.</p>
+                            <div class="mb-3">
+                                <label class="form-label bk-label">Verification Code</label>
+                                <input type="text" inputmode="numeric" maxlength="6" class="form-control" v-model="guestOtp" required>
+                            </div>
+                            <button type="submit" class="btn btn-success bk-btn" :disabled="!guestOtp || loading">
+                                <span v-if="loading" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                [[ loading ? 'Checking…' : 'View My Bookings' ]]
+                            </button>
+                            <p class="text-muted small text-center mb-0 mt-2">
+                                <span v-if="otpCountdown > 0">Resend code in [[ otpCountdown ]]s</span>
+                                <button v-else type="button" class="btn btn-link p-0 bk-resend-btn" :disabled="sendingOtp" @click="resendOtp">
+                                    [[ sendingOtp ? 'Resending…' : 'Resend Code' ]]
+                                </button>
+                            </p>
+                            <button type="button" class="btn btn-link bk-back" @click="otpSent = false">&larr; Use a different email</button>
+                        </form>
+                    </template>
+                </div>
+            </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Full-screen bookings table: shown once identity is settled -
+         immediately for a logged-in customer, or right after the guest
+         OTP step above verifies. -->
+    <div v-else class="mb-page">
+        <div class="mb-header">
+            <div class="mb-header-left">
+                <a href="/facilities" class="btn btn-link mb-back-top">&larr; Home</a>
+                <h1 class="mb-heading"><i class="bi bi-calendar2-week"></i> My Bookings</h1>
+            </div>
+            <button v-if="isGuest" type="button" class="btn btn-link mb-back" @click="reset">&larr; Check a different email</button>
+        </div>
+
+        <div v-if="loading" class="text-center py-5">
+            <span class="spinner-border spinner-border-sm text-success" role="status" aria-hidden="true"></span>
+        </div>
+
+        <template v-else-if="loaded">
+            <p v-if="!bookings.length" class="text-muted text-center py-5 mb-0">No bookings found.</p>
+
+            <template v-else>
+                <div class="mb-filter-bar">
+                    <div class="mb-filter-group">
+                        <label>Status</label>
+                        <select class="form-select" v-model="filterStatus">
+                            <option value="">All Statuses</option>
+                            <option v-for="s in statusOptions" :key="s" :value="s">[[ s ]]</option>
+                        </select>
+                    </div>
+                    <div class="mb-filter-group">
+                        <label>Facility</label>
+                        <select class="form-select" v-model="filterFacility">
+                            <option value="">All Facilities</option>
+                            <option v-for="f in facilityOptions" :key="f" :value="f">[[ f ]]</option>
+                        </select>
+                    </div>
+                    <div class="mb-filter-group mb-filter-search">
+                        <label>Search Facility</label>
+                        <input type="text" class="form-control" v-model="filterSearch" placeholder="Search...">
+                    </div>
+                    <button v-if="hasActiveFilters" type="button" class="btn btn-link mb-clear-filters" @click="clearFilters">Clear Filters</button>
+                </div>
+
+                <p v-if="!filteredBookings.length" class="text-muted text-center py-5 mb-0">No bookings match your filters.</p>
+
+                <template v-else>
+                    <div class="mb-table-wrap">
+                        <table class="table mb-table">
+                            <thead>
+                                <tr>
+                                    <th>Facility</th>
+                                    <th>Date</th>
+                                    <th>Time</th>
+                                    <th>Status</th>
+                                    <th>Amount</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="b in pagedBookings" :key="b.name">
+                                    <td>
+                                        <div class="mb-facility-name">[[ b.facility_name ]]</div>
+                                        <div v-if="b.venue_address || b.venue_name" class="mb-venue-line">
+                                            <i class="bi bi-geo-alt"></i>
+                                            <span>[[ b.venue_address || b.venue_name ]]<template v-if="b.venue_address && b.venue_city">, [[ b.venue_city ]]</template></span>
+                                            <a v-if="directionsUrl(b)" :href="directionsUrl(b)" target="_blank" rel="noopener noreferrer" class="mb-directions-link" @click.stop>Get Directions</a>
+                                        </div>
+                                    </td>
+                                    <td>[[ b.booking_date ]]</td>
+                                    <td>[[ b.start_time ]]&ndash;[[ b.end_time ]]</td>
+                                    <td><span class="badge bk-status-badge" :class="statusClass(b.booking_status)">[[ b.booking_status ]]</span></td>
+                                    <td>[[ fmt(b.total_amount) ]]</td>
+                                    <td class="mb-table-action"><a :href="bookingUrl(b)" class="btn btn-outline-success btn-sm bk-view-btn">View</a></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mb-pagination">
+                        <p class="mb-count text-muted small mb-0">Showing [[ pageRangeStart ]]&ndash;[[ pageRangeEnd ]] of [[ filteredBookings.length ]] booking[[ filteredBookings.length === 1 ? '' : 's' ]]</p>
+                        <div v-if="totalPages > 1" class="mb-pagination-controls">
+                            <button type="button" class="btn btn-outline-success btn-sm" :disabled="currentPage <= 1" @click="prevPage">&laquo; Prev</button>
+                            <span class="mb-page-indicator">Page [[ currentPage ]] of [[ totalPages ]]</span>
+                            <button type="button" class="btn btn-outline-success btn-sm" :disabled="currentPage >= totalPages" @click="nextPage">Next &raquo;</button>
+                        </div>
+                    </div>
+                </template>
+            </template>
+        </template>
+    </div>
+</div>
+
+<style>
+    /* Same icon-font gap as the other guest-facing pages - see book-facility. */
+    @import url("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css");
+
+    .my-bookings {
+        /* Configurable via Sports Complex Setup > Website > Theme Color
+           (see get_theme_context() in sports_complex/theme.py). Scoped to
+           this page's own root element rather than :root, so it can't
+           affect anything outside this page. --sc-primary-rgb is the same
+           color as an "r, g, b" triple, for rgba() tints without
+           duplicating color-parsing logic in CSS. */
+        --sc-primary: {{ theme_color }};
+        --sc-primary-hover: {{ theme_color_hover }};
+        --sc-primary-rgb: {{ theme_color_rgb }};
+    }
+
+    /* Bootstrap's own .btn-success/.btn-outline-success ship with a fixed
+       green (independent of --sc-primary) - most buttons on this page
+       already get themed via a more specific .bk-btn combo selector (see
+       below), but this catches any bare use of the Bootstrap classes too,
+       so nothing is left in the old hardcoded green. */
+    .my-bookings .btn-success {
+        background-color: var(--sc-primary);
+        border-color: var(--sc-primary);
+        color: #fff;
+    }
+
+    .my-bookings .btn-success:hover,
+    .my-bookings .btn-success:focus,
+    .my-bookings .btn-success:active {
+        background-color: var(--sc-primary-hover);
+        border-color: var(--sc-primary-hover);
+        color: #fff;
+    }
+
+    .my-bookings .btn-outline-success {
+        color: var(--sc-primary);
+        border-color: var(--sc-primary);
+        background-color: transparent;
+    }
+
+    .my-bookings .btn-outline-success:hover,
+    .my-bookings .btn-outline-success:focus,
+    .my-bookings .btn-outline-success:active {
+        background-color: var(--sc-primary);
+        border-color: var(--sc-primary);
+        color: #fff;
+    }
+
+    .my-bookings .bk-page {
+        min-height: 70vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 1rem;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .my-bookings .bk-page-inner {
+        width: 100%;
+        max-width: 520px;
+    }
+
+    .my-bookings .bk-back-top {
+        display: block;
+        padding: 0;
+        margin-bottom: 1rem;
+        color: #6b7280;
+    }
+
+    .my-bookings .bk-card {
+        width: 100%;
+        max-width: 520px;
+        box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
+        border: 1px solid rgba(15, 23, 42, 0.06);
+    }
+
+    .my-bookings .bk-card-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 1.25rem 1.5rem;
+        font-weight: 600;
+        font-size: 1.05rem;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+        color: #1f2937;
+    }
+
+    .my-bookings .bk-card-header i {
+        font-size: 1.15rem;
+        color: var(--sc-primary);
+    }
+
+    .my-bookings .bk-body {
+        padding: 1.5rem;
+    }
+
+    .my-bookings .bk-label {
+        color: #6b7280;
+        font-weight: 500;
+        font-size: 0.9rem;
+    }
+
+    .my-bookings .bk-btn {
+        width: 100%;
+        padding: 0.75rem 1rem;
+        font-weight: 600;
+        font-size: 1rem;
+        border-radius: 0.65rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .my-bookings .btn-success.bk-btn {
+        background-color: var(--sc-primary);
+        border-color: var(--sc-primary);
+    }
+
+    .my-bookings .btn-success.bk-btn:hover:not(:disabled) {
+        background-color: var(--sc-primary-hover);
+        border-color: var(--sc-primary-hover);
+    }
+
+    .my-bookings .bk-back {
+        display: block;
+        width: 100%;
+        text-align: center;
+        margin-top: 0.75rem;
+        color: #6b7280;
+    }
+
+    .my-bookings .bk-resend-btn {
+        color: var(--sc-primary);
+        font-weight: 600;
+        text-decoration: none;
+        vertical-align: baseline;
+    }
+
+    .my-bookings .bk-resend-btn:disabled {
+        color: #9ca3af;
+    }
+
+    .my-bookings .bk-list {
+        margin: 0 -1.5rem;
+    }
+
+    .my-bookings .bk-row {
+        padding: 1rem 1.5rem;
+        border-color: rgba(15, 23, 42, 0.06);
+    }
+
+    .my-bookings .bk-row-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+        margin-bottom: 0.15rem;
+    }
+
+    .my-bookings .bk-row-bottom {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem;
+    }
+
+    .my-bookings .bk-status-badge {
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 0.3rem 0.6rem;
+        border-radius: 999px;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    .my-bookings .bk-badge-grey { background-color: #f3f4f6; color: #4b5563; }
+    .my-bookings .bk-badge-yellow { background-color: #fef3c7; color: #92400e; }
+    .my-bookings .bk-badge-blue { background-color: #dbeafe; color: #1d4ed8; }
+    .my-bookings .bk-badge-red { background-color: #fee2e2; color: #b91c1c; }
+    .my-bookings .bk-badge-total { background-color: var(--sc-primary); color: #fff; }
+
+    .my-bookings .bk-badge {
+        background-color: #f3f4f6;
+        color: #1f2937;
+        font-weight: 600;
+        font-size: 0.8rem;
+        padding: 0.35rem 0.65rem;
+        border-radius: 999px;
+    }
+
+    .my-bookings .bk-view-btn {
+        border-radius: 0.5rem;
+        font-weight: 600;
+    }
+
+    /* Full-screen bookings table (shown once identity is settled) */
+    .my-bookings .mb-page {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        padding: 1.75rem 2rem 2.5rem;
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .my-bookings .mb-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin-bottom: 1.25rem;
+    }
+
+    .my-bookings .mb-header-left {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+    }
+
+    .my-bookings .mb-back-top {
+        padding: 0;
+        align-self: flex-start;
+        color: #6b7280;
+        font-size: 0.9rem;
+    }
+
+    .my-bookings .mb-heading {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin: 0;
+    }
+
+    .my-bookings .mb-heading i {
+        color: var(--sc-primary);
+        font-size: 1.4rem;
+    }
+
+    .my-bookings .mb-back {
+        color: #6b7280;
+        font-weight: 500;
+        white-space: nowrap;
+    }
+
+    .my-bookings .mb-filter-bar {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+        align-items: end;
+        gap: 1rem;
+        background: #fff;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 0.75rem;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.25rem;
+        box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+    }
+
+    .my-bookings .mb-filter-group {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+        min-width: 0;
+    }
+
+    .my-bookings .mb-filter-group label {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #6b7280;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+    }
+
+    .my-bookings .mb-filter-group select,
+    .my-bookings .mb-filter-group input {
+        border-radius: 0.5rem;
+    }
+
+    .my-bookings .mb-filter-group select:focus,
+    .my-bookings .mb-filter-group input:focus {
+        border-color: var(--sc-primary);
+        box-shadow: 0 0 0 0.2rem rgba(var(--sc-primary-rgb), 0.15);
+    }
+
+    .my-bookings .mb-clear-filters {
+        white-space: nowrap;
+        color: var(--sc-primary);
+        font-weight: 600;
+        padding: 0.5rem 0;
+    }
+
+    .my-bookings .mb-table-wrap {
+        /* Fixed page size (see pageSize in index.js) means this never grows
+           tall enough to need its own scrollbar - overflow: hidden just
+           guarantees the rounded corners clip the table cleanly instead of
+           relying on a scroll container to do it. */
+        overflow: hidden;
+        border: 1px solid rgba(15, 23, 42, 0.08);
+        border-radius: 0.75rem;
+        background: #fff;
+        box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+    }
+
+    .my-bookings .mb-table {
+        width: 100%;
+        margin: 0;
+        border-collapse: separate;
+        border-spacing: 0;
+    }
+
+    .my-bookings .mb-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        background: #f9fafb;
+        color: #4b5563;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        padding: 0.85rem 1.25rem;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+        white-space: nowrap;
+    }
+
+    .my-bookings .mb-table tbody td {
+        padding: 0.9rem 1.25rem;
+        border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+        color: #1f2937;
+        vertical-align: middle;
+    }
+
+    .my-bookings .mb-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .my-bookings .mb-table tbody tr:hover {
+        background-color: #f9fafb;
+    }
+
+    .my-bookings .mb-table-action {
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    .my-bookings .mb-facility-name {
+        font-weight: 600;
+    }
+
+    .my-bookings .mb-venue-line {
+        margin-top: 0.2rem;
+        font-size: 0.78rem;
+        font-weight: 400;
+        color: #6b7280;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 0.35rem;
+    }
+
+    .my-bookings .mb-venue-line i {
+        color: #9ca3af;
+    }
+
+    .my-bookings .mb-directions-link {
+        font-weight: 600;
+        color: var(--sc-primary);
+        text-decoration: none;
+        white-space: nowrap;
+    }
+
+    .my-bookings .mb-directions-link:hover {
+        text-decoration: underline;
+    }
+
+    .my-bookings .mb-pagination {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        margin: 0.85rem 0.25rem 0;
+    }
+
+    .my-bookings .mb-pagination-controls {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .my-bookings .mb-page-indicator {
+        font-size: 0.85rem;
+        color: #4b5563;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    @media (max-width: 768px) {
+        .my-bookings .mb-page {
+            padding: 1.25rem 1rem 2rem;
+        }
+
+        .my-bookings .mb-filter-bar {
+            grid-template-columns: 1fr;
+        }
+
+        .my-bookings .mb-pagination {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block script %}
+<script src="/assets/frappe_paystack/js/vue.global.js"></script>
+<script src="/assets/frappe_paystack/js/sweetalert2@11.js"></script>
+<script>
+  window.isGuest = {{ 1 if is_guest else 0 }};
+</script>
+<script>
+  // Fallback for the navbar/footer block overrides above, in case this
+  // site's web.html doesn't define blocks by those names. Deliberately
+  // conservative after an earlier version of this
+  // hid the whole page: every candidate element is checked against
+  // containsMainContent() before being touched, so this can never hide
+  // this page's own root content by mistake, even if a match turns out
+  // broader than expected.
+  (function () {
+    function mainContentRoot() {
+      return document.querySelector("#app") || document.querySelector(".sc-landing");
+    }
+    function containsMainContent(el) {
+      var root = mainContentRoot();
+      return !!(root && el && el.contains(root));
+    }
+    function hideSiteNav() {
+      var anchors = document.querySelectorAll("a[href]");
+      for (var i = 0; i < anchors.length; i++) {
+        var path;
+        try {
+          path = new URL(anchors[i].getAttribute("href"), window.location.origin).pathname;
+        } catch (e) {
+          continue;
+        }
+        if (path === "/login") {
+          var bar = anchors[i].closest("nav") || anchors[i].closest("header") || anchors[i].closest(".navbar");
+          if (bar && !containsMainContent(bar)) {
+            bar.style.display = "none";
+          }
+          break;
+        }
+      }
+    }
+    function hidePoweredByFooter() {
+      var nodes = document.querySelectorAll("body *");
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (el.children.length === 0 && /powered by/i.test(el.textContent || "")) {
+          var target = el.closest("footer") || el.closest(".web-footer") || el.parentElement || el;
+          if (target && !containsMainContent(target)) {
+            target.style.display = "none";
+          }
+        }
+      }
+    }
+    function run() {
+      // Each hider runs in its own try/catch so a failure in one (an
+      // unexpected DOM shape, a browser API gap) can never stop the
+      // other from running - and, more importantly, can never be
+      // mistaken for something wrong with the rest of the page, which
+      // is unrelated to this script entirely.
+      try {
+        hideSiteNav();
+      } catch (e) {
+        /* non-fatal: nav just stays visible */
+      }
+      try {
+        hidePoweredByFooter();
+      } catch (e) {
+        /* non-fatal: footer just stays visible */
+      }
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", run);
+    } else {
+      run();
+    }
+    setTimeout(run, 800);
+  })();
+</script>
+<script src="/assets/sports_complex/js/my-bookings/index.js"></script>
+{% endblock %}

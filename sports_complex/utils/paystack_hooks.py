@@ -62,7 +62,20 @@ def on_payment_authorized(doc, method=None):
 			# idempotent the same way this loop already assumes
 			# db.set_value is (safe to run more than once for one
 			# payment).
-			frappe.get_doc(source_doctype, source_name).mark_paid_and_confirm()
+			#
+			# A cart booking (facility_booking.create_booking_cart()) puts
+			# several Facility Booking docs on one shared invoice, but this
+			# forward field only ever points at the first of them (see
+			# _create_cart_invoice()'s own comment) - source_name above is
+			# only enough to notice "this invoice is a Facility Booking
+			# invoice" at all. Resolve every booking actually tied to this
+			# invoice via the reverse link instead of trusting source_name
+			# alone, and confirm all of them together; a single, non-cart
+			# booking is just the n=1 case of the same query.
+			for booking_name in frappe.get_all(
+				"Facility Booking", filters={"sales_invoice": doc.name}, pluck="name"
+			):
+				frappe.get_doc(source_doctype, booking_name).mark_paid_and_confirm()
 		elif status_field in frappe.get_meta(source_doctype).get_valid_columns():
 			frappe.db.set_value(source_doctype, source_name, status_field, paid_value)
 			frappe.db.commit()
