@@ -81,28 +81,31 @@ def resolve_or_create_guest_customer(email, full_name, phone=None):
 	if not full_name:
 		frappe.throw(_("Full name is required"))
 
-	# member.flags.ignore_permissions only covers the Member doc's own
-	# permission check - it doesn't reach the Customer that Member.
-	# create_customer() inserts inside before_insert(), and ERPNext's own
-	# Customer controller in turn creates/updates a linked Contact as a
-	# side effect of that insert (since we set email/phone on the
-	# Customer). That nested Contact insert isn't ours to add
-	# ignore_permissions to, and the Guest role has no Contact
-	# permission, so it was failing with "No permission for Contact".
-	# Bypassing permissions globally for just this already-OTP-verified
-	# creation is the standard Frappe way to cover a whole hook chain
-	# like this rather than guessing which nested doc needs the flag.
-	previous_ignore_permissions = frappe.flags.ignore_permissions
-	frappe.flags.ignore_permissions = True
+	# ignore_permissions on the Member/Customer docs we create directly
+	# doesn't reach whatever Contact record ERPNext's own Customer
+	# controller creates/updates as a side effect of that insert (since
+	# we set email/phone on the Customer) - that's a separate Document
+	# instance, constructed deep inside code we don't control, that
+	# never gets our ignore_permissions flag (confirmed: setting
+	# frappe.flags.ignore_permissions globally around this block still
+	# hit "No permission for Contact" for the Guest role). Running this
+	# whole nested chain as Administrator - who always has full access
+	# by Frappe's design, independent of any doctype's role permissions
+	# - covers it regardless of which nested doc needs the bypass,
+	# rather than us having to keep discovering them one at a time.
+	# Restored to the real (Guest) session user immediately after, in a
+	# finally so it can't leak into the rest of the request even if
+	# member.insert() raises.
+	original_user = frappe.session.user
+	frappe.set_user("Administrator")
 	try:
 		member = frappe.new_doc("Member")
 		member.member_name = full_name
 		member.email = email
 		if phone:
 			member.phone = phone
-		member.flags.ignore_permissions = True
-		member.insert()
+		member.insert(ignore_permissions=True)
 	finally:
-		frappe.flags.ignore_permissions = previous_ignore_permissions
+		frappe.set_user(original_user)
 
 	return member.customer
