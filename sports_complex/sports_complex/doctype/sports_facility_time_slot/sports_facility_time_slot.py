@@ -6,7 +6,7 @@ from datetime import datetime
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import get_time
+from frappe.utils import cint, get_time
 
 
 class SportsFacilityTimeSlot(Document):
@@ -28,6 +28,19 @@ class SportsFacilityTimeSlot(Document):
 		if not (self.slot_start and self.slot_end):
 			return
 
+		# Sports Complex Setup > Facility > Default Booking Duration existed
+		# as a field but nothing ever read it - every row here required
+		# staff to type a duration by hand, even when it was the same
+		# 60 minutes on every court. Falling back to it here (only when the
+		# row's own Slot Duration is left blank - an explicit value on the
+		# row always wins) is what actually wires that setting up, same
+		# idiom as Facility Booking.validate_booking_window() doing the
+		# same for Minimum Booking Notice/Advance Booking Window.
+		if not self.slot_duration:
+			self.slot_duration = cint(
+				frappe.db.get_single_value("Sports Complex Setup", "default_booking_duration")
+			)
+
 		# get_time() normalizes both sides to a real datetime.time before
 		# comparing, rather than whatever raw form the field holds - see
 		# FacilityBooking.validate_times()'s comment for why a plain
@@ -39,7 +52,13 @@ class SportsFacilityTimeSlot(Document):
 			frappe.throw(_("Row #{0}: Start Time must be before End Time").format(self.idx))
 
 		if not self.slot_duration or self.slot_duration <= 0:
-			frappe.throw(_("Row #{0}: Slot Duration must be a positive number of minutes").format(self.idx))
+			frappe.throw(
+				_(
+					"Row #{0}: Slot Duration must be a positive number of minutes "
+					"(and Sports Complex Setup > Default Booking Duration is empty or 0, "
+					"so there's no fallback to use)"
+				).format(self.idx)
+			)
 
 		window_minutes = (
 			datetime.combine(datetime.min, end) - datetime.combine(datetime.min, start)
