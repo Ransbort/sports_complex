@@ -3,43 +3,100 @@
 
 {% block page_content %}
 <div id="app" class="book-court">
-    <div class="container bk-page">
-        <div class="bk-card card border-0 rounded-4">
+    <div class="container bk-page" :class="{ 'bk-page-grid': step === 'grid' }">
+
+        <!-- Step 0: browse all bookable facilities -->
+        <div v-if="step === 'grid'" class="bk-grid-wrap">
+            <div class="bk-grid-header">
+                <h2 class="fw-bold mb-1"><i class="bi bi-calendar2-check text-success"></i> Book a Court</h2>
+                <p class="text-muted mb-0">Pick a facility to see today's availability and pricing.</p>
+            </div>
+
+            <p v-if="!facilities.length" class="text-center text-muted py-5">No facilities are open for booking right now.</p>
+
+            <div v-else class="bk-fac-grid">
+                <div class="bk-fac-card card border-0 h-100" v-for="f in facilities" :key="f.name">
+                    <div class="bk-fac-img" :style="f.image ? { backgroundImage: 'url(' + f.image + ')' } : {}">
+                        <i v-if="!f.image" class="bi bi-image"></i>
+                        <span class="bk-fac-badge" :class="f.open_slots_today ? 'bk-badge-open' : 'bk-badge-full'">
+                            [[ f.open_slots_today ? f.open_slots_today + ' open today' : 'Fully booked today' ]]
+                        </span>
+                    </div>
+                    <div class="card-body d-flex flex-column bk-fac-body">
+                        <h6 class="fw-bold mb-1">[[ f.facility_name ]]</h6>
+                        <p v-if="f.surface_type" class="text-muted small mb-1">[[ f.surface_type ]]</p>
+                        <p class="bk-fac-price mb-2">
+                            [[ fmt(f.hourly_rate) ]] <span class="text-muted small fw-normal">/ hour</span>
+                        </p>
+                        <button class="btn btn-success bk-btn mt-auto" @click="pickFacility(f)">Book Now</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Steps 1-3: date/slot pick, identity, result -->
+        <div v-else class="bk-card card border-0 rounded-4">
             <div class="card-body p-0">
                 <div class="bk-card-header">
                     <i class="bi bi-calendar2-check"></i>
                     <span>Book a Court</span>
                 </div>
 
-                <!-- Step 1: pick court + date, check availability -->
+                <!-- Step 1: pick date, check availability -->
                 <div v-if="step === 'browse'" class="bk-body">
-                    <div class="mb-3">
-                        <label class="form-label bk-label">Court</label>
-                        <select class="form-select" v-model="selectedCourt">
-                            <option value="" disabled>Choose a court</option>
-                            <option v-for="c in courts" :key="c.name" :value="c.name">
-                                [[ c.name ]][[ c.surface_type ? ' - ' + c.surface_type : '' ]]
-                            </option>
-                        </select>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label bk-label">Date</label>
-                        <input type="date" class="form-control" v-model="selectedDate" :min="today">
-                    </div>
-                    <button class="btn btn-success bk-btn" :disabled="!selectedCourt || !selectedDate || loadingSlots"
-                            @click="checkAvailability">
-                        <span v-if="loadingSlots" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        [[ loadingSlots ? 'Checking…' : 'Check Availability' ]]
-                    </button>
+                    <button type="button" class="btn btn-link bk-back-top" @click="step = 'grid'">&larr; All facilities</button>
 
-                    <div v-if="slotsChecked" class="mt-4">
-                        <p v-if="!slots.length" class="text-muted mb-0">No open slots for this court on this date.</p>
-                        <div v-else class="bk-slots">
-                            <button v-for="s in slots" :key="s.start_time" type="button" class="btn btn-outline-success bk-slot"
-                                    @click="selectSlot(s)">
-                                [[ s.start_time ]] &ndash; [[ s.end_time ]]
+                    <p class="bk-slot-summary">
+                        <i class="bi bi-geo-alt"></i>
+                        [[ selectedFacilityInfo.facility_name || selectedFacility ]]
+                        <span v-if="selectedFacilityInfo.surface_type"> &middot; [[ selectedFacilityInfo.surface_type ]]</span>
+                    </p>
+
+                    <div class="bk-cal">
+                        <div class="bk-cal-header">
+                            <button type="button" class="btn btn-sm bk-cal-nav" :disabled="isPrevMonthDisabled" @click="prevMonth">
+                                <i class="bi bi-chevron-left"></i>
+                            </button>
+                            <span class="bk-cal-title">[[ monthLabel ]]</span>
+                            <button type="button" class="btn btn-sm bk-cal-nav" @click="nextMonth">
+                                <i class="bi bi-chevron-right"></i>
                             </button>
                         </div>
+                        <div class="bk-cal-grid bk-cal-dow">
+                            <span v-for="d in dowLabels" :key="d">[[ d ]]</span>
+                        </div>
+                        <div class="bk-cal-grid">
+                            <span v-for="n in leadingBlanks" :key="'b' + n" class="bk-cal-blank"></span>
+                            <button v-for="day in daysInMonth" :key="day" type="button" class="bk-cal-day"
+                                    :class="{ 'bk-cal-today': isToday(day), 'bk-cal-selected': isSelected(day) }"
+                                    :disabled="isPastDay(day)"
+                                    @click="selectDay(day)">
+                                [[ day ]]
+                                <span v-if="!isPastDay(day) && monthAvailability[dayKey(day)] !== undefined"
+                                      class="bk-cal-dot"
+                                      :class="monthAvailability[dayKey(day)] > 0 ? 'bk-dot-open' : 'bk-dot-full'"></span>
+                            </button>
+                        </div>
+                        <p v-if="loadingMonth" class="text-muted small text-center mt-2 mb-0">Loading availability…</p>
+                        <p v-else class="bk-cal-legend text-muted small mb-0">
+                            <span class="bk-cal-dot bk-dot-open"></span> open
+                            <span class="bk-cal-dot bk-dot-full"></span> fully booked
+                        </p>
+                    </div>
+
+                    <div v-if="selectedDate" class="mt-3">
+                        <div v-if="loadingSlots" class="text-center py-3">
+                            <span class="spinner-border spinner-border-sm text-success" role="status" aria-hidden="true"></span>
+                        </div>
+                        <template v-else-if="slotsChecked">
+                            <p v-if="!slots.length" class="text-muted mb-0">No open slots for this facility on this date.</p>
+                            <div v-else class="bk-slots">
+                                <button v-for="s in slots" :key="s.start_time" type="button" class="btn btn-outline-success bk-slot"
+                                        @click="selectSlot(s)">
+                                    [[ s.start_time ]] &ndash; [[ s.end_time ]]
+                                </button>
+                            </div>
+                        </template>
                     </div>
                 </div>
 
@@ -47,7 +104,7 @@
                 <div v-else-if="step === 'details'" class="bk-body">
                     <p class="bk-slot-summary">
                         <i class="bi bi-clock"></i>
-                        [[ selectedCourt ]] &middot; [[ selectedDate ]] &middot; [[ selectedSlot.start_time ]]&ndash;[[ selectedSlot.end_time ]]
+                        [[ selectedFacilityInfo.facility_name || selectedFacility ]] &middot; [[ selectedDate ]] &middot; [[ selectedSlot.start_time ]]&ndash;[[ selectedSlot.end_time ]]
                     </p>
 
                     <template v-if="!isGuest">
@@ -106,6 +163,13 @@
 </div>
 
 <style>
+    /* This app doesn't otherwise link Bootstrap Icons, and the guest-facing
+       web theme apparently doesn't pull it in either - every `bi-*` icon on
+       this page (including the calendar nav arrows) was rendering as
+       nothing. Importing it here guarantees the icon font is available
+       regardless of what the surrounding site does. */
+    @import url("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css");
+
     .book-court .bk-page {
         min-height: 70vh;
         display: flex;
@@ -113,6 +177,103 @@
         align-items: center;
         justify-content: center;
         padding: 2rem 1rem;
+    }
+
+    .book-court .bk-page.bk-page-grid {
+        justify-content: flex-start;
+        max-width: 1100px;
+        margin: 0 auto;
+        width: 100%;
+    }
+
+    .book-court .bk-grid-wrap {
+        width: 100%;
+        /* Bottom padding on the wrap itself (rather than relying on the
+           page's own padding) guarantees breathing room under the last
+           row of cards regardless of page height/scroll behavior. */
+        padding-bottom: 2rem;
+    }
+
+    .book-court .bk-grid-header {
+        margin-bottom: 1.5rem;
+    }
+
+    /* Plain CSS Grid instead of Bootstrap's row/col/g-* utilities - this
+       page doesn't pull in full Bootstrap grid CSS, so those gutter
+       classes were rendering with no actual gap between cards, both
+       between columns and between rows. An explicit `gap` here fixes
+       spacing in both directions reliably. */
+    .book-court .bk-fac-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+        gap: 1.5rem;
+    }
+
+    .book-court .bk-fac-card {
+        box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
+        border: 1px solid rgba(15, 23, 42, 0.06);
+        overflow: hidden;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .book-court .bk-fac-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 28px rgba(15, 23, 42, 0.12);
+    }
+
+    /* Tighter, more even rhythm than the card's bootstrap default
+       padding gave it - less dead space between the image and the
+       title, and between the title/subtitle/price/button stack. */
+    .book-court .bk-fac-body {
+        padding: 1rem 1.1rem 1.1rem;
+    }
+
+    .book-court .bk-fac-img {
+        height: 140px;
+        background-color: #f3f4f6;
+        background-size: cover;
+        background-position: center;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .book-court .bk-fac-img i {
+        font-size: 1.75rem;
+        color: #cbd5e1;
+    }
+
+    .book-court .bk-fac-badge {
+        position: absolute;
+        bottom: 0.6rem;
+        left: 0.6rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.3rem 0.6rem;
+        border-radius: 999px;
+        color: #fff;
+    }
+
+    .book-court .bk-badge-open {
+        background-color: #16a34a;
+    }
+
+    .book-court .bk-badge-full {
+        background-color: #6b7280;
+    }
+
+    .book-court .bk-fac-price {
+        font-weight: 700;
+        color: #1f2937;
+        font-size: 1.05rem;
+    }
+
+    .book-court .bk-back-top {
+        display: block;
+        padding: 0;
+        margin-bottom: 1rem;
+        color: #6b7280;
     }
 
     .book-court .bk-card {
@@ -169,6 +330,141 @@
         border-color: #15803d;
     }
 
+    .book-court .bk-cal {
+        margin-bottom: 0.5rem;
+    }
+
+    .book-court .bk-cal-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+    }
+
+    .book-court .bk-cal-title {
+        font-weight: 600;
+        color: #1f2937;
+        font-size: 0.95rem;
+    }
+
+    .book-court .bk-cal-nav {
+        border: 1px solid rgba(15, 23, 42, 0.1);
+        color: #1f2937;
+        width: 2rem;
+        height: 2rem;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.5rem;
+    }
+
+    .book-court .bk-cal-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 0.2rem;
+        text-align: center;
+    }
+
+    .book-court .bk-cal-dow {
+        margin-bottom: 0.35rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #9ca3af;
+        text-transform: uppercase;
+    }
+
+    .book-court .bk-cal-blank {
+        height: 2.35rem;
+    }
+
+    /* Fixed height instead of aspect-ratio: aspect-ratio only holds while
+       the box has no content taller than it - once the day number and the
+       dot were stacked in a flex column, the dot pushed real rows taller
+       than blank/dot-less rows, so the grid's row heights were uneven and
+       read as "too much spacing" between some weeks. A fixed height and an
+       absolutely-positioned dot keep every cell (and so every row) the
+       same size regardless of whether that day has a dot yet. */
+    .book-court .bk-cal-day {
+        position: relative;
+        height: 2.35rem;
+        padding: 0;
+        margin: 0;
+        border: 1px solid transparent;
+        background: transparent;
+        border-radius: 0.5rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        font-family: inherit;
+        line-height: 1;
+        color: #1f2937;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .book-court .bk-cal-day:hover:not(:disabled) {
+        background-color: rgba(22, 163, 74, 0.08);
+    }
+
+    .book-court .bk-cal-day:disabled {
+        color: #d1d5db;
+        cursor: default;
+    }
+
+    .book-court .bk-cal-day.bk-cal-today {
+        border-color: rgba(22, 163, 74, 0.4);
+    }
+
+    .book-court .bk-cal-day.bk-cal-selected {
+        background-color: #16a34a;
+        color: #fff;
+    }
+
+    .book-court .bk-cal-dot {
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+    }
+
+    /* Positioned out of flow so it never adds to the day cell's height -
+       see the .bk-cal-day comment above. */
+    .book-court .bk-cal-day .bk-cal-dot {
+        position: absolute;
+        bottom: 0.3rem;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+
+    .book-court .bk-dot-open {
+        background-color: #16a34a;
+    }
+
+    .book-court .bk-cal-day.bk-cal-selected .bk-dot-open {
+        background-color: #fff;
+    }
+
+    .book-court .bk-dot-full {
+        background-color: #d1d5db;
+    }
+
+    .book-court .bk-cal-legend {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.35rem;
+        margin-top: 0.5rem;
+    }
+
+    .book-court .bk-cal-legend .bk-cal-dot {
+        margin-left: 0.5rem;
+    }
+
+    .book-court .bk-cal-legend .bk-cal-dot:first-child {
+        margin-left: 0;
+    }
+
     .book-court .bk-slots {
         display: flex;
         flex-wrap: wrap;
@@ -221,7 +517,7 @@
 <script src="/assets/frappe_paystack/js/vue.global.js"></script>
 <script src="/assets/frappe_paystack/js/sweetalert2@11.js"></script>
 <script>
-  window.courts = {{ courts_json | safe }};
+  window.facilities = {{ facilities_json | safe }};
   window.isGuest = {{ 1 if is_guest else 0 }};
 </script>
 <script src="/assets/sports_complex/js/book-court/index.js"></script>

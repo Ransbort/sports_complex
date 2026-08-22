@@ -47,10 +47,22 @@
    "label": "Capacity"
   },
   {
+   "fieldname": "surface_type",
+   "fieldtype": "Data",
+   "label": "Surface Type"
+  },
+  {
    "fieldname": "hourly_rate",
    "fieldtype": "Currency",
    "label": "Hourly Rate (override)",
    "description": "Leave blank to use the Facility Type's default rate"
+  },
+  {
+   "fieldname": "billing_item",
+   "fieldtype": "Link",
+   "options": "Item",
+   "label": "Billing Item",
+   "description": "Sellable Item billed on the Sales Invoice for bookings of this facility. Leave blank to fall back to looking for an Item named the same as this facility's Facility Type."
   },
   {
    "fieldname": "status",
@@ -76,6 +88,18 @@
    "fieldname": "image",
    "fieldtype": "Attach Image",
    "label": "Image"
+  },
+  {
+   "fieldname": "section_break_schedule",
+   "fieldtype": "Section Break",
+   "label": "Weekly Schedule"
+  },
+  {
+   "fieldname": "time_slots",
+   "fieldtype": "Table",
+   "options": "Sports Facility Time Slot",
+   "label": "Time Slots",
+   "description": "When this facility can be booked. Saving here fully replaces its Booking Schedule entries with what's listed."
   }
  ],
  "permissions": [

@@ -62,6 +62,18 @@
    "fieldtype": "Time",
    "label": "Operating Hours To",
    "default": "22:00:00"
+  },
+  {
+   "fieldname": "map_section",
+   "fieldtype": "Section Break",
+   "label": "Map"
+  },
+  {
+   "fieldname": "location",
+   "fieldtype": "Geolocation",
+   "label": "Location",
+   "print_hide": 1,
+   "description": "Filled in automatically from the Address/City above - click \"Locate on Map\" to refresh it, or drag the pin to correct it."
   }
  ],
  "permissions": [

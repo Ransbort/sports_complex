@@ -4,7 +4,7 @@
 import frappe
 
 from sports_complex.sports_complex.doctype.facility_booking.facility_booking import (
-	list_bookable_courts,
+	list_bookable_facilities,
 )
 
 
@@ -16,5 +16,5 @@ def get_context(context):
 	# of create_guest_booking(). The Vue app branches on window.isGuest
 	# to show the right form.
 	context.is_guest = frappe.session.user == "Guest"
-	context.courts_json = frappe.as_json(list_bookable_courts())
+	context.facilities_json = frappe.as_json(list_bookable_facilities())
 	return context

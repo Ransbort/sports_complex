@@ -155,19 +155,6 @@
   },
   {
    "doctype": "Workspace Sidebar Item",
-   "idx": 14,
-   "type": "Link",
-   "icon": "layout-grid",
-   "label": "Court",
-   "link_to": "Court",
-   "link_type": "DocType",
-   "child": 1,
-   "parent": "Sports Complex",
-   "parentfield": "items",
-   "parenttype": "Workspace Sidebar"
-  },
-  {
-   "doctype": "Workspace Sidebar Item",
    "idx": 15,
    "type": "Link",
    "icon": "wrench",

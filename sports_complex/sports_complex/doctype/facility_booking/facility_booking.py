@@ -1,6 +1,7 @@
 # Copyright (c) 2026, Your Company and contributors
 # For license information, please see license.txt
 
+import calendar
 import hashlib
 import hmac
 from datetime import timedelta
@@ -8,7 +9,7 @@ from datetime import timedelta
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import cint, flt, get_datetime, now_datetime, time_diff_in_hours
+from frappe.utils import cint, flt, get_datetime, get_time, now_datetime, nowdate, time_diff_in_hours
 from frappe.utils.password import get_encryption_key
 
 STAFF_ROLES = {"System Manager", "Sports Complex Manager", "Sports Complex Staff"}
@@ -24,7 +25,17 @@ class FacilityBooking(Document):
 		self.validate_maintenance_overlap()
 
 	def validate_times(self):
-		if self.start_time and self.end_time and self.start_time >= self.end_time:
+		# get_time() normalizes both sides to a real datetime.time before
+		# comparing - self.start_time/self.end_time can arrive as a plain
+		# "H:MM:SS" string (e.g. from create_booking()/create_guest_
+		# booking()'s API params, sourced from get_available_slots()'s
+		# str(timedelta) output, which drops the leading zero on
+		# single-digit hours). Comparing those directly as strings with >=
+		# is a lexicographic comparison, not a time comparison, so e.g.
+		# "8:00:00" >= "16:00:00" was True (since "8" > "1" as characters)
+		# and legitimate bookings were rejected as "Start Time must be
+		# before End Time" even though 8am is obviously before 4pm.
+		if self.start_time and self.end_time and get_time(self.start_time) >= get_time(self.end_time):
 			frappe.throw(_("Start Time must be before End Time"))
 		self.validate_booking_window()
 
@@ -135,14 +146,14 @@ class FacilityBooking(Document):
 		if cint(frappe.db.get_single_value("Sports Complex Setup", "allow_overlapping_bookings")):
 			return
 
-		# Lock the Court row for the rest of this transaction so two
-		# near-simultaneous submissions for the same court can't both read
-		# "no conflict" here before either has actually committed - a
-		# classic check-then-act race. Without this, two customers hitting
-		# create_booking() for the same slot at the same moment could both
-		# pass this check and end up with two confirmed bookings for one
-		# court.
-		frappe.db.sql("select name from `tabCourt` where name=%s for update", (self.court,))
+		# Lock the Sports Facility row for the rest of this transaction so
+		# two near-simultaneous submissions for the same facility can't
+		# both read "no conflict" here before either has actually
+		# committed - a classic check-then-act race. Without this, two
+		# customers hitting create_booking() for the same slot at the same
+		# moment could both pass this check and end up with two confirmed
+		# bookings for one facility.
+		frappe.db.sql("select name from `tabSports Facility` where name=%s for update", (self.court,))
 
 		check_start, check_end = self.start_time, self.end_time
 		buffer_minutes = flt(
@@ -185,38 +196,18 @@ class FacilityBooking(Document):
 			)
 
 	def validate_maintenance_overlap(self):
+		"""Delegates to Sports Facility.is_under_maintenance() (moved there
+		from the retired Court doctype - see that method's docstring)
+		rather than maintaining a second copy of the same query here.
+		"""
 		if not (self.court and self.booking_date and self.start_time and self.end_time):
 			return
 
-		sports_facility = frappe.db.get_value("Court", self.court, "sports_facility")
-
-		conflicting = frappe.db.sql(
-			"""
-			select name
-			from `tabMaintenance Schedule`
-			where (court = %(court)s or sports_facility = %(sports_facility)s)
-				and scheduled_date = %(booking_date)s
-				and docstatus = 1
-				and status != 'Completed'
-				and (
-					scheduled_start is null
-					or scheduled_end is null
-					or (scheduled_start < %(end_time)s and scheduled_end > %(start_time)s)
-				)
-			limit 1
-			""",
-			{
-				"court": self.court,
-				"sports_facility": sports_facility,
-				"booking_date": self.booking_date,
-				"start_time": self.start_time,
-				"end_time": self.end_time,
-			},
-		)
-		if conflicting:
+		facility = frappe.get_cached_doc("Sports Facility", self.court)
+		if facility.is_under_maintenance(self.booking_date, self.start_time, self.end_time):
 			frappe.throw(
-				_("Court {0} has scheduled maintenance overlapping this time on {1} ({2})").format(
-					self.court, self.booking_date, conflicting[0][0]
+				_("Facility {0} has scheduled maintenance overlapping this time on {1}").format(
+					self.court, self.booking_date
 				)
 			)
 
@@ -255,28 +246,33 @@ class FacilityBooking(Document):
 	def create_sales_invoice(self):
 		"""Create the linked Sales Invoice that frappe_paystack will take payment against.
 
-		NOTE: this assumes:
-		1. Sales Invoice has a custom Link field `facility_booking` (see schema
-		   doc section 6 — add via Customize Form or a fixtures JSON).
-		2. There is a sellable Item to bill against. For now this looks for an
-		   Item named after the Court's Facility Type; adjust once Sports
-		   Settings has a proper Item mapping field.
+		NOTE: this assumes Sales Invoice has a custom Link field
+		`facility_booking` (see schema doc section 6 — add via Customize
+		Form or a fixtures JSON).
+
+		The Item billed is Sports Facility.billing_item when the facility
+		has one set - that's the explicit, per-facility override this
+		method used to lack, which meant every facility of a given
+		Facility Type was stuck billing against one Item literally named
+		the same as that Facility Type. Facilities that haven't set
+		billing_item yet fall back to that same name-matching convention,
+		so nothing already relying on it breaks.
 		"""
 		if self.sales_invoice:
 			return
 
-		facility_type = frappe.db.get_value(
-			"Sports Facility",
-			frappe.db.get_value("Court", self.court, "sports_facility"),
-			"facility_type",
+		facility_type, billing_item = frappe.db.get_value(
+			"Sports Facility", self.court, ["facility_type", "billing_item"]
 		)
+		item_code = billing_item or facility_type
 
-		if not facility_type or not frappe.db.exists("Item", facility_type):
+		if not item_code or not frappe.db.exists("Item", item_code):
 			frappe.throw(
 				_(
-					"No Item found for Facility Type {0}. Create a sellable Item with that "
-					"name (or update create_sales_invoice) before confirming bookings."
-				).format(facility_type or "")
+					"No billing Item configured for facility {0}. Set a Billing Item on the "
+					"Sports Facility (or create a sellable Item named {1}) before confirming "
+					"bookings."
+				).format(self.court, facility_type or "")
 			)
 
 		si = frappe.new_doc("Sales Invoice")
@@ -285,7 +281,7 @@ class FacilityBooking(Document):
 		si.append(
 			"items",
 			{
-				"item_code": facility_type,
+				"item_code": item_code,
 				"qty": 1,
 				"rate": self.total_amount or self.rate or 0,
 			},
@@ -419,23 +415,29 @@ def _ensure_booking_access(booking, session_customer=None, token=None):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_available_slots(court, date):
-	"""List the open time ranges for a court on a given date: each active
-	Booking Schedule slot for that court/day-of-week, minus whatever's
-	already booked (Facility Booking) or under maintenance (Maintenance
-	Schedule), keeping Sports Complex Setup's Buffer Time Between Bookings
-	clear around each busy interval.
+def get_available_slots(sports_facility, date):
+	"""List the open time ranges for a facility on a given date: each
+	active Booking Schedule slot for that facility/day-of-week, minus
+	whatever's already booked (Facility Booking) or under maintenance
+	(Maintenance Schedule), keeping Sports Complex Setup's Buffer Time
+	Between Bookings clear around each busy interval.
 
 	This is the "can I book this?" counterpart to the buzz app's
 	Event Ticket Type.remaining_tickets - see BOOKING_RECOMMENDATIONS.md.
 	allow_guest=True because this is read-only availability info, not a
 	booking action - browsing what's open shouldn't require logging in.
+
+	Booking Schedule/Facility Booking/Maintenance Schedule all still store
+	this under a column literally named `court` (kept for backward
+	compatibility with existing data - see the retired Court doctype's
+	migration patch), which is why it's used as the filter key below even
+	though the parameter here is named for what it actually holds now.
 	"""
 	day_of_week = get_datetime(date).strftime("%A")
 
 	template_slots = frappe.get_all(
 		"Booking Schedule",
-		filters={"court": court, "day_of_week": day_of_week, "is_active": 1},
+		filters={"court": sports_facility, "day_of_week": day_of_week, "is_active": 1},
 		fields=["slot_start", "slot_end", "slot_duration"],
 		order_by="slot_start asc",
 	)
@@ -450,7 +452,7 @@ def get_available_slots(court, date):
 	for row in frappe.get_all(
 		"Facility Booking",
 		filters={
-			"court": court,
+			"court": sports_facility,
 			"booking_date": date,
 			"docstatus": ("<", 2),
 			"booking_status": ("not in", ["Cancelled", "No-show"]),
@@ -461,10 +463,17 @@ def get_available_slots(court, date):
 
 	for row in frappe.get_all(
 		"Maintenance Schedule",
+		# NOTE: was also filtering on docstatus=1 - Maintenance Schedule is
+		# not submittable (is_submittable: 0 in maintenance_schedule.json),
+		# so docstatus is permanently 0 and that filter matched nothing,
+		# ever. Same bug class as the one fixed in
+		# validate_maintenance_overlap() above: this meant a slot under
+		# active maintenance was never actually subtracted from
+		# availability here, so guests could see and book a maintenance
+		# slot as "open".
 		filters={
-			"court": court,
+			"court": sports_facility,
 			"scheduled_date": date,
-			"docstatus": 1,
 			"status": ("!=", "Completed"),
 		},
 		fields=["scheduled_start", "scheduled_end"],
@@ -475,14 +484,58 @@ def get_available_slots(court, date):
 	slots = []
 	for template in template_slots:
 		for free_start, free_end in _subtract_busy(template.slot_start, template.slot_end, busy):
-			slots.append(
-				{
-					"start_time": str(free_start),
-					"end_time": str(free_end),
-					"slot_duration": template.slot_duration,
-				}
-			)
+			for slot_start, slot_end in _split_into_slots(free_start, free_end, template.slot_duration):
+				slots.append(
+					{
+						"start_time": _format_time(slot_start),
+						"end_time": _format_time(slot_end),
+						"slot_duration": template.slot_duration,
+					}
+				)
 	return slots
+
+
+@frappe.whitelist(allow_guest=True)
+def get_month_availability(sports_facility, year, month):
+	"""Per-day open-slot counts for a facility across one calendar month -
+	powers the /book-court date picker's "highlight the days that still
+	have openings" view without a round trip per day clicked. Reuses
+	get_available_slots() day by day rather than a bulk query; fine at
+	this booking system's scale (a handful of facilities, ~30 days) -
+	would be worth batching into fewer queries if the facility/day count
+	grows a lot.
+
+	Days before today come back as 0 without being queried - the past
+	can't be booked regardless of what the schedule says.
+	"""
+	year = cint(year)
+	month = cint(month)
+	_, days_in_month = calendar.monthrange(year, month)
+
+	today = get_datetime(nowdate()).date()
+	availability = {}
+	for day in range(1, days_in_month + 1):
+		date_str = f"{year:04d}-{month:02d}-{day:02d}"
+		if get_datetime(date_str).date() < today:
+			availability[date_str] = 0
+			continue
+		availability[date_str] = len(get_available_slots(sports_facility, date_str))
+	return availability
+
+
+def _format_time(value):
+	"""Render a Time-fieldtype value (frappe.get_all returns these as
+	datetime.timedelta) as a zero-padded "HH:MM:SS" string. Plain str() on
+	a timedelta drops the leading zero on single-digit hours - str(
+	timedelta(hours=8)) is "8:00:00", not "08:00:00" - which is harmless
+	to display but breaks any later string comparison of two such values
+	(e.g. "8:00:00" >= "16:00:00" is True lexicographically). See
+	validate_times()'s comment for the bug that caused.
+	"""
+	total_seconds = int(value.total_seconds()) if isinstance(value, timedelta) else int(value)
+	hours, remainder = divmod(total_seconds, 3600)
+	minutes, seconds = divmod(remainder, 60)
+	return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
 
 
 def _padded(start_time, end_time, buffer_minutes):
@@ -513,15 +566,43 @@ def _subtract_busy(slot_start, slot_end, busy_ranges):
 	return free
 
 
+def _split_into_slots(start, end, duration_minutes):
+	"""Chop one open [start, end) range into consecutive, back-to-back
+	duration_minutes-long bookable slots.
+
+	Previously get_available_slots() returned each free range from
+	_subtract_busy() as-is - a facility open 8:00-16:00 with nothing
+	booked yet came back as a single "8:00-16:00" slot instead of eight
+	1-hour ones, so the very first guest to book that facility any given
+	day could only ever book the whole day at once. Sports Facility Time
+	Slot.validate() now guarantees slot_duration is a positive number
+	that fits inside its own window at least once, but a leftover
+	remainder shorter than a full slot at the tail of a range (e.g. a
+	40-minute gap left after subtracting a busy booking, with a
+	60-minute slot_duration) is simply dropped rather than offered as a
+	too-short booking.
+	"""
+	if not duration_minutes or duration_minutes <= 0:
+		return []
+
+	step = timedelta(minutes=duration_minutes)
+	slots = []
+	cursor = start
+	while cursor + step <= end:
+		slots.append((cursor, cursor + step))
+		cursor += step
+	return slots
+
+
 @frappe.whitelist()
-def create_booking(court, booking_date, start_time, end_time):
+def create_booking(sports_facility, booking_date, start_time, end_time):
 	"""Self-service entry point for a logged-in member/customer to book a
-	court themselves. Runs the exact same validate() chain a staff-created
-	booking goes through (overlap, maintenance, schedule, notice-window,
-	per-day limit) - ignore_permissions only bypasses Facility Booking's
-	desk-only create/submit permissions, which is what this whitelisted
-	method's own ownership check (resolve_session_customer requiring a
-	real, logged-in Customer) exists to replace.
+	facility themselves. Runs the exact same validate() chain a staff-
+	created booking goes through (overlap, maintenance, schedule,
+	notice-window, per-day limit) - ignore_permissions only bypasses
+	Facility Booking's desk-only create/submit permissions, which is what
+	this whitelisted method's own ownership check (resolve_session_
+	customer requiring a real, logged-in Customer) exists to replace.
 
 	Returns a Paystack payment link alongside the booking whenever the
 	booking lands on Payment Pending, so the caller can send the customer
@@ -536,11 +617,11 @@ def create_booking(court, booking_date, start_time, end_time):
 
 	booking = frappe.new_doc("Facility Booking")
 	booking.customer = customer
-	booking.court = court
+	booking.court = sports_facility
 	booking.booking_date = booking_date
 	booking.start_time = start_time
 	booking.end_time = end_time
-	booking.rate = frappe.get_cached_doc("Court", court).get_effective_hourly_rate()
+	booking.rate = frappe.get_cached_doc("Sports Facility", sports_facility).get_effective_hourly_rate()
 	booking.flags.ignore_permissions = True
 	booking.insert()
 	booking.submit()
@@ -573,31 +654,62 @@ def get_booking_payment_link(facility_booking, token=None):
 
 
 @frappe.whitelist(allow_guest=True)
-def list_bookable_courts():
-	"""Court's own desk permissions (Facility Manager / Front Desk /
-	System Manager only - a separate role set from Facility Booking's
-	own Sports Complex Manager/Staff, worth reconciling separately) don't
-	include Guest or Customer, so a self-service booking page can't just
-	frappe.call frappe.client.get_list against Court directly. This is
-	the read-only, guest-safe equivalent - just enough to populate a
-	booking page's court picker.
+def list_bookable_facilities():
+	"""Sports Facility's own desk permissions (Facility Manager / Front
+	Desk / System Manager only - a separate role set from Facility
+	Booking's own Sports Complex Manager/Staff, worth reconciling
+	separately) don't include Guest or Customer, so a self-service
+	booking page can't just frappe.call frappe.client.get_list against
+	Sports Facility directly. This is the read-only, guest-safe
+	equivalent - enough to populate a public grid of bookable facilities
+	(image, price, today's availability).
+
+	Renamed from list_bookable_courts() / the old Court doctype: a
+	facility used to have one or more Court "units" under it, but in
+	practice every facility only ever had exactly one, so Sports Facility
+	is now the bookable unit itself - see
+	sports_complex/patches/remove_court_doctype.py.
 	"""
-	return frappe.get_all(
-		"Court",
-		filters={"status": ("!=", "Maintenance")},
-		fields=["name", "sports_facility", "court_number", "surface_type"],
-		order_by="sports_facility asc, court_number asc",
+	facilities = frappe.get_all(
+		"Sports Facility",
+		filters={"status": "Active"},
+		fields=["name", "facility_name", "facility_type", "surface_type", "hourly_rate", "image", "amenities"],
+		order_by="facility_name asc",
 	)
+
+	today = nowdate()
+	for f in facilities:
+		f["hourly_rate"] = f.hourly_rate or frappe.get_cached_doc("Sports Facility", f.name).get_effective_hourly_rate()
+		# Real, date-specific availability rather than a static status
+		# field - reuses get_available_slots so the grid's badge and the
+		# slot picker behind it can never disagree.
+		f["open_slots_today"] = len(get_available_slots(f.name, today))
+
+	return facilities
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
-def create_guest_booking(court, booking_date, start_time, end_time, email, otp, full_name, phone=None):
+def create_guest_booking(sports_facility, booking_date, start_time, end_time, email, otp, full_name, phone=None):
 	"""Guest counterpart to create_booking(): verifies the emailed OTP,
 	resolves (or creates) a Member/Customer for that email, then runs the
 	booking through the exact same validate() chain create_booking()
 	does. Returns an HMAC access token instead of relying on a session,
 	since this caller was never logged in and never will be for this
 	booking - see get_booking_access_token.
+
+	Member's autoname is Naming Series based, and Frappe's naming-series
+	counter allocation (frappe.model.naming.getseries) commits the
+	current transaction as a side effect of reserving the next number -
+	so a brand-new guest's Member/Customer created here is durably saved
+	the moment resolve_or_create_guest_customer() returns, regardless of
+	whether the booking itself goes on to fail. Without the try/except
+	below, every failed guest booking attempt (bad slot, race with
+	another booking, whatever) would silently leave behind an orphaned
+	Customer - which is exactly what was happening (repeated failed
+	attempts from the same email produced "Rita Boadu", "Rita Boadu -
+	1", ...). If the booking fails and we created the customer in this
+	same call, we delete it again rather than leave it behind; an
+	already-existing customer for this email is never touched.
 	"""
 	from sports_complex.utils.guest_booking import (
 		resolve_or_create_guest_customer,
@@ -605,24 +717,55 @@ def create_guest_booking(court, booking_date, start_time, end_time, email, otp, 
 	)
 
 	verify_booking_otp(email, otp)
-	customer = resolve_or_create_guest_customer(email, full_name, phone)
 
-	booking = frappe.new_doc("Facility Booking")
-	booking.customer = customer
-	booking.court = court
-	booking.booking_date = booking_date
-	booking.start_time = start_time
-	booking.end_time = end_time
-	booking.rate = frappe.get_cached_doc("Court", court).get_effective_hourly_rate()
-	booking.flags.ignore_permissions = True
-	booking.insert()
-	booking.submit()
+	normalized_email = (email or "").strip().lower()
+	pre_existing_customer = frappe.db.get_value("Member", {"email": normalized_email}, "customer")
+	customer = resolve_or_create_guest_customer(email, full_name, phone)
+	customer_created_here = not pre_existing_customer
+
+	try:
+		booking = frappe.new_doc("Facility Booking")
+		booking.customer = customer
+		booking.court = sports_facility
+		booking.booking_date = booking_date
+		booking.start_time = start_time
+		booking.end_time = end_time
+		booking.rate = frappe.get_cached_doc("Sports Facility", sports_facility).get_effective_hourly_rate()
+		booking.flags.ignore_permissions = True
+		booking.insert()
+		booking.submit()
+	except Exception:
+		if customer_created_here:
+			_delete_orphaned_guest_customer(customer)
+		raise
 
 	token = get_booking_access_token(booking.name)
 	result = {"booking": booking.name, "booking_status": booking.booking_status, "token": token}
 	if booking.booking_status == "Payment Pending":
 		result["payment_link"] = get_booking_payment_link(booking.name, token=token)
 	return result
+
+
+def _delete_orphaned_guest_customer(customer):
+	"""Best-effort cleanup for create_guest_booking(): delete a Customer
+	(and its linked Member) that was only just created for a booking
+	attempt that then failed. Failures here are logged, not raised - the
+	booking's own error is what the caller needs to see, and a customer
+	that couldn't be cleaned up is a cosmetic leftover, not worth masking
+	the real error over.
+	"""
+	try:
+		member_name = frappe.db.get_value("Member", {"customer": customer}, "name")
+		if member_name:
+			frappe.delete_doc("Member", member_name, ignore_permissions=True, force=True)
+		if frappe.db.exists("Customer", customer):
+			frappe.delete_doc("Customer", customer, ignore_permissions=True, force=True)
+		frappe.db.commit()
+	except Exception:
+		frappe.log_error(
+			title="Sports Complex: could not clean up orphaned guest customer",
+			message=frappe.get_traceback(),
+		)
 
 
 @frappe.whitelist(allow_guest=True)
@@ -637,7 +780,7 @@ def get_booking_status(facility_booking, token=None):
 
 	return {
 		"name": booking.name,
-		"court": booking.court,
+		"sports_facility": booking.court,
 		"booking_date": str(booking.booking_date) if booking.booking_date else None,
 		"start_time": str(booking.start_time) if booking.start_time else None,
 		"end_time": str(booking.end_time) if booking.end_time else None,

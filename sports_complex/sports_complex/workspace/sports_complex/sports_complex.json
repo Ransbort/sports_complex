@@ -22,7 +22,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Facility Management",
-   "link_count": 5,
+   "link_count": 4,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -53,16 +53,6 @@
    "label": "Sports Facility",
    "link_count": 0,
    "link_to": "Sports Facility",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Court",
-   "link_count": 0,
-   "link_to": "Court",
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"

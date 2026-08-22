@@ -37,21 +37,18 @@ frappe.ui.form.on("Facility Booking", {
 	},
 
 	filter_court_by_maintenance(frm) {
-		// Court has no "is_active" field (only Select "status":
-		// Available/Booked/Maintenance - see court.json) - this used to
-		// filter on a field that does not exist, which Frappe surfaces
-		// as a confusing "Permission Error: You do not have permission
-		// to access field: Court.is_active" popup rather than a clearer
-		// missing-field error, every time this query ran (booking_date
-		// change, court field focus). Matches the same status filter
-		// list_bookable_courts() uses for the self-service /book-court
-		// page - exclude courts currently under maintenance; double-
-		// booking / maintenance-window overlap is still enforced
-		// server-side regardless.
+		// The "court" field now links to Sports Facility (kept the field
+		// name for backward compatibility with existing data - see the
+		// retired Court doctype's migration patch). Sports Facility uses
+		// its own status vocabulary (Active/Under Maintenance/Inactive),
+		// matching the same filter list_bookable_facilities() uses for
+		// the self-service /book-court page - only Active facilities are
+		// offered here; double-booking / maintenance-window overlap is
+		// still enforced server-side regardless.
 		frm.set_query("court", () => {
 			return {
 				filters: {
-					status: ["!=", "Maintenance"],
+					status: "Active",
 				},
 			};
 		});
@@ -81,8 +78,8 @@ frappe.views.calendar["Facility Booking"] = {
 		{
 			fieldtype: "Link",
 			fieldname: "court",
-			options: "Court",
-			label: __("Court"),
+			options: "Sports Facility",
+			label: __("Facility"),
 		},
 		{
 			fieldtype: "Select",

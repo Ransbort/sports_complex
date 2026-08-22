@@ -42,25 +42,33 @@ class MaintenanceSchedule(Document):
 		)
 		if conflicts:
 			frappe.throw(
-				f"Cannot schedule maintenance: Court {self.court} has an existing "
+				f"Cannot schedule maintenance: Facility {self.court} has an existing "
 				f"confirmed booking in this time window ({conflicts[0][0]})"
 			)
 
 	def on_update(self):
-		self.sync_court_status()
+		self.sync_facility_status()
 
 	def on_cancel(self):
-		self.set_court_available()
+		self.set_facility_active()
 
-	def sync_court_status(self):
+	def sync_facility_status(self):
+		"""`self.court` now names a Sports Facility (see this doctype's
+		json - field kept as "court" for backward compatibility with
+		existing data, but its options were repointed away from the
+		retired Court doctype). Sports Facility uses a different status
+		vocabulary than Court did (Active/Under Maintenance/Inactive vs.
+		Available/Booked/Maintenance) - mapped as directly as the two sets
+		allow.
+		"""
 		if self.status in ("Scheduled", "In Progress") and self.scheduled_date == frappe.utils.today():
-			frappe.db.set_value("Court", self.court, "status", "Maintenance")
+			frappe.db.set_value("Sports Facility", self.court, "status", "Under Maintenance")
 		elif self.status in ("Completed", "Cancelled"):
-			self.set_court_available()
+			self.set_facility_active()
 
-	def set_court_available(self):
-		# Only flip back to Available if there isn't another active maintenance
-		# window on this Court right now.
+	def set_facility_active(self):
+		# Only flip back to Active if there isn't another active maintenance
+		# window on this facility right now.
 		other_active = frappe.db.exists(
 			"Maintenance Schedule",
 			{
@@ -71,4 +79,4 @@ class MaintenanceSchedule(Document):
 			},
 		)
 		if not other_active:
-			frappe.db.set_value("Court", self.court, "status", "Available")
+			frappe.db.set_value("Sports Facility", self.court, "status", "Active")

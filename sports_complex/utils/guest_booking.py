@@ -81,11 +81,28 @@ def resolve_or_create_guest_customer(email, full_name, phone=None):
 	if not full_name:
 		frappe.throw(_("Full name is required"))
 
-	member = frappe.new_doc("Member")
-	member.member_name = full_name
-	member.email = email
-	if phone:
-		member.phone = phone
-	member.flags.ignore_permissions = True
-	member.insert()
+	# member.flags.ignore_permissions only covers the Member doc's own
+	# permission check - it doesn't reach the Customer that Member.
+	# create_customer() inserts inside before_insert(), and ERPNext's own
+	# Customer controller in turn creates/updates a linked Contact as a
+	# side effect of that insert (since we set email/phone on the
+	# Customer). That nested Contact insert isn't ours to add
+	# ignore_permissions to, and the Guest role has no Contact
+	# permission, so it was failing with "No permission for Contact".
+	# Bypassing permissions globally for just this already-OTP-verified
+	# creation is the standard Frappe way to cover a whole hook chain
+	# like this rather than guessing which nested doc needs the flag.
+	previous_ignore_permissions = frappe.flags.ignore_permissions
+	frappe.flags.ignore_permissions = True
+	try:
+		member = frappe.new_doc("Member")
+		member.member_name = full_name
+		member.email = email
+		if phone:
+			member.phone = phone
+		member.flags.ignore_permissions = True
+		member.insert()
+	finally:
+		frappe.flags.ignore_permissions = previous_ignore_permissions
+
 	return member.customer

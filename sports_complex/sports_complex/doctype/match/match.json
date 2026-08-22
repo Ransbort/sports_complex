@@ -28,8 +28,9 @@
   {
    "fieldname": "court",
    "fieldtype": "Link",
-   "label": "Court",
-   "options": "Court"
+   "label": "Facility",
+   "options": "Sports Facility",
+   "description": "Field name kept as \"court\" for backward compatibility with existing data - it now links to Sports Facility, not the retired Court doctype."
   },
   {
    "fieldname": "column_break_1",
