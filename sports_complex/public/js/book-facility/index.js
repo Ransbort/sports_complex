@@ -27,11 +27,59 @@ function hasServerMessage(err) {
   return false;
 }
 
+// "Remember this browser" for a short window after a guest verifies their
+// email - see BOOKING_REMEMBER_TOKEN_TTL_SECONDS / issue_booking_remember_
+// token() / verify_booking_remember_token() in sports_complex/utils/
+// guest_booking.py. A guest who already typed a correct code once doesn't
+// have to fetch and retype another one for a second booking in the same
+// sitting (or a page reload within the window) - create_guest_booking_
+// cart() accepts this token in place of otp and hands back a fresh one
+// covering the same window from now on every success, sliding it forward.
+// Stored in localStorage under a versioned key, same pattern (and same
+// "never surface a stale/tampered token as an error" philosophy) as my-
+// bookings' own REMEMBER_KEY - but a completely separate key and a
+// separate signed-token construction server-side, so the two can never be
+// used interchangeably.
+const REMEMBER_KEY = 'sc_booking_remember_v1';
+
+function loadRememberedBooking() {
+  try {
+    const raw = localStorage.getItem(REMEMBER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.email && parsed.token) return parsed;
+  } catch (e) {
+    // Storage unavailable (private browsing, disabled, corrupt value) -
+    // just fall back to the normal email/OTP form.
+  }
+  return null;
+}
+
+function saveRememberedBooking(email, token) {
+  try {
+    localStorage.setItem(REMEMBER_KEY, JSON.stringify({ email: (email || '').trim().toLowerCase(), token }));
+  } catch (e) {
+    // Storage unavailable - the guest just won't be remembered next visit.
+  }
+}
+
+function clearRememberedBooking() {
+  try {
+    localStorage.removeItem(REMEMBER_KEY);
+  } catch (e) {
+    // Nothing to do if storage isn't available in the first place.
+  }
+}
+
 createApp({
   delimiters: ['[[', ']]'],
   data() {
     const now = new Date();
     const today = now.toISOString().slice(0, 10);
+    // Read synchronously so a returning guest's email is already filled in
+    // (and the verified state already known) by the time the details step
+    // first renders, rather than flashing the normal form first.
+    const remembered = loadRememberedBooking();
     return {
       facilities: window.facilities || [],
       isGuest: !!window.isGuest,
@@ -54,13 +102,18 @@ createApp({
       cart: [],
       notes: '',
       guestName: '',
-      guestEmail: '',
+      guestEmail: (remembered && remembered.email) || '',
       guestPhone: '',
       guestOtp: '',
       otpSent: false,
       sendingOtp: false,
       otpCountdown: 0,
       otpCountdownTimer: null,
+      // The email a still-unexpired remember-token was actually issued for
+      // - kept separate from guestEmail (which the guest can keep typing
+      // into) so guestVerified only reads true while the two still match.
+      guestRememberEmail: (remembered && remembered.email) || '',
+      guestRememberToken: remembered ? remembered.token : null,
       booking: false,
       result: null,
       paymentPopup: null,
@@ -70,6 +123,27 @@ createApp({
   computed: {
     canSendOtp() {
       return this.guestName.trim() && /\S+@\S+\.\S+/.test(this.guestEmail);
+    },
+    // True while a remember-token exists, hasn't passed its own embedded
+    // expiry (read straight off the token - see issue_booking_remember_
+    // token(), which prefixes it with the plaintext unix timestamp so the
+    // client can check this without a round trip), and was issued for
+    // exactly the email currently typed in. The server re-checks this for
+    // real (including the signature) when the booking is actually
+    // submitted - this only decides whether to show the OTP step at all.
+    guestVerified() {
+      if (!this.guestRememberToken || !this.guestRememberEmail) return false;
+      if (this.guestRememberEmail !== this.guestEmail.trim().toLowerCase()) return false;
+      const expiresAt = parseInt(this.guestRememberToken.split('.')[0], 10);
+      return Number.isFinite(expiresAt) && expiresAt * 1000 > Date.now();
+    },
+    detailsSubmitLabel() {
+      if (this.guestVerified) return this.booking ? 'Booking…' : 'Confirm Booking';
+      return this.sendingOtp ? 'Sending…' : 'Send Verification Code';
+    },
+    detailsSubmitDisabled() {
+      if (this.guestVerified) return this.booking || !this.cart.length;
+      return !this.canSendOtp || this.sendingOtp;
     },
     selectedFacilityInfo() {
       return this.facilities.find(f => f.name === this.selectedFacility) || {};
@@ -289,7 +363,33 @@ createApp({
         }
       }, 1000);
     },
+    // Handles the first form's submit: skip straight to booking for an
+    // already-verified guest, otherwise send a fresh code as before.
+    proceedFromDetails() {
+      if (this.guestVerified) {
+        this.confirmGuestBooking();
+      } else {
+        this.sendOtp();
+      }
+    },
+    rememberGuestVerification(email, token) {
+      if (!token) return;
+      this.guestRememberToken = token;
+      this.guestRememberEmail = (email || '').trim().toLowerCase();
+      saveRememberedBooking(email, token);
+    },
+    forgetGuestVerification() {
+      this.guestRememberToken = null;
+      this.guestRememberEmail = '';
+      clearRememberedBooking();
+    },
     confirmGuestBooking() {
+      // Captured before the call so the .catch() below can tell whether
+      // this attempt was riding a remember-token or a freshly-typed code -
+      // a remember-token rejection (expired right at the edge, clock skew)
+      // should quietly fall back to asking for a new code, not show the
+      // same generic error a wrong/expired typed code would.
+      const usingRememberToken = this.guestVerified;
       this.booking = true;
       frappe.call(
         'sports_complex.sports_complex.doctype.facility_booking.facility_booking.create_guest_booking_cart',
@@ -302,17 +402,27 @@ createApp({
           })),
           email: this.guestEmail,
           otp: this.guestOtp,
+          remember_token: this.guestRememberToken,
           full_name: this.guestName,
           phone: this.guestPhone,
           notes: this.notes,
         }
       ).then(r => {
         this.result = r.message;
+        this.rememberGuestVerification(this.guestEmail, r.message && r.message.remember_token);
         this.cart = [];
         this.notes = '';
         this.step = 'result';
         this.booking = false;
       }).catch((err) => {
+        if (usingRememberToken) {
+          this.forgetGuestVerification();
+          this.otpSent = false;
+          this.guestOtp = '';
+          this.booking = false;
+          Swal.fire('Verification expired', 'Please verify your email again to continue.', 'info');
+          return;
+        }
         if (!hasServerMessage(err)) {
           Swal.fire('Error', 'Could not verify the code or create the booking(s). Please try again.', 'error');
         }

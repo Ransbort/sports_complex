@@ -32,10 +32,32 @@
                     <span class="badge bk-status-badge ms-auto" :class="statusBadgeClass">[[ doc.booking_status ]]</span>
                 </div>
                 <ul class="list-group list-group-flush">
-                    <li class="list-group-item bk-row">
-                        <span class="bk-label">Facility</span>
-                        <span class="badge bk-badge">[[ doc.sports_facility ]]</span>
-                    </li>
+                    <template v-if="doc.cart_bookings && doc.cart_bookings.length">
+                        <li class="list-group-item bk-cart-note">
+                            This booking was paid together with [[ doc.cart_bookings.length - 1 ]] other slot[[ doc.cart_bookings.length > 2 ? 's' : '' ]] in the same checkout - the amount below covers all of them.
+                        </li>
+                        <li v-for="cb in doc.cart_bookings" :key="cb.name" class="list-group-item bk-row bk-cart-row" :class="{ 'bk-cart-row-current': cb.name === doc.name }">
+                            <span class="bk-cart-slot">
+                                <span class="bk-cart-facility">[[ cb.facility_name ]]</span>
+                                <span class="bk-cart-datetime">[[ cb.booking_date ]] &middot; [[ cb.start_time ]]&ndash;[[ cb.end_time ]]</span>
+                            </span>
+                            <span class="badge bk-badge">[[ formatAmount(cb.total_amount) ]]</span>
+                        </li>
+                    </template>
+                    <template v-else>
+                        <li class="list-group-item bk-row">
+                            <span class="bk-label">Facility</span>
+                            <span class="badge bk-badge">[[ doc.sports_facility ]]</span>
+                        </li>
+                        <li class="list-group-item bk-row">
+                            <span class="bk-label">Date</span>
+                            <span class="badge bk-badge">[[ doc.booking_date ]]</span>
+                        </li>
+                        <li class="list-group-item bk-row">
+                            <span class="bk-label">Time</span>
+                            <span class="badge bk-badge">[[ doc.start_time ]] &ndash; [[ doc.end_time ]]</span>
+                        </li>
+                    </template>
                     <li v-if="doc.venue_name || doc.venue_address" class="list-group-item bk-venue-block">
                         <span class="bk-label d-block mb-1">Venue</span>
                         <div v-if="doc.venue_name" class="bk-venue-name">[[ doc.venue_name ]]</div>
@@ -44,17 +66,17 @@
                             <i class="bi bi-signpost-2-fill"></i> Get Directions
                         </a>
                     </li>
-                    <li class="list-group-item bk-row">
-                        <span class="bk-label">Date</span>
-                        <span class="badge bk-badge">[[ doc.booking_date ]]</span>
-                    </li>
-                    <li class="list-group-item bk-row">
-                        <span class="bk-label">Time</span>
-                        <span class="badge bk-badge">[[ doc.start_time ]] &ndash; [[ doc.end_time ]]</span>
-                    </li>
                     <li class="list-group-item bk-row bk-row-total">
-                        <span class="bk-label">Amount</span>
-                        <span class="badge bk-badge bk-badge-total">[[ formatAmount(doc.total_amount) ]]</span>
+                        <span class="bk-label">[[ doc.cart_bookings && doc.cart_bookings.length ? 'Total Amount' : 'Amount' ]]</span>
+                        <span class="badge bk-badge bk-badge-total">[[ formatAmount(doc.invoice_amount) ]]</span>
+                    </li>
+                    <li v-if="doc.booking_status === 'No-show' && doc.no_show_penalty_amount" class="list-group-item bk-row">
+                        <span class="bk-label">No-Show Penalty</span>
+                        <span class="badge bk-badge bk-badge-penalty">[[ formatAmount(doc.no_show_penalty_amount) ]]</span>
+                    </li>
+                    <li v-if="doc.booking_status === 'Cancelled' && doc.cancellation_reason" class="list-group-item bk-cancel-block">
+                        <span class="bk-label d-block mb-1">Cancellation Reason</span>
+                        <div class="bk-cancel-reason">[[ doc.cancellation_reason ]]</div>
                     </li>
                 </ul>
                 <div class="bk-card-footer">
@@ -167,6 +189,7 @@
     .booking-confirmation .bk-badge-yellow { background-color: #fef3c7; color: #92400e; }
     .booking-confirmation .bk-badge-blue { background-color: #dbeafe; color: #1d4ed8; }
     .booking-confirmation .bk-badge-red { background-color: #fee2e2; color: #b91c1c; }
+    .booking-confirmation .bk-badge-penalty { background-color: #fee2e2; color: #b91c1c; }
 
     .booking-confirmation .bk-row {
         display: flex;
@@ -180,6 +203,34 @@
 
     .booking-confirmation .bk-row-total {
         background-color: rgba(var(--sc-primary-rgb), 0.05);
+    }
+
+    .booking-confirmation .bk-cart-note {
+        padding: 0.75rem 1.5rem;
+        font-size: 0.82rem;
+        color: #6b7280;
+        background-color: #f9fafb;
+    }
+
+    .booking-confirmation .bk-cart-row-current {
+        background-color: rgba(var(--sc-primary-rgb), 0.05);
+    }
+
+    .booking-confirmation .bk-cart-slot {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+    }
+
+    .booking-confirmation .bk-cart-facility {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #1f2937;
+    }
+
+    .booking-confirmation .bk-cart-datetime {
+        font-size: 0.8rem;
+        color: #6b7280;
     }
 
     .booking-confirmation .bk-label {
@@ -223,6 +274,17 @@
         color: #6b7280;
         font-size: 0.85rem;
         margin-top: 0.15rem;
+    }
+
+    .booking-confirmation .bk-cancel-block {
+        padding: 0.9rem 1.5rem;
+        border-color: rgba(15, 23, 42, 0.06);
+        background-color: #fef2f2;
+    }
+
+    .booking-confirmation .bk-cancel-reason {
+        color: #991b1b;
+        font-size: 0.88rem;
     }
 
     .booking-confirmation .bk-directions-link {

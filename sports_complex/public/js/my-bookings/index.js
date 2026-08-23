@@ -79,6 +79,10 @@ createApp({
       loading: false,
       loaded: false,
       bookings: [],
+      // Customer's display name, from list_my_bookings()'s customer_name -
+      // shown in the header once bookings load, for both a logged-in
+      // customer and a guest who's verified.
+      customerName: '',
       filterStatus: '',
       filterFacility: '',
       filterSearch: '',
@@ -233,6 +237,7 @@ createApp({
         { email: this.guestEmail, otp: this.guestOtp }
       ).then(r => {
         this.bookings = (r.message && r.message.bookings) || [];
+        this.customerName = (r.message && r.message.customer_name) || '';
         this.rememberIdentity(this.guestEmail, r.message && r.message.remember_token);
         this.verified = true;
         this.loaded = true;
@@ -251,6 +256,7 @@ createApp({
         {}
       ).then(r => {
         this.bookings = (r.message && r.message.bookings) || [];
+        this.customerName = (r.message && r.message.customer_name) || '';
         this.loaded = true;
         this.loading = false;
       }).catch((err) => {
@@ -278,6 +284,7 @@ createApp({
           return;
         }
         this.bookings = r.message.bookings || [];
+        this.customerName = r.message.customer_name || '';
         this.rememberIdentity(this.guestEmail, r.message.remember_token);
         this.verified = true;
         this.loaded = true;
@@ -336,6 +343,7 @@ createApp({
       this.guestEmail = '';
       this.loaded = false;
       this.bookings = [];
+      this.customerName = '';
       this.otpCountdown = 0;
       // Stale filters (and pagination) from the last identity shouldn't
       // silently carry over to whoever's bookings load next.

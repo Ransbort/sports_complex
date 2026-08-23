@@ -21,6 +21,7 @@ class BookingCancellation(Document):
 				)
 			)
 		self.validate_cancellation_window(booking)
+		self.apply_no_show_penalty(booking)
 
 	def validate_cancellation_window(self, booking):
 		"""Sports Complex Setup > Default Settings has had a "Cancellation
@@ -46,6 +47,43 @@ class BookingCancellation(Document):
 					"at least {0} hour(s) before the booking's start time"
 				).format(window_hours)
 			)
+
+	def apply_no_show_penalty(self, booking):
+		"""Sports Complex Setup > Bookings has had a "No-Show Penalty Window
+		(hours)" field since this doctype was first built, but nothing ever
+		read it - see that field's own description (auto_cancel_unpaid_after_
+		minutes in sports_complex_setup.json): a cancellation made within this
+		many hours of the booking's start time may incur the No Show Penalty
+		% instead of a full refund.
+
+		Only ever reduces a refund_amount staff explicitly typed in - never
+		raises one, and never invents one out of nothing (self-service
+		cancellations never set refund_amount at all, so this is a no-op for
+		those, same as before). A manager cancelling from the desk can still
+		type back over the reduced value if they want to waive the penalty;
+		this just stops it from silently defaulting to a full refund inside
+		the penalty window.
+		"""
+		if not self.refund_amount or not (booking.booking_date and booking.start_time):
+			return
+
+		window_hours = flt(
+			frappe.db.get_single_value("Sports Complex Setup", "auto_cancel_unpaid_after_minutes")
+		)
+		if not window_hours:
+			return
+
+		booking_start = get_datetime(f"{booking.booking_date} {booking.start_time}")
+		if now_datetime() <= booking_start - timedelta(hours=window_hours):
+			return
+
+		penalty_pct = flt(frappe.db.get_single_value("Sports Complex Setup", "no_show_penalty_"))
+		if not penalty_pct:
+			return
+
+		max_refund = flt(booking.total_amount) * (1 - penalty_pct / 100)
+		if self.refund_amount > max_refund:
+			self.refund_amount = max_refund
 
 	def on_submit(self):
 		frappe.db.set_value("Facility Booking", self.facility_booking, "booking_status", "Cancelled")

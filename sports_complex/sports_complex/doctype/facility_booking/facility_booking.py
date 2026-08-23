@@ -697,6 +697,237 @@ def _send_booking_confirmation_email(email, bookings, tokens=None):
 		)
 
 
+def auto_cancel_unpaid_bookings():
+	"""Scheduled hourly (see hooks.py's scheduler_events). A booking stuck
+	at "Payment Pending" - submitted and invoiced, but never paid (see
+	on_submit()'s Require Payment Before Booking Confirmation gate) - held
+	its slot indefinitely with nothing to ever clean it up. Cancels any
+	left unpaid for longer than Sports Complex Setup's Auto Cancel Unpaid
+	Bookings After (hours) - a no-op (0) leaves this disabled, same
+	"falsy setting = off" convention as every other Sports Complex Setup
+	threshold in this file.
+
+	Goes through a real, submitted Booking Cancellation rather than
+	poking booking_status directly, so this stays on the exact same path
+	as a guest's own self-service cancellation (request_cancellation()) -
+	whatever side effects that path has (or gains later) apply here too.
+	No refund_amount is set: nothing was ever paid, so there's nothing to
+	credit back.
+
+	Also voids the booking's own Sales Invoice (see _void_unpaid_invoice) -
+	previously left behind as a live, submitted, Unpaid document forever.
+	Beyond cluttering accounting reports with outstanding revenue for a
+	slot nobody holds anymore, a guest with a stale "Pay Now" tab open
+	from before the cancellation could still complete payment against it,
+	since nothing checked booking_status before honoring that link -
+	get_booking_payment_link() now also refuses once booking_status has
+	moved off Payment Pending, so this is closed from both ends.
+	"""
+	hours = flt(frappe.get_cached_doc("Sports Complex Setup").auto_cancel_unpaid_bookings_after_hours)
+	if not hours:
+		return
+
+	cutoff = now_datetime() - timedelta(hours=hours)
+	stale = frappe.get_all(
+		"Facility Booking",
+		filters={"booking_status": "Payment Pending", "docstatus": 1, "creation": ["<", cutoff]},
+		fields=["name", "sales_invoice"],
+	)
+	for booking in stale:
+		try:
+			cancellation = frappe.new_doc("Booking Cancellation")
+			cancellation.facility_booking = booking.name
+			cancellation.reason = _("Auto-cancelled: payment not received within {0} hour(s)").format(hours)
+			cancellation.flags.ignore_permissions = True
+			cancellation.insert()
+			cancellation.submit()
+		except Exception:
+			frappe.log_error(
+				title="Sports Complex: could not auto-cancel unpaid booking",
+				message=frappe.get_traceback(),
+			)
+			continue
+
+		_void_unpaid_invoice(booking.sales_invoice)
+
+
+def _void_unpaid_invoice(sales_invoice):
+	"""Cancel the Sales Invoice behind a booking that just got auto-
+	cancelled for non-payment - see auto_cancel_unpaid_bookings(). Only
+	ever cancels a genuinely unpaid invoice: Sales Invoice.cancel() itself
+	throws if any Payment Entry/GL entry is linked against it, so a
+	booking that (despite sitting at Payment Pending) somehow already has
+	money against it is left alone and logged rather than force-voided.
+
+	A cart invoice can bill more than one Facility Booking together (see
+	_create_cart_invoice()) - only voids it if every booking still tied to
+	it is itself unpaid (Payment Pending or already Cancelled). Paystack
+	settles a cart's shared invoice in one shot (the full amount or
+	nothing), so a paid sibling alongside an unpaid one on the same
+	invoice shouldn't happen under the current flow, but this is the one
+	place a bug in that assumption would do real damage - cancelling a
+	paying guest's invoice out from under them - so it's worth checking
+	directly here rather than trusting the invariant blindly. Safe to call
+	more than once for the same invoice (one cart can have several stale
+	bookings in the same run): the docstatus check below makes every call
+	after the first a no-op.
+	"""
+	if not sales_invoice:
+		return
+
+	unpaid_statuses = {"Payment Pending", "Cancelled"}
+	linked_statuses = frappe.get_all(
+		"Facility Booking",
+		filters={"sales_invoice": sales_invoice},
+		pluck="booking_status",
+	)
+	if any(status not in unpaid_statuses for status in linked_statuses):
+		return
+
+	try:
+		invoice = frappe.get_doc("Sales Invoice", sales_invoice)
+		if invoice.docstatus != 1:
+			return
+		invoice.flags.ignore_permissions = True
+		invoice.cancel()
+	except Exception:
+		frappe.log_error(
+			title="Sports Complex: could not void unpaid invoice for auto-cancelled booking",
+			message=frappe.get_traceback(),
+		)
+
+
+def mark_no_shows():
+	"""Scheduled hourly (see hooks.py's scheduler_events). Nothing ever
+	moves a booking off "Confirmed" except Check-In (-> "Checked-In") or a
+	Booking Cancellation (-> "Cancelled") - so a booking still sitting at
+	"Confirmed" once its own end_time is in the past means the guest
+	never checked in and never cancelled either: a no-show.
+
+	Records Sports Complex Setup's No Show Penalty % of Total Amount on
+	the booking (no_show_penalty_amount) purely for staff visibility/
+	reporting - the guest already paid Total Amount in full to reach
+	Confirmed in the first place, so there's no new invoice to create
+	here, just a record of how much of that payment the business is
+	entitled to keep if the guest never asks for a refund. A Booking
+	Cancellation raised after the fact is what actually caps any such
+	refund by this same percentage - see BookingCancellation.
+	apply_no_show_penalty().
+	"""
+	penalty_pct = flt(frappe.get_cached_doc("Sports Complex Setup").no_show_penalty_)
+	now = now_datetime()
+
+	candidates = frappe.get_all(
+		"Facility Booking",
+		filters={"booking_status": "Confirmed", "docstatus": 1},
+		fields=["name", "booking_date", "end_time", "total_amount"],
+	)
+	for booking in candidates:
+		if not (booking.booking_date and booking.end_time):
+			continue
+		if get_datetime(f"{booking.booking_date} {booking.end_time}") >= now:
+			continue
+		try:
+			frappe.db.set_value(
+				"Facility Booking",
+				booking.name,
+				{
+					"booking_status": "No-show",
+					"no_show_penalty_amount": (flt(booking.total_amount) * penalty_pct / 100) if penalty_pct else 0,
+				},
+			)
+		except Exception:
+			frappe.log_error(
+				title="Sports Complex: could not mark booking as No-show",
+				message=frappe.get_traceback(),
+			)
+
+
+def send_booking_reminders():
+	"""Scheduled hourly (see hooks.py's scheduler_events). Reminds a
+	guest/customer of a Confirmed booking whose start time falls inside
+	Sports Complex Setup's Reminder Lead Time (hours) - a no-op unless
+	Send Booking Reminder is checked there. reminder_sent guards against
+	re-sending: this job runs far more often than once per booking's own
+	lead window, and would otherwise catch (and re-email) the same
+	booking on every run until its start time passed.
+	"""
+	settings = frappe.get_cached_doc("Sports Complex Setup")
+	if not cint(settings.send_booking_reminder):
+		return
+	lead_hours = flt(settings.reminder_lead_time_hours)
+	if not lead_hours:
+		return
+
+	now = now_datetime()
+	window_end = now + timedelta(hours=lead_hours)
+
+	candidates = frappe.get_all(
+		"Facility Booking",
+		filters={
+			"booking_status": "Confirmed",
+			"docstatus": 1,
+			"reminder_sent": 0,
+			# Coarse date-only pre-filter - start_time is a separate Time
+			# field, so the precise [now, window_end] cutoff is re-checked
+			# in Python below.
+			"booking_date": ["between", [now.date(), window_end.date()]],
+		},
+		fields=["name", "email", "court", "booking_date", "start_time", "end_time"],
+	)
+
+	for booking in candidates:
+		if not (booking.booking_date and booking.start_time):
+			continue
+		booking_start = get_datetime(f"{booking.booking_date} {booking.start_time}")
+		if not (now <= booking_start <= window_end):
+			continue
+		if booking.email:
+			_send_booking_reminder_email(booking)
+		try:
+			frappe.db.set_value("Facility Booking", booking.name, "reminder_sent", 1)
+		except Exception:
+			frappe.log_error(
+				title="Sports Complex: could not mark booking reminder as sent",
+				message=frappe.get_traceback(),
+			)
+
+
+def _send_booking_reminder_email(booking):
+	"""Best-effort, same rationale as _send_booking_confirmation_email():
+	the reminder run itself shouldn't fail because one booking's email
+	address bounces or SMTP hiccups - log it and move on to the rest.
+	"""
+	facility_name = frappe.db.get_value("Sports Facility", booking.court, "facility_name") or booking.court
+	site_url = frappe.utils.get_url()
+	link = f"{site_url}/booking-confirmation/{booking.name}"
+
+	message = f"""
+		<p>This is a reminder that your booking is coming up soon:</p>
+		<table style="border-collapse: collapse">
+			<tbody>
+				<tr><td style="padding:4px 16px 4px 0">Facility</td><td>{frappe.utils.escape_html(facility_name)}</td></tr>
+				<tr><td style="padding:4px 16px 4px 0">Date</td><td>{booking.booking_date}</td></tr>
+				<tr><td style="padding:4px 16px 4px 0">Time</td><td>{booking.start_time} - {booking.end_time}</td></tr>
+			</tbody>
+		</table>
+		<p><a href="{link}">View your booking</a></p>
+	"""
+
+	try:
+		frappe.sendmail(
+			recipients=[booking.email],
+			subject=_("Reminder: your upcoming booking"),
+			message=message,
+			now=True,
+		)
+	except Exception:
+		frappe.log_error(
+			title="Sports Complex: could not send booking reminder email",
+			message=frappe.get_traceback(),
+		)
+
+
 def _resolve_member_contact(customer):
 	"""Best-effort email/phone lookup for a logged-in customer's booking,
 	so Facility Booking carries its own copy of who to reach rather than
@@ -789,7 +1020,52 @@ def _parse_slots(slots):
 	return slots
 
 
-def _new_cart_booking(customer, slot, notes=None, email=None, phone=None):
+def _merge_contiguous_slots(slots):
+	"""Coalesce back-to-back slots for the same facility and date into one
+	continuous booking before anything is created - so a guest who picks
+	"8-9" and "9-10" on the same court ends up with a single 8-10 Facility
+	Booking (one check-in, one invoice line, one plain amount) instead of
+	two separate bookings that only turn out to be related once you dig
+	into their shared Sales Invoice. _get_invoice_group() (see
+	get_booking_status()) still exists for the cases this can't collapse
+	away - genuinely different facilities, non-adjacent times, or
+	different dates picked in the same checkout - and keeps working
+	exactly as before for those.
+
+	Only merges slots that are truly adjacent: same sports_facility, same
+	booking_date, and one's end_time exactly equal to the next one's
+	start_time (compared via get_time(), not raw strings - same reason as
+	every other time comparison in this file). A gap (e.g. "8-9" + "10-
+	11") or a different facility never merges; each stays its own slot,
+	same as before. Input order isn't assumed to be sorted or grouped -
+	this does both before merging.
+	"""
+	groups = {}
+	group_order = []
+	for slot in slots:
+		key = (slot.get("sports_facility"), str(slot.get("booking_date")))
+		if key not in groups:
+			groups[key] = []
+			group_order.append(key)
+		groups[key].append(slot)
+
+	merged = []
+	for key in group_order:
+		ordered = sorted(groups[key], key=lambda s: get_time(s.get("start_time")))
+		current = None
+		for slot in ordered:
+			if current is not None and get_time(current["end_time"]) == get_time(slot.get("start_time")):
+				current["end_time"] = slot.get("end_time")
+			else:
+				if current is not None:
+					merged.append(current)
+				current = dict(slot)
+		if current is not None:
+			merged.append(current)
+	return merged
+
+
+def _new_cart_booking(customer, slot, notes=None, email=None, phone=None, guest_name=None):
 	booking = frappe.new_doc("Facility Booking")
 	booking.customer = customer
 	booking.court = slot.get("sports_facility")
@@ -797,11 +1073,12 @@ def _new_cart_booking(customer, slot, notes=None, email=None, phone=None):
 	booking.start_time = slot.get("start_time")
 	booking.end_time = slot.get("end_time")
 	# One note from the customer about this checkout, not per-slot - every
-	# booking in the cart gets the same shared note. Same for email/phone -
-	# one contact for the whole checkout, not looked up per slot.
+	# booking in the cart gets the same shared note. Same for email/phone/
+	# guest_name - one contact for the whole checkout, not looked up per slot.
 	booking.notes = notes
 	booking.email = email
 	booking.phone = phone
+	booking.guest_name = guest_name
 	booking.rate = frappe.get_cached_doc("Sports Facility", booking.court).get_effective_hourly_rate()
 	# Tells on_submit() to skip creating (and the customer paying for) a
 	# separate invoice for this one booking - _run_cart() below invoices
@@ -893,18 +1170,27 @@ def _finalize_cart_bookings(bookings):
 	return status
 
 
-def _run_cart(customer, slots, notes=None, email=None, phone=None):
+def _run_cart(customer, slots, notes=None, email=None, phone=None, guest_name=None):
 	"""Shared pipeline behind create_booking_cart() and create_guest_
 	booking_cart(): submit one booking per slot (same validate() chain a
 	single booking goes through), bill them all on one shared Sales
 	Invoice, and settle their booking_status together - rolling every
 	booking from this attempt back if any step along the way fails,
 	rather than leaving a partial, unpaid, unconfirmed cart behind.
+
+	Back-to-back slots for the same facility/date are merged into one
+	continuous booking first - see _merge_contiguous_slots() - so this
+	only ever creates as many Facility Bookings as there are actual
+	distinct visits, not one per fixed-duration slot the guest happened
+	to click.
 	"""
+	slots = _merge_contiguous_slots(slots)
 	bookings = []
 	try:
 		for slot in slots:
-			bookings.append(_new_cart_booking(customer, slot, notes=notes, email=email, phone=phone))
+			bookings.append(
+				_new_cart_booking(customer, slot, notes=notes, email=email, phone=phone, guest_name=guest_name)
+			)
 		_create_cart_invoice(customer, bookings)
 		status = _finalize_cart_bookings(bookings)
 	except Exception:
@@ -954,9 +1240,25 @@ def get_booking_payment_link(facility_booking, token=None):
 	resolution here. allow_guest=True so a guest booking's own access
 	token (see get_booking_access_token) is enough to pay - _ensure_
 	booking_access still enforces that it's *this* booking's token.
+
+	Refuses once booking_status has moved off Payment Pending - a guest
+	who still has an old "Pay Now" tab or link open from before the
+	booking auto-cancelled (see auto_cancel_unpaid_bookings()) or
+	otherwise changed state would previously still reach a working
+	checkout for it. Checked here as well as by voiding the invoice on
+	auto-cancel, since this also covers every other way booking_status
+	can move on (manual cancellation, a staff override, a future path
+	this doesn't know about yet) - not just the auto-cancel job.
 	"""
 	booking = frappe.get_doc("Facility Booking", facility_booking)
 	_ensure_booking_access(booking, resolve_session_customer(), token)
+
+	if booking.booking_status != "Payment Pending":
+		frappe.throw(
+			_("This booking is no longer awaiting payment (status: {0}) - a new payment link can't be issued.").format(
+				booking.booking_status
+			)
+		)
 
 	if not booking.sales_invoice:
 		frappe.throw(_("This booking has no invoice yet - submit it first"))
@@ -1003,7 +1305,8 @@ def list_bookable_facilities():
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 def create_guest_booking(
-	sports_facility, booking_date, start_time, end_time, email, otp, full_name, phone=None, notes=None
+	sports_facility, booking_date, start_time, end_time, email, otp=None, full_name=None,
+	phone=None, notes=None, remember_token=None
 ):
 	"""Guest counterpart to create_booking(): verifies the emailed OTP,
 	resolves (or creates) a Member/Customer for that email, then runs the
@@ -1025,15 +1328,28 @@ def create_guest_booking(
 	1", ...). If the booking fails and we created the customer in this
 	same call, we delete it again rather than leave it behind; an
 	already-existing customer for this email is never touched.
+
+	remember_token, when it verifies (see guest_booking.
+	verify_booking_remember_token), stands in for otp entirely - a guest
+	who already typed a correct code once within the last
+	BOOKING_REMEMBER_TOKEN_TTL_SECONDS doesn't need to fetch and retype
+	another one for a second booking in the same sitting. Either way, a
+	fresh remember_token covering the same window from now is handed back
+	in the result, sliding the window forward on every successful booking
+	rather than the guest hitting a hard wall exactly N minutes after the
+	one time they entered a code.
 	"""
 	from sports_complex.utils.guest_booking import (
+		issue_booking_remember_token,
 		resolve_or_create_guest_customer,
 		verify_booking_otp,
+		verify_booking_remember_token,
 	)
 
-	verify_booking_otp(email, otp)
-
 	normalized_email = (email or "").strip().lower()
+	if not (remember_token and verify_booking_remember_token(normalized_email, remember_token)):
+		verify_booking_otp(email, otp)
+
 	pre_existing_customer = frappe.db.get_value("Member", {"email": normalized_email}, "customer")
 
 	# resolve_or_create_guest_customer() already elevates to Administrator
@@ -1052,6 +1368,13 @@ def create_guest_booking(
 	try:
 		customer = resolve_or_create_guest_customer(email, full_name, phone)
 		customer_created_here = not pre_existing_customer
+		# guest_name records who actually typed *this* booking, independent
+		# of the shared Customer's own name (see resolve_or_create_guest_
+		# customer's docstring) - falls back to the Customer's current name
+		# only for the rare case full_name arrived blank (e.g. a client
+		# bug), so the field is never left empty when a name is already
+		# known.
+		guest_name = (full_name or "").strip() or frappe.db.get_value("Customer", customer, "customer_name")
 
 		try:
 			booking = frappe.new_doc("Facility Booking")
@@ -1063,6 +1386,7 @@ def create_guest_booking(
 			booking.notes = notes
 			booking.email = normalized_email
 			booking.phone = phone
+			booking.guest_name = guest_name
 			booking.rate = frappe.get_cached_doc("Sports Facility", sports_facility).get_effective_hourly_rate()
 			booking.insert(ignore_permissions=True)
 			booking.submit()
@@ -1076,29 +1400,42 @@ def create_guest_booking(
 	token = get_booking_access_token(booking.name)
 	_send_booking_confirmation_email(email, [booking], tokens={booking.name: token})
 
-	result = {"booking": booking.name, "booking_status": booking.booking_status, "token": token}
+	result = {
+		"booking": booking.name,
+		"booking_status": booking.booking_status,
+		"token": token,
+		"remember_token": issue_booking_remember_token(normalized_email),
+	}
 	if booking.booking_status == "Payment Pending":
 		result["payment_link"] = get_booking_payment_link(booking.name, token=token)
 	return result
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
-def create_guest_booking_cart(slots, email, otp, full_name, phone=None, notes=None):
+def create_guest_booking_cart(slots, email, otp=None, full_name=None, phone=None, notes=None, remember_token=None):
 	"""Guest counterpart to create_booking_cart(): same email-OTP identity
 	check and the same Administrator elevation, for the same reasons, as
 	create_guest_booking() - just wrapping a whole cart of bookings and
 	their one shared invoice (_run_cart()) instead of a single booking and
 	its own invoice.
+
+	remember_token can stand in for otp here too - see the note on
+	create_guest_booking() above; the same short-lived, slide-forward
+	token works across both entry points since they identify the guest by
+	the same email either way.
 	"""
 	from sports_complex.utils.guest_booking import (
+		issue_booking_remember_token,
 		resolve_or_create_guest_customer,
 		verify_booking_otp,
+		verify_booking_remember_token,
 	)
 
-	verify_booking_otp(email, otp)
+	normalized_email = (email or "").strip().lower()
+	if not (remember_token and verify_booking_remember_token(normalized_email, remember_token)):
+		verify_booking_otp(email, otp)
 	slots = _parse_slots(slots)
 
-	normalized_email = (email or "").strip().lower()
 	pre_existing_customer = frappe.db.get_value("Member", {"email": normalized_email}, "customer")
 
 	original_user = frappe.session.user
@@ -1106,9 +1443,12 @@ def create_guest_booking_cart(slots, email, otp, full_name, phone=None, notes=No
 	try:
 		customer = resolve_or_create_guest_customer(email, full_name, phone)
 		customer_created_here = not pre_existing_customer
+		guest_name = (full_name or "").strip() or frappe.db.get_value("Customer", customer, "customer_name")
 
 		try:
-			bookings, status = _run_cart(customer, slots, notes=notes, email=normalized_email, phone=phone)
+			bookings, status = _run_cart(
+				customer, slots, notes=notes, email=normalized_email, phone=phone, guest_name=guest_name
+			)
 		except Exception:
 			if customer_created_here:
 				_delete_orphaned_guest_customer(customer)
@@ -1121,7 +1461,11 @@ def create_guest_booking_cart(slots, email, otp, full_name, phone=None, notes=No
 		email, bookings, tokens={b["name"]: b["token"] for b in bookings_out}
 	)
 
-	result = {"bookings": bookings_out, "booking_status": status}
+	result = {
+		"bookings": bookings_out,
+		"booking_status": status,
+		"remember_token": issue_booking_remember_token(normalized_email),
+	}
 	if status == "Payment Pending":
 		result["payment_link"] = get_booking_payment_link(bookings[0].name, token=bookings_out[0]["token"])
 	return result
@@ -1200,6 +1544,89 @@ def _get_venue_map(sports_facility_names):
 	return {f.name: venues.get(f.venue, empty) for f in facility_venues}
 
 
+def _get_invoice_group(booking):
+	"""When this booking was created as part of a multi-slot cart (see
+	_run_cart()), every booking in that cart shares one Sales Invoice, and
+	Pay Now/get_booking_payment_link() settles that invoice's full
+	grand_total - not just this one booking's own total_amount. Showing
+	only total_amount on the confirmation page was misleading: a guest
+	opening one 350 booking's own page could land on a Paystack checkout
+	billing 700, because the other slot they added to the same cart was
+	invoiced together with it.
+
+	Returns (amount_actually_due, sibling_bookings) - amount_actually_due
+	is the invoice's real grand_total when one exists (falling back to
+	this booking's own total_amount for a booking with no invoice yet, or
+	one that was never part of a cart), and sibling_bookings is every
+	other booking sharing that same invoice, formatted the same way
+	list_my_bookings() formats its rows, empty unless there's actually
+	more than one - a lone booking doesn't need a breakdown of itself.
+	"""
+	if not booking.sales_invoice:
+		return booking.total_amount, []
+
+	invoice_total = frappe.db.get_value("Sales Invoice", booking.sales_invoice, "grand_total")
+
+	siblings = frappe.get_all(
+		"Facility Booking",
+		filters={"sales_invoice": booking.sales_invoice},
+		fields=["name", "court", "booking_date", "start_time", "end_time", "total_amount"],
+		order_by="booking_date asc, start_time asc",
+	)
+	if len(siblings) <= 1:
+		return booking.total_amount, []
+
+	facility_names = list({s.court for s in siblings if s.court})
+	facility_labels = dict(frappe.get_all(
+		"Sports Facility",
+		filters={"name": ["in", facility_names]},
+		fields=["name", "facility_name"],
+		as_list=True,
+	)) if facility_names else {}
+
+	for s in siblings:
+		s["facility_name"] = facility_labels.get(s.court) or s.court
+		s["booking_date"] = str(s.booking_date) if s.booking_date else None
+		s["start_time"] = str(s.start_time) if s.start_time else None
+		s["end_time"] = str(s.end_time) if s.end_time else None
+
+	return (flt(invoice_total) or booking.total_amount), siblings
+
+
+def _get_cancellation_reasons(booking_names):
+	"""Map of facility_booking name -> its most recent submitted Booking
+	Cancellation's reason, for every name in booking_names that actually
+	has one. BookingCancellation.on_submit() is what flips booking_status
+	to "Cancelled" in the first place (a frappe.db.set_value there, not a
+	real docstatus-level cancel of the Facility Booking itself - see its
+	own comment) - a guest looking at a Cancelled booking never had
+	anywhere to see *why*, since that reason only ever lived on this
+	separate, desk-only doctype. Surfaced here the same way no_show_
+	penalty_amount only shows once a booking reaches No-show - see
+	get_booking_status()/list_my_bookings().
+
+	Batched (one query for every name that might need one) rather than
+	called per-booking, so list_my_bookings() doesn't run N extra queries
+	for a guest with N cancelled bookings.
+	"""
+	if not booking_names:
+		return {}
+	rows = frappe.get_all(
+		"Booking Cancellation",
+		filters={"facility_booking": ["in", booking_names], "docstatus": 1},
+		fields=["facility_booking", "reason"],
+		order_by="cancellation_date desc, creation desc",
+	)
+	reasons = {}
+	for row in rows:
+		# order_by already puts the most recent first per booking - the
+		# first one seen here wins, covering the (unlikely but possible)
+		# case of more than one submitted cancellation against the same
+		# booking.
+		reasons.setdefault(row.facility_booking, row.reason)
+	return reasons
+
+
 @frappe.whitelist(allow_guest=True)
 def get_booking_status(facility_booking, token=None):
 	"""Feed the booking confirmation/status page - works for a logged-in
@@ -1211,6 +1638,10 @@ def get_booking_status(facility_booking, token=None):
 	_ensure_booking_access(booking, resolve_session_customer(), token)
 
 	venue = _get_venue_map([booking.court]).get(booking.court, {})
+	invoice_amount, cart_bookings = _get_invoice_group(booking)
+	cancellation_reason = None
+	if booking.booking_status == "Cancelled":
+		cancellation_reason = _get_cancellation_reasons([booking.name]).get(booking.name)
 
 	return {
 		"name": booking.name,
@@ -1221,6 +1652,10 @@ def get_booking_status(facility_booking, token=None):
 		"booking_status": booking.booking_status,
 		"payment_status": booking.payment_status,
 		"total_amount": booking.total_amount,
+		"invoice_amount": invoice_amount,
+		"cart_bookings": cart_bookings,
+		"no_show_penalty_amount": booking.no_show_penalty_amount,
+		"cancellation_reason": cancellation_reason,
 		"sales_invoice": booking.sales_invoice,
 		"venue_name": venue.get("venue_name"),
 		"venue_address": venue.get("address"),
@@ -1246,11 +1681,15 @@ def list_my_bookings(email=None, otp=None, remember_token=None):
 	returning guest within the remember window doesn't have to request
 	and retype a fresh code every visit.
 
-	Returns {"bookings": [...], "remember_token": ..., "verified": ...}
-	rather than a bare list - remember_token is a freshly (re)issued token
-	for the guest path (sliding the window forward on every successful
-	visit), or None when there was no guest identity to remember (a
-	logged-in customer's session already covers that). verified is False
+	Returns {"bookings": [...], "remember_token": ..., "verified": ...,
+	"customer_name": ...} rather than a bare list - remember_token is a
+	freshly (re)issued token for the guest path (sliding the window
+	forward on every successful visit), or None when there was no guest
+	identity to remember (a logged-in customer's session already covers
+	that). customer_name is the Customer record's own display name,
+	fetched once here and reused for both the guest and logged-in paths -
+	see the my-bookings header, which shows it once bookings are loaded.
+	verified is False
 	only for the one case that isn't something the guest actively did
 	this visit: a remembered token that turned out to be missing,
 	expired, or tampered with, and no OTP supplied alongside it to fall
@@ -1291,12 +1730,14 @@ def list_my_bookings(email=None, otp=None, remember_token=None):
 
 		fresh_remember_token = issue_my_bookings_remember_token(normalized_email)
 
+	customer_name = frappe.db.get_value("Customer", customer, "customer_name")
+
 	bookings = frappe.get_all(
 		"Facility Booking",
 		filters={"customer": customer},
 		fields=[
 			"name", "court", "booking_date", "start_time", "end_time",
-			"booking_status", "payment_status", "total_amount",
+			"booking_status", "payment_status", "total_amount", "no_show_penalty_amount",
 		],
 		order_by="booking_date desc, start_time desc",
 	)
@@ -1309,12 +1750,16 @@ def list_my_bookings(email=None, otp=None, remember_token=None):
 		as_list=True,
 	)) if facility_names else {}
 	venue_map = _get_venue_map(facility_names)
+	cancellation_reasons = _get_cancellation_reasons(
+		[b.name for b in bookings if b.booking_status == "Cancelled"]
+	)
 
 	for b in bookings:
 		b["facility_name"] = facility_labels.get(b.court) or b.court
 		b["booking_date"] = str(b.booking_date) if b.booking_date else None
 		b["start_time"] = str(b.start_time) if b.start_time else None
 		b["end_time"] = str(b.end_time) if b.end_time else None
+		b["cancellation_reason"] = cancellation_reasons.get(b.name)
 		# A guest still needs the same signed access token to open any one
 		# booking's own confirmation/pay/cancel page - this list is not
 		# itself proof of ownership of an individual booking name.
@@ -1327,7 +1772,12 @@ def list_my_bookings(email=None, otp=None, remember_token=None):
 		b["venue_lat"] = venue.get("lat")
 		b["venue_lon"] = venue.get("lon")
 
-	return {"bookings": bookings, "remember_token": fresh_remember_token, "verified": True}
+	return {
+		"bookings": bookings,
+		"remember_token": fresh_remember_token,
+		"verified": True,
+		"customer_name": customer_name,
+	}
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])

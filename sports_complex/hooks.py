@@ -118,11 +118,22 @@ doc_events = {
 
 # Scheduled Tasks
 # ---------------
-# scheduler_events = {
-#     "daily": [
-#         "sports_complex.sports_complex.doctype.maintenance_schedule.maintenance_schedule.mark_overdue",
-#     ],
-# }
+# maintenance_schedule.mark_overdue is left commented out below - it
+# predates this and isn't part of what was actually asked for here; the
+# three Facility Booking jobs are what wire up Sports Complex Setup's
+# previously-dead Bookings tab settings (Auto Cancel Unpaid Bookings
+# After, Send Booking Reminder, No Show Penalty %) - each function is a
+# no-op on its own if the relevant setting is left at 0/unchecked, so
+# enabling this block is safe even where none of those are configured
+# yet. See each function's own docstring in facility_booking.py.
+scheduler_events = {
+    "hourly": [
+        # "sports_complex.sports_complex.doctype.maintenance_schedule.maintenance_schedule.mark_overdue",
+        "sports_complex.sports_complex.doctype.facility_booking.facility_booking.auto_cancel_unpaid_bookings",
+        "sports_complex.sports_complex.doctype.facility_booking.facility_booking.send_booking_reminders",
+        "sports_complex.sports_complex.doctype.facility_booking.facility_booking.mark_no_shows",
+    ],
+}
 
 # Fixtures
 # --------

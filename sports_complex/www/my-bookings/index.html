@@ -61,7 +61,7 @@
                         </form>
 
                         <form v-else class="bk-form" @submit.prevent="verifyAndLoad">
-                            <p class="text-muted">A verification code was sent to <strong>[[ guestEmail ]]</strong>.</p>
+                            <p class="text-muted bk-otp-sent-note">A verification code was sent to <strong>[[ guestEmail ]]</strong>.</p>
                             <div class="mb-3">
                                 <label class="form-label bk-label">Verification Code</label>
                                 <input type="text" inputmode="numeric" maxlength="6" class="form-control" v-model="guestOtp" required>
@@ -93,6 +93,9 @@
             <div class="mb-header-left">
                 <a href="/facilities" class="btn btn-link mb-back-top">&larr; Home</a>
                 <h1 class="mb-heading"><i class="bi bi-calendar2-week"></i> My Bookings</h1>
+            </div>
+            <div v-if="customerName" class="mb-header-name">
+                <i class="bi bi-person-circle"></i> [[ customerName ]]
             </div>
             <button v-if="isGuest" type="button" class="btn btn-link mb-back" @click="reset">&larr; Check a different email</button>
         </div>
@@ -152,10 +155,18 @@
                                             <a v-if="directionsUrl(b)" :href="directionsUrl(b)" target="_blank" rel="noopener noreferrer" class="mb-directions-link" @click.stop>Get Directions</a>
                                         </div>
                                     </td>
-                                    <td>[[ b.booking_date ]]</td>
-                                    <td>[[ b.start_time ]]&ndash;[[ b.end_time ]]</td>
-                                    <td><span class="badge bk-status-badge" :class="statusClass(b.booking_status)">[[ b.booking_status ]]</span></td>
-                                    <td>[[ fmt(b.total_amount) ]]</td>
+                                    <td class="mb-date-cell">[[ b.booking_date ]]</td>
+                                    <td class="mb-time-cell">[[ b.start_time ]]&ndash;[[ b.end_time ]]</td>
+                                    <td>
+                                        <span class="badge bk-status-badge" :class="statusClass(b.booking_status)">[[ b.booking_status ]]</span>
+                                        <div v-if="b.booking_status === 'Cancelled' && b.cancellation_reason" class="mb-cancel-line" :title="b.cancellation_reason">[[ b.cancellation_reason ]]</div>
+                                    </td>
+                                    <td>
+                                        [[ fmt(b.total_amount) ]]
+                                        <div v-if="b.booking_status === 'No-show' && b.no_show_penalty_amount" class="mb-penalty-line">
+                                            <i class="bi bi-exclamation-triangle"></i> No-show penalty: [[ fmt(b.no_show_penalty_amount) ]]
+                                        </div>
+                                    </td>
                                     <td class="mb-table-action"><a :href="bookingUrl(b)" class="btn btn-outline-success btn-sm bk-view-btn">View</a></td>
                                 </tr>
                             </tbody>
@@ -252,6 +263,14 @@
         max-width: 520px;
         box-shadow: 0 4px 24px rgba(15, 23, 42, 0.08);
         border: 1px solid rgba(15, 23, 42, 0.06);
+    }
+
+    .my-bookings .bk-otp-sent-note {
+        /* Was unset (inheriting the page's 1rem base) - "A verification
+           code was sent to <email>." at that size was just wide enough to
+           wrap onto a second line for a typical email address. Shrinking
+           it is enough to keep it on one line. */
+        font-size: 0.88rem;
     }
 
     .my-bookings .bk-card-header {
@@ -420,6 +439,25 @@
         font-size: 1.4rem;
     }
 
+    /* Sits between mb-header-left and the (guest-only) "Check a different
+       email" button - flexbox's space-between naturally lands it in the
+       gap between them; not pixel-perfect true-center of the row when only
+       one of those two is present, but matches for the common case (both
+       shown) and never overlaps either. */
+    .my-bookings .mb-header-name {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        color: #4b5563;
+        font-weight: 600;
+        font-size: 0.95rem;
+    }
+
+    .my-bookings .mb-header-name i {
+        color: var(--sc-primary);
+        font-size: 1.05rem;
+    }
+
     .my-bookings .mb-back {
         color: #6b7280;
         font-weight: 500;
@@ -507,6 +545,10 @@
     }
 
     .my-bookings .mb-table tbody td {
+        /* Was unset (inheriting the page's 1rem base) - noticeably larger
+           than the 0.7-0.8rem sub-lines (venue, penalty, cancellation
+           reason) and status badge already sitting right next to it. */
+        font-size: 0.88rem;
         padding: 0.9rem 1.25rem;
         border-bottom: 1px solid rgba(15, 23, 42, 0.06);
         color: #1f2937;
@@ -526,6 +568,18 @@
         white-space: nowrap;
     }
 
+    /* Date/Time columns had no protection against wrapping (unlike the
+       header cells and the action column), so on a narrow viewport - where
+       mb-table-wrap's overflow: hidden squeezes columns instead of
+       scrolling - the browser wrapped "2026-08-23" and "14:00:00-16:00:00"
+       onto extra lines. The Facility column (name + address + directions
+       link) already wraps and has the most slack to give up, so this just
+       reallocates a little width to these two instead of overflowing. */
+    .my-bookings .mb-date-cell,
+    .my-bookings .mb-time-cell {
+        white-space: nowrap;
+    }
+
     .my-bookings .mb-facility-name {
         font-weight: 600;
     }
@@ -541,8 +595,28 @@
         gap: 0.35rem;
     }
 
+    .my-bookings .mb-penalty-line {
+        margin-top: 0.2rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #b91c1c;
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+    }
+
     .my-bookings .mb-venue-line i {
         color: #9ca3af;
+    }
+
+    .my-bookings .mb-cancel-line {
+        margin-top: 0.25rem;
+        font-size: 0.76rem;
+        color: #9ca3af;
+        max-width: 14rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .my-bookings .mb-directions-link {

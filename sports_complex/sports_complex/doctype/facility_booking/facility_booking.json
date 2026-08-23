@@ -16,6 +16,7 @@
  "field_order": [
   "naming_series",
   "customer",
+  "guest_name",
   "email",
   "phone",
   "court",
@@ -30,8 +31,10 @@
   "column_break_2",
   "booking_status",
   "payment_status",
+  "no_show_penalty_amount",
   "sales_invoice",
   "google_calendar_event",
+  "reminder_sent",
   "notes",
   "amended_from"
  ],
@@ -52,6 +55,13 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "description": "Member's linked Customer record"
+  },
+  {
+   "fieldname": "guest_name",
+   "fieldtype": "Data",
+   "label": "Guest Name",
+   "in_list_view": 1,
+   "description": "Name typed for this specific booking - independent of the linked Customer's own name, which only reflects whichever name was typed the first time this email ever booked. Useful when one email is shared by more than one person."
   },
   {
    "fieldname": "email",
@@ -150,6 +160,15 @@
    "in_standard_filter": 1
   },
   {
+   "fieldname": "no_show_penalty_amount",
+   "fieldtype": "Currency",
+   "label": "No-Show Penalty Amount",
+   "read_only": 1,
+   "no_copy": 1,
+   "depends_on": "eval:doc.booking_status==\"No-show\"",
+   "description": "Sports Complex Setup > No Show Penalty % of Total Amount, computed and recorded here when this booking was auto-marked No-show (see facility_booking.mark_no_shows()) - the guest already paid Total Amount in full to reach Confirmed, so this is the portion the business keeps unless a refund is later raised; it doesn't create or move any invoice on its own."
+  },
+  {
    "fieldname": "sales_invoice",
    "fieldtype": "Link",
    "options": "Sales Invoice",
@@ -166,6 +185,15 @@
    "no_copy": 1,
    "hidden": 1,
    "description": "Set automatically once this booking is Confirmed - see utils/google_calendar_sync.py. Configure the target calendar on Sports Complex Setup > Integrations."
+  },
+  {
+   "fieldname": "reminder_sent",
+   "fieldtype": "Check",
+   "label": "Reminder Sent",
+   "read_only": 1,
+   "no_copy": 1,
+   "hidden": 1,
+   "description": "Set once facility_booking.send_booking_reminders() has emailed this booking's Send Booking Reminder notice, so the same booking isn't reminded twice."
   },
   {
    "fieldname": "notes",

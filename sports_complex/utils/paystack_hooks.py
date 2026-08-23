@@ -89,8 +89,28 @@ def on_payment_log_update(doc, method=None):
 	frappe_paystack integration. Delegates to on_payment_authorized()
 	once the linked Sales Invoice is loaded, so both entry points run
 	the exact same SOURCE_MAP logic rather than maintaining it twice.
+
+	Checks for "Completed" as well as "Processed": frappe_paystack's own
+	PaystackPaymentLog.on_update() (in the frappe_paystack app) runs
+	*before* this doc_event fires - Frappe calls the controller's own
+	on_update() first, then dispatches hooks.py's doc_events for that
+	same "on_update" event against the same doc afterwards. For a
+	normal full payment against a Sales Invoice, that controller method
+	creates and submits a Payment Entry and then bumps doc.status
+	straight from "Processed" to "Completed" (via db_set, which also
+	updates the in-memory value) all within that same call - so by the
+	time this hook runs, doc.status is already "Completed", never
+	"Processed". Checking only "Processed" meant this hook silently
+	no-op'd on essentially every successful payment: the invoice really
+	was paid in full, but mark_paid_and_confirm() never ran, leaving
+	the booking stuck on "Payment Pending" (still offering "Pay Now" on
+	an invoice Paystack Payment Log now considers already settled - see
+	PaystackPaymentLog.validate_record() in frappe_paystack, which is
+	exactly the "Document already settled" error clicking Pay Now hits).
+	on_payment_authorized() -> mark_paid_and_confirm() is idempotent
+	either way, so it's safe to let both statuses reach it.
 	"""
-	if doc.status != "Processed":
+	if doc.status not in ("Processed", "Completed"):
 		return
 	if doc.linked_doctype != "Sales Invoice" or not doc.linked_docname:
 		return

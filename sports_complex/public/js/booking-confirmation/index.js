@@ -1,5 +1,27 @@
 const { createApp } = Vue;
 
+// frappe.call() already pops its own "Message" dialog for any server-side
+// frappe.throw() before the call's promise even rejects - showing our own
+// generic Swal on top of that every time was a second, less specific
+// dialog stacked over whatever the server actually said (see the same fix
+// already applied in book-facility/index.js and my-bookings/index.js -
+// this file was missed at the time). Skip our own fallback whenever the
+// server already explained itself, and keep it only for genuinely
+// unexpected failures (network errors, etc.) that have nothing else on
+// screen to explain them.
+//
+// The reject value frappe.call()'s .catch() hands back is the raw jqXHR,
+// not the parsed response body, so the real field lives at
+// err.responseJSON._server_messages (checking err._server_messages
+// directly is always undefined) - see the other two files' fix for the
+// full explanation.
+function hasServerMessage(err) {
+  if (!err) return false;
+  if (err._server_messages) return true;
+  if (err.responseJSON && err.responseJSON._server_messages) return true;
+  return false;
+}
+
 const CANCELLABLE_STATUSES = ['Draft', 'Payment Pending', 'Confirmed'];
 const STATUS_BADGE_CLASS = {
   Draft: 'bk-badge-grey',
@@ -64,9 +86,18 @@ createApp({
         } else {
           Swal.fire('Error', 'Could not create a payment link. Please try again.', 'error');
         }
-      }).catch(() => {
+      }).catch((err) => {
         this.paying = false;
-        Swal.fire('Error', 'Could not create a payment link. Please try again.', 'error');
+        if (!hasServerMessage(err)) {
+          Swal.fire('Error', 'Could not create a payment link. Please try again.', 'error');
+        }
+        // The booking's own state may have moved since this page loaded -
+        // exactly the case get_booking_payment_link()'s "no longer
+        // Payment Pending" guard exists for (an old tab left open past an
+        // auto-cancel, a staff override, etc.). Refresh so the Pay Now
+        // button and status badge reflect reality instead of leaving the
+        // guest able to just retry the same failing call.
+        this.refreshStatus();
       });
     },
     openPaymentPopup(url) {
@@ -149,8 +180,10 @@ createApp({
         ).then(() => {
           this.doc.booking_status = 'Cancelled';
           Swal.fire('Cancelled', 'Your booking has been cancelled.', 'success');
-        }).catch(() => {
-          Swal.fire('Error', 'Could not cancel this booking. It may be past the cancellation window.', 'error');
+        }).catch((err) => {
+          if (!hasServerMessage(err)) {
+            Swal.fire('Error', 'Could not cancel this booking. It may be past the cancellation window.', 'error');
+          }
         }).finally(() => {
           this.cancelling = false;
         });

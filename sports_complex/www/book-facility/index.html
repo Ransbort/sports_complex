@@ -157,7 +157,7 @@
                     </template>
 
                     <template v-else>
-                        <form v-if="!otpSent" class="bk-form" @submit.prevent="sendOtp">
+                        <form v-if="!otpSent" class="bk-form" @submit.prevent="proceedFromDetails">
                             <div class="mb-3">
                                 <label class="form-label bk-label">Full Name</label>
                                 <input type="text" class="form-control" v-model="guestName" required>
@@ -175,13 +175,18 @@
                                 <textarea class="form-control" v-model="notes" rows="2" maxlength="500"
                                           placeholder="Anything we should know about this booking?"></textarea>
                             </div>
-                            <button type="submit" class="btn btn-success bk-btn" :disabled="!canSendOtp || sendingOtp">
-                                <span v-if="sendingOtp" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                                [[ sendingOtp ? 'Sending…' : 'Send Verification Code' ]]
+                            <p v-if="guestVerified" class="text-muted small bk-verified-note">
+                                <i class="bi bi-patch-check-fill"></i>
+                                Verified as <strong>[[ guestEmail ]]</strong> - no code needed right now.
+                                <button type="button" class="btn btn-link p-0 bk-resend-btn" @click="forgetGuestVerification">Not you?</button>
+                            </p>
+                            <button type="submit" class="btn btn-success bk-btn" :disabled="detailsSubmitDisabled">
+                                <span v-if="sendingOtp || (guestVerified && booking)" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                [[ detailsSubmitLabel ]]
                             </button>
                         </form>
                         <form v-else class="bk-form" @submit.prevent="confirmGuestBooking">
-                            <p class="text-muted">A verification code was sent to <strong>[[ guestEmail ]]</strong>.</p>
+                            <p class="text-muted bk-otp-sent-note">A verification code was sent to <strong>[[ guestEmail ]]</strong>.</p>
                             <div class="mb-3">
                                 <label class="form-label bk-label">Verification Code</label>
                                 <input type="text" inputmode="numeric" maxlength="6" class="form-control" v-model="guestOtp" required>
@@ -711,6 +716,35 @@
 
     .book-facility .bk-resend-btn:disabled {
         color: #9ca3af;
+    }
+
+    .book-facility .bk-otp-sent-note {
+        /* Was unset (inheriting the page's 1rem base) - "A verification
+           code was sent to <email>." at that size was just wide enough to
+           wrap onto a second line inside this card's ~480px width for a
+           typical email address. Shrinking it is enough to keep it on one
+           line without needing to widen the card itself. */
+        font-size: 0.88rem;
+    }
+
+    .book-facility .bk-verified-note {
+        background-color: #ecfdf5;
+        color: #065f46;
+        border: 1px solid #a7f3d0;
+        border-radius: 0.5rem;
+        padding: 0.6rem 0.8rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        flex-wrap: wrap;
+    }
+
+    .book-facility .bk-verified-note .bi-patch-check-fill {
+        color: #059669;
+    }
+
+    .book-facility .bk-verified-note .bk-resend-btn {
+        margin-left: auto;
     }
 
     .book-facility .bk-result-icon {

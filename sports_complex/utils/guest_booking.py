@@ -37,6 +37,23 @@ OTP_TTL_SECONDS = 10 * 60
 # booking".
 REMEMBER_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60  # 30 days
 
+# "Remember this browser" for the booking-creation flow itself (book-
+# facility/book-court), as distinct from the My Bookings remember token
+# above: once a guest types a correct emailed code once, they shouldn't
+# have to fetch and retype a fresh one for every subsequent booking in the
+# same sitting - see create_guest_booking()/create_guest_booking_cart() in
+# facility_booking.py. Deliberately much shorter-lived than the My
+# Bookings window (10 minutes vs. 30 days): this token lets its holder
+# create new paid bookings under that email, not just look at existing
+# ones, so it's worth re-proving email ownership again well before someone
+# forgets they were ever on this page. Uses its own signature function
+# (below) rather than reusing _remember_token_signature() - deliberately
+# not the same construction, so a My Bookings token (or a leaked one of
+# these) is never accepted as proof for the other purpose, and so this can
+# be added without touching the already-working My Bookings functions at
+# all.
+BOOKING_REMEMBER_TOKEN_TTL_SECONDS = 10 * 60  # 10 minutes
+
 
 def _otp_cache_key(email):
 	return f"{OTP_CACHE_PREFIX}:{email.strip().lower()}"
@@ -119,19 +136,76 @@ def verify_my_bookings_remember_token(email, token):
 	return hmac.compare_digest(_remember_token_signature(email, expires_at), signature)
 
 
+def _booking_remember_token_signature(email, expires_at):
+	key = get_encryption_key().encode()
+	msg = f"booking_remember:{email.strip().lower()}:{expires_at}".encode()
+	return hmac.new(key, msg, hashlib.sha256).hexdigest()
+
+
+def issue_booking_remember_token(email):
+	"""A fresh token good for BOOKING_REMEMBER_TOKEN_TTL_SECONDS from now.
+	Called every time create_guest_booking()/create_guest_booking_cart()
+	successfully confirms a guest's identity - whether via a fresh OTP or
+	an already-valid remember token - so a guest who keeps booking within
+	the window keeps sliding it forward instead of hitting a hard 10-minute
+	wall mid-session.
+	"""
+	email = (email or "").strip().lower()
+	expires_at = int(time.time()) + BOOKING_REMEMBER_TOKEN_TTL_SECONDS
+	return f"{expires_at}.{_booking_remember_token_signature(email, expires_at)}"
+
+
+def verify_booking_remember_token(email, token):
+	"""True if token is a valid, unexpired booking-remember-token for this
+	email. Never raises - a missing/malformed/expired/tampered token should
+	just fall back to asking for a fresh OTP, not surface as an error for
+	something the guest didn't do this visit.
+	"""
+	email = (email or "").strip().lower()
+	if not email or not token:
+		return False
+	try:
+		expires_at_str, signature = token.split(".", 1)
+		expires_at = int(expires_at_str)
+	except (ValueError, AttributeError):
+		return False
+	if expires_at < int(time.time()):
+		return False
+	return hmac.compare_digest(_booking_remember_token_signature(email, expires_at), signature)
+
+
 def resolve_or_create_guest_customer(email, full_name, phone=None):
 	"""Find-or-create a Member (which auto-creates its own linked
 	Customer - see Member.before_insert/create_customer) for a guest who
 	has just verified their email. Reuses whatever Member already exists
 	for this email rather than creating a duplicate every time the same
 	guest books again.
+
+	When an existing Member/Customer is reused, its display name is
+	refreshed to whatever full_name was typed for *this* booking -
+	otherwise it stayed frozen forever to whichever name was typed the
+	very first time this email ever booked, even when a different name
+	(a different person sharing the email, or the same person typing it
+	differently) is used later. This only relabels the shared identity;
+	it deliberately doesn't split it - every booking under this email is
+	still the same Customer, with the same invoice/booking history. See
+	Facility Booking's own `guest_name` field for the per-booking record
+	of who actually typed each individual booking.
 	"""
 	email = (email or "").strip().lower()
-	existing_customer = frappe.db.get_value("Member", {"email": email}, "customer")
-	if existing_customer:
-		return existing_customer
-
 	full_name = (full_name or "").strip()
+	existing_member = frappe.db.get_value(
+		"Member", {"email": email}, ["name", "customer", "member_name"], as_dict=True
+	)
+	if existing_member:
+		if full_name and full_name != existing_member.member_name:
+			# frappe.db.set_value writes straight to the DB without a
+			# permission check (unlike doc.save()), so this is safe to run
+			# regardless of which user this function is called as.
+			frappe.db.set_value("Member", existing_member.name, "member_name", full_name)
+			frappe.db.set_value("Customer", existing_member.customer, "customer_name", full_name)
+		return existing_member.customer
+
 	if not full_name:
 		frappe.throw(_("Full name is required"))
 
