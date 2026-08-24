@@ -6,15 +6,24 @@ doctypes, wired up via this app's hooks.py. Keeps the trial-candidacy
 pipeline in sync with the doctor's verdict.
 
 This module still owns every bit of trial-specific decision-making, but as
-of the predetermined-lab stage below, Front Desk itself
-(healthcare/page/front_desk/front_desk.py and front_desk.js) is no longer
-completely untouched — it has three small, generic extension points added
-to it (a "lab" tab alongside checkin/queue/nurse/doctor, a
-tab_for_status entry, and a _route_after_vitals() hook called from
-save_vitals()). None of those three contain trial-specific logic
-themselves; they only ever call into this module. See
-route_trial_after_vitals() below for exactly where control crosses back
-over.
+of the predetermined-lab stage below, the Healthcare app itself is no
+longer completely untouched — it has one small, generic extension point
+added to it: a _route_after_vitals() hook, called from nurse_station.py's
+save_vitals(). It doesn't contain trial-specific logic itself; it only
+ever calls into this module. See route_trial_after_vitals() below for
+exactly where control crosses back over.
+
+The "lab" tab this feeds (checking on a trial's predetermined labs and
+sending the patient on to the doctor) lives on Doctor Station now
+(healthcare/page/doctor_station/doctor_station.py and doctor_station.js -
+originally added to Front Desk, moved over once Doctor Station existed as
+its own page), same as the Doctor Queue tab it hands off to. Nothing in
+this module changed for that move: doctor_station.js calls the same
+get_trial_lab_queue()/send_trial_to_doctor() below directly, and this
+module never depended on which page hosted the tab, only on the
+Healthcare Settings fields (front_desk_lab_roles/
+front_desk_lab_override_roles) and the "With Lab" queue_status value
+itself.
 
 Registration flow (medical-first, per the team's confirmed redesign):
   1. A person enters the pipeline the moment ANY Patient Appointment gets
@@ -23,22 +32,24 @@ Registration flow (medical-first, per the team's confirmed redesign):
      "Trialist" — see get_trial_appointment_type() below) — a walk-in
      check-in or a pre-booked appointment, first exam or a re-trial, it's
      all the exact same mechanism now. Front Desk's own check-in flow
-     (checkin/queue/nurse/lab/doctor tabs) is used as-is; nothing sports-
-     specific needs to exist there. on_patient_appointment_after_insert()
-     below reacts to that and flags the Patient as a trial candidate.
+     (checkin/queue tabs), Nurse Station, and Doctor Station (queue, lab,
+     and patient search tabs) are used as-is; nothing sports-specific
+     needs to exist there. on_patient_appointment_after_insert() below
+     reacts to that and flags the Patient as a trial candidate.
   2. The person goes through Front Desk's normal queue - Nurse Station
-     takes vitals. For a trial appointment, save_vitals() no longer sends
-     them straight to the doctor: route_trial_after_vitals() below
-     intercepts (via front_desk.py's _route_after_vitals() extension
-     point), auto-creates one Lab Test per row configured under Sports
-     Complex Setup > Trials > Required Lab Tests (create_trial_lab_panel()
-     below - already paid for by the same consultation fee charged at
-     check-in, never billed a second time), and parks the appointment on
-     a new "With Lab" queue_status / Lab tab instead of "With Doctor".
-     Lab staff work those tests exactly like any other Lab Test, then a
-     lab tech (or, for an incomplete panel, a front-desk/nursing override
-     — see send_trial_to_doctor() below) sends the appointment on to the
-     Doctor Queue. Only then does the doctor call start_consultation(),
+     takes vitals. For a trial appointment, nurse_station.py's
+     save_vitals() no longer sends them straight to the doctor:
+     route_trial_after_vitals() below intercepts (via nurse_station.py's
+     _route_after_vitals() extension point), auto-creates one Lab Test per
+     row configured under Sports Complex Setup > Trials > Required Lab
+     Tests (create_trial_lab_panel() below - already paid for by the same
+     consultation fee charged at check-in, never billed a second time),
+     and parks the appointment on a new "With Lab" queue_status / Doctor
+     Station's Lab tab instead of "With Doctor". Lab staff work those
+     tests exactly like any other Lab Test, then a lab tech (or, for an
+     incomplete panel, a front-desk/nursing override — see
+     send_trial_to_doctor() below) sends the appointment on to the Doctor
+     Queue. Only then does the doctor call start_consultation(),
      which creates the actual Patient Encounter, inherits appointment_type
      from the appointment automatically, and — via
      attach_trial_lab_results_to_encounter() below, hooked on the
@@ -105,10 +116,13 @@ Relies on custom fields added by get_custom_fields() in setup.py:
                                  itself creates - see that function)
 
 Plus, on the Healthcare app's own Healthcare Settings single (added by
-healthcare/setup.py, not this app, since it's Front Desk tab-access
+healthcare/setup.py, not this app, since it's Doctor Station tab-access
 plumbing rather than anything trial-specific):
   - front_desk_lab_roles           Small Text, default "Laboratory User"
   - front_desk_lab_override_roles  Small Text, default "Nursing User,Physician"
+  (field names kept as-is from when this lived on Front Desk - only the
+  Small Text labels on the Healthcare Settings form changed, to "Doctor
+  Station Lab Tab Roles"/"...Override Roles")
 
 ...plus the "trial_appointment_type" and "trial_required_lab_tests" fields
 on the Sports Complex Setup single doctype (Trials tab), and four things
@@ -307,11 +321,12 @@ def ensure_fitness_result_visibility_script():
 # =============================================================================
 # LAB STAGE — predetermined labs between vitals and the doctor
 #
-# For a trial appointment, save_vitals() (front_desk.py) no longer sends the
-# patient straight to the doctor. route_trial_after_vitals() below is what
-# front_desk.py's _route_after_vitals() extension point calls; everything
-# from queue_status through the Lab tab's data and the eventual handoff back
-# to the doctor lives here, not in front_desk.py/js.
+# For a trial appointment, nurse_station.py's save_vitals() no longer sends
+# the patient straight to the doctor. route_trial_after_vitals() below is
+# what nurse_station.py's _route_after_vitals() extension point calls;
+# everything from queue_status through the Lab tab's data (now on Doctor
+# Station - see doctor_station.py/js) and the eventual handoff back to the
+# doctor lives here, not in nurse_station.py or doctor_station.py/js.
 # =============================================================================
 
 WITH_LAB_STATUS = "With Lab"
@@ -384,7 +399,7 @@ def create_trial_lab_panel(appointment):
 	"""Auto-create one Lab Test per row in the configured trial panel,
 	directly against the Patient - no Patient Encounter exists yet at
 	this point (same reason Vital Signs links via `appointment` rather
-	than `encounter` in front_desk.py's save_vitals()).
+	than `encounter` in nurse_station.py's save_vitals()).
 
 	custom_invoice is pointed at the SAME Sales Invoice that already paid
 	for this appointment's consultation fee at check-in
@@ -445,11 +460,12 @@ def create_trial_lab_panel(appointment):
 
 
 def route_trial_after_vitals(appointment, appointment_type):
-	"""Called from front_desk.py's _route_after_vitals() extension point,
-	right after save_vitals() submits the Vital Signs doc. Returns True if
-	this appointment was claimed and fully routed here (queue_status +
-	notification both handled) - False tells front_desk.py to run its own
-	default "straight to the doctor" path instead.
+	"""Called from nurse_station.py's _route_after_vitals() extension
+	point, right after save_vitals() submits the Vital Signs doc. Returns
+	True if this appointment was claimed and fully routed here
+	(queue_status + notification both handled) - False tells
+	nurse_station.py to run its own default "straight to the doctor" path
+	instead.
 
 	Two cases return False, both deliberately: a non-trial appointment
 	(nothing to do with this module), and a trial appointment whose site
@@ -486,13 +502,15 @@ def _configured_roles(fieldname, default_roles=None):
 
 
 def user_can_access_lab_tab(user=None):
-	"""Mirrors front_desk.py's own _user_can_access_tab() (deliberately
-	re-implemented rather than imported - that function is a private,
-	underscore-prefixed helper in another app, not something to reach
-	across app boundaries for). Reads the same Healthcare Settings
-	front_desk_lab_roles field front_desk.py's get_front_desk_settings()
-	already surfaces to the client for hide/show purposes; this is the
-	server-side enforcement side of that same check.
+	"""Mirrors the shape of front_desk.py's own _user_can_access_tab()/
+	nurse_station.py's _user_can_access_nurse_station() (deliberately
+	re-implemented rather than imported - those are private, underscore-
+	prefixed helpers in another app, not something to reach across app
+	boundaries for). Reads Healthcare Settings' front_desk_lab_roles
+	field directly - unlike Front Desk's own tabs, Doctor Station's Lab
+	tab has no client-side hide/show equivalent to get_front_desk_
+	settings()'s allowed_tabs; this is the only gate it has, so it's
+	enforced purely server-side on every call below.
 	"""
 	user = user or frappe.session.user
 	if user == "Administrator" or "System Manager" in frappe.get_roles(user):
@@ -534,7 +552,7 @@ def get_trial_lab_queue(date=None):
 	the Send to Doctor action without a second round-trip per row.
 	"""
 	if not user_can_access_lab_tab():
-		frappe.throw(_("You are not permitted to access the Lab area of Front Desk."), frappe.PermissionError)
+		frappe.throw(_("You are not permitted to access the Lab area of Doctor Station."), frappe.PermissionError)
 
 	date = date or nowdate()
 	rows = frappe.get_all(
@@ -574,7 +592,7 @@ def send_trial_to_doctor(appointment, override_reason=None):
 		if not (override_reason or "").strip():
 			frappe.throw(_("A reason is required to send this patient to the doctor before labs are complete."))
 	elif not user_can_access_lab_tab():
-		frappe.throw(_("You are not permitted to access the Lab area of Front Desk."), frappe.PermissionError)
+		frappe.throw(_("You are not permitted to access the Lab area of Doctor Station."), frappe.PermissionError)
 
 	frappe.db.set_value("Patient Appointment", appointment, "queue_status", "With Doctor")
 
@@ -601,7 +619,7 @@ def send_trial_to_doctor(appointment, override_reason=None):
 def attach_trial_lab_results_to_encounter(doc, method=None):
 	"""Hooked on Patient Encounter's before_insert (alongside
 	sync_trial_medical_history_from_patient - see hooks.py), so it fires
-	the moment start_consultation() (front_desk.py, unmodified) builds the
+	the moment start_consultation() (doctor_station.py, unmodified) builds the
 	Encounter. Populates the Encounter's own, standard Lab Tests section
 	(lab_test_prescription, the same child table doctor-ordered labs use)
 	with this trial's already-completed panel, so the doctor sees the
@@ -670,7 +688,7 @@ def sync_trial_medical_history_from_patient(doc, method=None):
 
 	Deliberately also fires when the encounter is built via
 	frappe.get_doc({...}).insert() from Python (start_consultation() in
-	front_desk.py, not touched by this app) rather than through the form
+	doctor_station.py, not touched by this app) rather than through the form
 	UI, unlike Frappe's client-side "fetch_from" field property, which
 	only ever fires from a browser interaction and would silently do
 	nothing for encounters created this way.
@@ -690,7 +708,7 @@ def validate_patient_encounter(doc, method=None):
 	"Pending" forever with no record of why.
 
 	"validate" fires on every save, not just submit - including the very
-	first insert() that start_consultation() in front_desk.py does to
+	first insert() that start_consultation() in doctor_station.py does to
 	create the encounter in the first place (docstatus 0, no verdict yet
 	by definition). Only enforce this once the doctor is actually
 	submitting (docstatus 1) - Frappe sets docstatus to 1 before running
