@@ -32,6 +32,8 @@ from sports_complex.sports_complex.healthcare_integration import (
 	ensure_fitness_result_visibility_script,
 	ensure_queue_status_with_lab_option,
 	ensure_trial_appointment_type,
+	ensure_view_lab_results_script,
+	remove_lab_dashboard_group_script,
 )
 
 # Configure logger
@@ -47,6 +49,7 @@ def after_install():
 		make_custom_fields()
 		ensure_trial_appointment_type()
 		ensure_fitness_result_visibility_script()
+		ensure_view_lab_results_script()
 		ensure_queue_status_with_lab_option()
 		remove_global_nav_overrides()
 
@@ -69,8 +72,10 @@ def after_migrate():
 		make_custom_fields()
 		ensure_trial_appointment_type()
 		ensure_fitness_result_visibility_script()
+		ensure_view_lab_results_script()
 		ensure_queue_status_with_lab_option()
 		remove_stale_trial_medical_exam_field()
+		remove_lab_dashboard_group_script()
 		remove_global_nav_overrides()
 
 		# Clear cache

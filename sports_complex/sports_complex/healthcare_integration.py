@@ -52,12 +52,16 @@ Registration flow (medical-first, per the team's confirmed redesign):
      send_trial_to_doctor() below) sends the appointment on to the Doctor
      Queue. Only then does the doctor call start_consultation(),
      which creates the actual Patient Encounter, inherits appointment_type
-     from the appointment automatically, and — via
-     attach_trial_lab_results_to_encounter() below, hooked on the
-     Encounter's own before_insert — arrives pre-populated with the
-     completed lab results in its normal Lab Tests section, nothing for
-     the doctor to go hunting for. The doctor records a Fitness Result
-     and submits. If Sports Complex Setup's Required Lab Tests table is
+     from the appointment automatically. The completed panel is never
+     copied into the Encounter's own lab_test_prescription table - that
+     child table is the doctor's own request grid (see accept_lab_request()
+     in lab_portal.py), not a place for technician-completed trial results
+     to land - so instead the doctor sees them via the "View Lab Results"
+     button (VIEW_LAB_RESULTS_SCRIPT below, calling get_encounter_lab_
+     test_names()), which reads Lab Test's own sc_trial_appointment field
+     directly rather than anything stored on the Encounter. The doctor
+     records a Fitness Result and submits. If Sports Complex Setup's
+     Required Lab Tests table is
      left empty, route_trial_after_vitals() declines to claim the
      appointment and it goes straight to the doctor as before - the lab
      stage is opt-in per site, not a hard requirement of the trial flow.
@@ -317,6 +321,241 @@ def ensure_fitness_result_visibility_script():
 			"enabled": 1,
 			"script": FITNESS_RESULT_VISIBILITY_SCRIPT,
 		}).insert(ignore_permissions=True)
+
+
+# Same "managed programmatic Client Script" mechanism as
+# FITNESS_RESULT_VISIBILITY_SCRIPT above, for an unrelated button: a
+# "View Lab Results" entry on Patient Encounter's View dropdown, next to
+# Healthcare's own built-in "View Vitals" (healthcare/setup.py's
+# create_view_vitals_client_script() - that one does
+# frappe.set_route("List", "Vital Signs", {patient, encounter}), since
+# Vital Signs carries its own `encounter` field directly). Lab Test has
+# no such field - the only link back to an encounter runs through either
+# (a) this encounter's own lab_test_prescription child table (Lab
+# Prescription.custom_lab_test, a Custom Field healthcare/setup.py
+# already applies) for doctor-ordered requests accepted through Lab
+# Portal's own accept_lab_request(), or (b) Lab Test's own
+# sc_trial_appointment field for a trial's predetermined panel - the two
+# sources don't share a field, so this button calls the whitelisted
+# get_encounter_lab_test_names() below (server-side) rather than reading
+# frm.doc directly, and that server method is what actually combines
+# them. A trial panel's results are deliberately never copied into
+# lab_test_prescription itself - see get_encounter_lab_test_names()'s own
+# docstring for why. Lives here rather than in healthcare/setup.py
+# alongside its Vitals sibling because sports_complex.install's
+# after_install/after_migrate hooks are what's actually proven to run
+# this on every bench migrate on an already-installed site -
+# healthcare/setup.py's own equivalent is only wired to after_install, so
+# a change added only there would need a manual one-off run to reach a
+# site that installed before it existed.
+VIEW_LAB_RESULTS_SCRIPT = (
+	"""// __sports_complex_view_lab_results__
+// Managed by sports_complex.sports_complex.healthcare_integration.
+// ensure_view_lab_results_script() - re-applied on every bench migrate.
+// Edit the logic below if needed, but keep the marker comment above
+// intact so that function can keep finding this record.
+//
+// Opens a popup showing just each linked Lab Test's own result table
+// (Normal/Descriptive - whichever the template uses - plus any lab_test_
+// comment), tabbed by test name when there's more than one, rather than
+// navigating the doctor away from the Encounter or loading each test's
+// entire Form (which used to be what this did - patient/gender fields,
+// Comments/Custom Result/Medical Coding/Worksheet Print sections and
+// all). The data comes straight from Lab Portal's own
+// get_lab_test_detail() (healthcare/page/lab_portal/lab_portal.py,
+// unmodified) - the exact same whitelisted method that already feeds
+// the "Open Lab Test" popup's own result grid there - rather than
+// re-deriving result rows from Lab Test's child tables by hand here, so
+// this can never drift from what that popup shows. A small "Open Full
+// Test" link on each tab is the escape hatch to the real Lab Test form
+// for anything not covered here (attachments, worksheet print, etc.).
+
+frappe.ui.form.on("Patient Encounter", {
+	refresh: function (frm) {
+		frm.add_custom_button(
+			__("View Lab Results"),
+			function () {
+				frappe.call({
+					method: "sports_complex.sports_complex.healthcare_integration.get_encounter_lab_test_names",
+					args: { encounter: frm.doc.name },
+					callback: function (r) {
+						var lab_test_names = r.message || [];
+
+						if (!lab_test_names.length) {
+							frappe.msgprint(__("No lab tests are linked to this encounter yet."));
+							return;
+						}
+
+						Promise.all(
+							lab_test_names.map(function (name) {
+								return frappe.call({
+									method: "healthcare.healthcare.page.lab_portal.lab_portal.get_lab_test_detail",
+									args: { lab_test_name: name },
+								});
+							})
+						).then(function (responses) {
+							var details = responses.map(function (resp) { return resp.message; }).filter(Boolean);
+
+							if (!details.length) {
+								frappe.msgprint(__("Could not load results for the linked lab test(s)."));
+								return;
+							}
+
+							function resultsTableHtml(d) {
+								if (d.result_type === "normal") {
+									var rows = d.items.map(function (item) {
+										return "<tr><td>" + frappe.utils.escape_html(item.label || "") + "</td>" +
+											"<td>" + frappe.utils.escape_html(item.result_value || "") + "</td>" +
+											"<td>" + frappe.utils.escape_html(item.uom || "") + "</td>" +
+											"<td>" + frappe.utils.escape_html(item.normal_range || "") + "</td></tr>";
+									}).join("");
+									return '<table class="table table-bordered"><thead><tr><th>' + __("Test Name") +
+										"</th><th>" + __("Result Value") + "</th><th>" + __("UOM") + "</th><th>" +
+										__("Normal Range") + "</th></tr></thead><tbody>" +
+										(rows || '<tr><td colspan="4" class="text-muted">' + __("No results recorded yet.") + "</td></tr>") +
+										"</tbody></table>";
+								}
+								if (d.result_type === "descriptive") {
+									var drows = d.items.map(function (item) {
+										return "<tr><td>" + frappe.utils.escape_html(item.label || "") + "</td>" +
+											"<td>" + frappe.utils.escape_html(item.result_value || "") + "</td></tr>";
+									}).join("");
+									return '<table class="table table-bordered"><thead><tr><th>' + __("Particulars") +
+										"</th><th>" + __("Result Value") + "</th></tr></thead><tbody>" +
+										(drows || '<tr><td colspan="2" class="text-muted">' + __("No results recorded yet.") + "</td></tr>") +
+										"</tbody></table>";
+								}
+								return '<div class="text-muted">' +
+									__("This test's result layout isn't supported in this popup - use 'Open Full Test' below instead.") +
+									"</div>";
+							}
+
+							var dialog = new frappe.ui.Dialog({
+								title: __("Lab Results"),
+								size: "large",
+							});
+							dialog.$wrapper.find(".modal-footer").hide();
+							var $body = dialog.$wrapper.find(".modal-body");
+							$body.css({ "max-height": "70vh", "overflow-y": "auto" });
+
+							var tabsHtml = "";
+							var panesHtml = "";
+							details.forEach(function (d, i) {
+								var label = d.lab_test_name || d.template || d.name;
+								tabsHtml += '<button type="button" class="btn btn-xs ' + (i === 0 ? "btn-primary" : "btn-default") +
+									' lab-result-tab-btn" data-idx="' + i + '" style="margin-right: 6px;">' +
+									frappe.utils.escape_html(label) + "</button>";
+								panesHtml += '<div class="lab-result-pane" data-idx="' + i + '"' + (i === 0 ? "" : ' style="display:none;"') + ">" +
+									(d.lab_test_comment ? '<div class="text-muted" style="margin-bottom: 8px;"><strong>' + __("Comments") +
+										":</strong> " + frappe.utils.escape_html(d.lab_test_comment) + "</div>" : "") +
+									resultsTableHtml(d) +
+									'<div style="margin-top: 10px;"><a href="/app/lab-test/' + encodeURIComponent(d.name) +
+									'" target="_blank">' + __("Open Full Test") + "</a></div>" +
+									"</div>";
+							});
+
+							$body.html(
+								(details.length > 1 ? '<div style="margin-bottom: 12px;">' + tabsHtml + "</div>" : "") + panesHtml
+							);
+
+							$body.find(".lab-result-tab-btn").on("click", function () {
+								var idx = $(this).data("idx");
+								$body.find(".lab-result-tab-btn").removeClass("btn-primary").addClass("btn-default");
+								$(this).removeClass("btn-default").addClass("btn-primary");
+								$body.find(".lab-result-pane").hide();
+								$body.find('.lab-result-pane[data-idx="' + idx + '"]').show();
+							});
+
+							dialog.show();
+						});
+					},
+				});
+			},
+			__("View"),
+		);
+	},
+});
+"""
+)
+
+
+def ensure_view_lab_results_script():
+	"""Idempotently create/update the Client Script that adds the "View
+	Lab Results" button described above. Called from sports_complex.install
+	(after_install/after_migrate) - safe to call repeatedly; matches on the
+	marker comment inside the script content, same reasoning as
+	ensure_fitness_result_visibility_script() above.
+	"""
+	marker = "__sports_complex_view_lab_results__"
+	existing_name = frappe.db.get_value(
+		"Client Script",
+		{"dt": "Patient Encounter", "view": "Form", "script": ("like", f"%{marker}%")},
+	)
+	if existing_name:
+		doc = frappe.get_doc("Client Script", existing_name)
+		doc.script = VIEW_LAB_RESULTS_SCRIPT
+		doc.enabled = 1
+		doc.save(ignore_permissions=True)
+	else:
+		frappe.get_doc({
+			"doctype": "Client Script",
+			# Same reasoning as Fitness Result Visibility's own name above -
+			# fixed and descriptive so re-running this after a manual
+			# deletion recreates the same record name.
+			"name": "Sports Complex View Lab Results",
+			"dt": "Patient Encounter",
+			"view": "Form",
+			"enabled": 1,
+			"script": VIEW_LAB_RESULTS_SCRIPT,
+		}).insert(ignore_permissions=True)
+
+
+# A "Labs" dashboard group used to be layered onto Patient Encounter's
+# existing grouped "linked documents" cards (Orders, Inpatient, Notes/
+# Tasks/Vitals, Medical Records - all baked into the vendored
+# patient_encounter.json's own `links` array) via frm.dashboard.
+# add_transactions(["Lab Test"]) from a Client Script. Removed: that
+# front-end grouping call is only half the picture - the moment the form
+# loads, the client also asks the server (frappe.desk.notifications.
+# get_open_count) for a badge count for every item shown, on EVERY
+# dashboard group, including ones added this way. The server resolves
+# that by looking up each item doctype's link_fieldname back to Patient
+# Encounter from the doctype's own metadata - and since Lab Test has no
+# such field (its only link is sc_trial_appointment, pointing at Patient
+# Appointment, two hops away - see get_trial_lab_tests()'s neighbourhood
+# above), the server had nothing correct to resolve and fell through to
+# an unrelated field name from a different group, throwing "Unknown
+# column 'order_group'" on every single Patient Encounter form load - a
+# real, confirmed production error, not just the imprecision this was
+# originally flagged as living with. Frappe's linked-document dashboard
+# framework fundamentally can't express "count rows in Lab Test whose
+# sc_trial_appointment matches the Patient Appointment this Encounter
+# points at" - that needs a two-table join, and the framework only ever
+# filters one doctype by one fieldname equal to the parent's own name.
+# The doctor still reaches a trial's completed panel exactly as
+# accurately via the "View Lab Results" button above (get_encounter_lab_
+# test_names()), which never goes through this badge-count subsystem.
+#
+# remove_lab_dashboard_group_script() below is the active teardown for a
+# site that already ran the buggy version - same reasoning and pattern as
+# sports_complex.install.remove_stale_trial_medical_exam_field(): merely
+# no longer creating the Client Script wouldn't retroactively delete one
+# a previous bench migrate already inserted.
+def remove_lab_dashboard_group_script():
+	"""One-time cleanup for a site that already ran the "Labs" dashboard
+	group Client Script described above (removed as of this change - see
+	the comment above). Deletes it by the same marker comment
+	ensure_lab_dashboard_group_script() used to match on. Safe to call
+	repeatedly: a no-op once it's gone.
+	"""
+	marker = "__sports_complex_lab_dashboard_group__"
+	existing_name = frappe.db.get_value(
+		"Client Script",
+		{"dt": "Patient Encounter", "view": "Form", "script": ("like", f"%{marker}%")},
+	)
+	if existing_name:
+		frappe.delete_doc("Client Script", existing_name, ignore_permissions=True, force=True)
+		frappe.clear_cache(doctype="Patient Encounter")
 
 
 # =============================================================================
@@ -698,36 +937,76 @@ def send_trial_to_doctor(appointment, override_reason=None):
 	return {"status": "Success"}
 
 
-def attach_trial_lab_results_to_encounter(doc, method=None):
-	"""Hooked on Patient Encounter's before_insert (alongside
-	sync_trial_medical_history_from_patient - see hooks.py), so it fires
-	the moment start_consultation() (doctor_station.py, unmodified) builds the
-	Encounter. Populates the Encounter's own, standard Lab Tests section
-	(lab_test_prescription, the same child table doctor-ordered labs use)
-	with this trial's already-completed panel, so the doctor sees the
-	results in the normal place - nothing new to look for, and nothing
-	billed again (invoiced=1 here, since custom_invoice was already set
-	to the consultation invoice back in create_trial_lab_panel()).
-	"""
-	if doc.appointment_type != get_trial_appointment_type() or not doc.appointment:
-		return
+# attach_trial_lab_results_to_encounter() used to live here, hooked on
+# Patient Encounter's before_insert, and copied a trial's completed panel
+# into the Encounter's own lab_test_prescription child table so the
+# doctor would see it "in the normal place". Removed: lab_test_prescription
+# (Lab Prescription) is the doctor's OWN request grid - the same table
+# accept_lab_request() in lab_portal.py fills in when a lab tech accepts a
+# doctor-ordered request - and a technician-completed trial panel the
+# doctor never requested doesn't belong in it. The doctor now sees a
+# trial's completed panel exclusively via the "View Lab Results" button
+# (VIEW_LAB_RESULTS_SCRIPT above), which reads Lab Test's own
+# sc_trial_appointment field directly - see get_encounter_lab_test_names()
+# below, which VIEW_LAB_RESULTS_SCRIPT calls. hooks.py's before_insert
+# list for Patient Encounter no longer references this function. (A
+# separate "Labs" dashboard card was also tried and removed - see
+# remove_lab_dashboard_group_script() above for why.)
 
-	completed = frappe.get_all(
-		"Lab Test",
-		filters={"sc_trial_appointment": doc.appointment, "status": "Completed"},
-		fields=["name", "template"],
-		order_by="creation asc",
-	)
-	for lab_test in completed:
-		doc.append(
-			"lab_test_prescription",
-			{
-				"lab_test_code": lab_test.template,
-				"custom_lab_test": lab_test.name,
-				"invoiced": 1,
-				"lab_test_created": 1,
+
+@frappe.whitelist()
+def get_encounter_lab_test_names(encounter):
+	"""Every Lab Test linked to this Patient Encounter, from the two
+	sources that don't share a common field (see the removed
+	attach_trial_lab_results_to_encounter() comment above for why they're
+	kept separate rather than merged onto the Encounter itself):
+
+	  - doctor-ordered labs accepted through Lab Portal's
+		accept_lab_request(), which write the linked Lab Test's name onto
+		lab_test_prescription's custom_lab_test field.
+	  - a trial appointment's predetermined panel, found via Lab Test's
+		own sc_trial_appointment field (set at creation - see
+		create_trial_lab_panel()), matched against this encounter's
+		`appointment` - not reachable from the encounter's child tables at
+		all, since Lab Test has no field pointing back to Patient
+		Encounter, only to the Patient Appointment it was created against.
+
+	Called from the client (VIEW_LAB_RESULTS_SCRIPT's "View Lab Results"
+	button) rather than read straight off frm.doc, specifically because
+	that second source needs a server-side query the form has no data
+	for. Only "Completed" trial-panel tests are included - matching what
+	attach_trial_lab_results_to_encounter() used to filter on before its
+	removal - an in-progress trial panel isn't a "result" yet; doctor-
+	ordered rows are returned regardless of status, matching the button's
+	prior behaviour for that source.
+	"""
+	if not frappe.has_permission("Patient Encounter", "read", encounter):
+		frappe.throw(_("Not permitted to read this Patient Encounter."), frappe.PermissionError)
+
+	appointment = frappe.db.get_value("Patient Encounter", encounter, "appointment")
+
+	names = set(
+		frappe.get_all(
+			"Lab Prescription",
+			filters={
+				"parent": encounter,
+				"parenttype": "Patient Encounter",
+				"custom_lab_test": ["is", "set"],
 			},
+			pluck="custom_lab_test",
 		)
+	)
+
+	if appointment:
+		names.update(
+			frappe.get_all(
+				"Lab Test",
+				filters={"sc_trial_appointment": appointment, "status": "Completed"},
+				pluck="name",
+			)
+		)
+
+	return sorted(names)
 
 
 def on_patient_appointment_after_insert(doc, method=None):

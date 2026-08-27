@@ -99,17 +99,17 @@ doc_events = {
         # existing Allergies/Medication onto the encounter's own
         # known_allergies/current_medications fields so the doctor isn't
         # retyping them (see healthcare_integration.
-        # sync_trial_medical_history_from_patient()), and separately
-        # populates the standard Lab Tests section with this trial's
-        # already-completed predetermined lab panel (see
-        # healthcare_integration.attach_trial_lab_results_to_encounter() -
-        # "Lab stage" section of that module's docstring). Both are
-        # deliberately one-time, at-creation copies, not a live/ongoing
-        # sync - a later edit here or on the source record doesn't flow
-        # either way afterwards.
+        # sync_trial_medical_history_from_patient()). A trial's completed
+        # predetermined lab panel used to also be copied in here (onto
+        # lab_test_prescription, via attach_trial_lab_results_to_encounter())
+        # but that's been removed - lab_test_prescription is the doctor's
+        # own request grid, not a place for technician-completed trial
+        # results to land. The doctor now reaches those via the "View Lab
+        # Results" button / "Labs" dashboard card instead (see
+        # healthcare_integration.get_encounter_lab_test_names() and the
+        # "Lab stage" section of that module's docstring).
         "before_insert": [
             "sports_complex.sports_complex.healthcare_integration.sync_trial_medical_history_from_patient",
-            "sports_complex.sports_complex.healthcare_integration.attach_trial_lab_results_to_encounter",
         ],
         "validate": "sports_complex.sports_complex.healthcare_integration.validate_patient_encounter",
         "on_submit": "sports_complex.sports_complex.healthcare_integration.on_patient_encounter_submit",
@@ -118,22 +118,11 @@ doc_events = {
 
 # Scheduled Tasks
 # ---------------
-# maintenance_schedule.mark_overdue is left commented out below - it
-# predates this and isn't part of what was actually asked for here; the
-# three Facility Booking jobs are what wire up Sports Complex Setup's
-# previously-dead Bookings tab settings (Auto Cancel Unpaid Bookings
-# After, Send Booking Reminder, No Show Penalty %) - each function is a
-# no-op on its own if the relevant setting is left at 0/unchecked, so
-# enabling this block is safe even where none of those are configured
-# yet. See each function's own docstring in facility_booking.py.
-scheduler_events = {
-    "hourly": [
-        # "sports_complex.sports_complex.doctype.maintenance_schedule.maintenance_schedule.mark_overdue",
-        "sports_complex.sports_complex.doctype.facility_booking.facility_booking.auto_cancel_unpaid_bookings",
-        "sports_complex.sports_complex.doctype.facility_booking.facility_booking.send_booking_reminders",
-        "sports_complex.sports_complex.doctype.facility_booking.facility_booking.mark_no_shows",
-    ],
-}
+# scheduler_events = {
+#     "daily": [
+#         "sports_complex.sports_complex.doctype.maintenance_schedule.maintenance_schedule.mark_overdue",
+#     ],
+# }
 
 # Fixtures
 # --------
