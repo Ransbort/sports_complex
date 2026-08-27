@@ -14,12 +14,13 @@ ever calls into this module. See route_trial_after_vitals() below for
 exactly where control crosses back over.
 
 The "lab" tab this feeds (checking on a trial's predetermined labs and
-sending the patient on to the doctor) lives on Doctor Station now
-(healthcare/page/doctor_station/doctor_station.py and doctor_station.js -
-originally added to Front Desk, moved over once Doctor Station existed as
-its own page), same as the Doctor Queue tab it hands off to. Nothing in
-this module changed for that move: doctor_station.js calls the same
-get_trial_lab_queue()/send_trial_to_doctor() below directly, and this
+sending the patient on to the doctor) lives on Lab Portal now
+(healthcare/page/lab_portal/lab_portal.py and lab_portal.js, as its "Trial
+Labs" tab - previously on Front Desk, then on Doctor Station, moved once
+more so trial lab work sits alongside every other lab request instead of
+splitting it across two pages). Nothing in this module changed for that
+move: lab_portal.js calls the same get_trial_lab_queue()/
+get_trial_lab_tests()/send_trial_to_doctor() below directly, and this
 module never depended on which page hosted the tab, only on the
 Healthcare Settings fields (front_desk_lab_roles/
 front_desk_lab_override_roles) and the "With Lab" queue_status value
@@ -410,9 +411,26 @@ def create_trial_lab_panel(appointment):
 	(see Sports Complex Setup > Trials > Required Lab Tests' description),
 	so nothing here should ever raise a second bill. Setting custom_invoice
 	is also what puts these straight into Lab Portal's existing "Pending
-	Labs" tab (custom_invoice IS NOT NULL AND status != 'Completed') with
-	zero changes needed to lab_portal.py - there's no "accept" step to
-	invoice, since it's already covered.
+	Labs" tab (custom_invoice IS NOT NULL OR invoiced = 1, AND status !=
+	'Completed') with zero changes needed to lab_portal.py's routing
+	beyond that - there's no "accept" step to invoice, since it's already
+	covered.
+
+	When consultation_invoice is blank - the Trial Appointment Type's
+	consulting charge resolved to $0/unset at check-in, so Front Desk
+	never raised a consultation invoice at all (see front_desk.py's
+	_finalize_checkin()) - there's nothing to point custom_invoice at.
+	That used to leave these Lab Tests looking exactly like an ordinary
+	un-invoiced request: they'd land in Requested Labs, and accepting one
+	there would try to raise a brand new Sales Invoice for a "bundled"
+	fee that was never actually charged. Since a free trial visit means
+	the whole visit - including its lab panel - is free, these are marked
+	invoiced=1 directly instead: nothing to bill, so nothing should ever
+	be billed. lab_portal.py's get_requested_labs()/get_pending_labs()
+	both key off this same invoiced flag (in addition to custom_invoice)
+	for direct-sourced rows, so a free panel test routes straight to
+	Pending Labs - shown there with no linked invoice, same as a bundled
+	paid one, just nothing owed.
 
 	Idempotent: skips any template that already has a Lab Test for this
 	appointment, so a retried/duplicated call (e.g. save_vitals() somehow
@@ -451,6 +469,9 @@ def create_trial_lab_panel(appointment):
 				"status": "Draft",
 				"sc_trial_appointment": appointment,
 				"custom_invoice": appt.consultation_invoice,
+				# See docstring above - a free (unbilled) trial visit means
+				# nothing is owed for its lab panel either.
+				"invoiced": 1 if not appt.consultation_invoice else 0,
 			}
 		)
 		lab_test.insert(ignore_permissions=True)
@@ -507,10 +528,10 @@ def user_can_access_lab_tab(user=None):
 	re-implemented rather than imported - those are private, underscore-
 	prefixed helpers in another app, not something to reach across app
 	boundaries for). Reads Healthcare Settings' front_desk_lab_roles
-	field directly - unlike Front Desk's own tabs, Doctor Station's Lab
-	tab has no client-side hide/show equivalent to get_front_desk_
-	settings()'s allowed_tabs; this is the only gate it has, so it's
-	enforced purely server-side on every call below.
+	field directly - unlike Front Desk's own tabs, the Trial Labs tab
+	(now on Lab Portal) has no client-side hide/show equivalent to
+	get_front_desk_settings()'s allowed_tabs; this is the only gate it
+	has, so it's enforced purely server-side on every call below.
 	"""
 	user = user or frappe.session.user
 	if user == "Administrator" or "System Manager" in frappe.get_roles(user):
@@ -568,6 +589,67 @@ def get_trial_lab_queue(date=None):
 		row["tests_total"] = len(tests)
 		row["tests_completed"] = sum(1 for t in tests if t.status == "Completed")
 		row["ready_for_doctor"] = bool(tests) and row["tests_completed"] == row["tests_total"]
+	return rows
+
+
+@frappe.whitelist()
+def get_trial_lab_tests(date=None):
+	"""Feeds Lab Portal's Trial Labs tab: one row per individual Lab Test
+	in a trial panel, not one row per appointment like get_trial_lab_queue()
+	above - Lab Portal renders every tab as one card per Lab Test, so this
+	flattens the same underlying data to match that shape instead of
+	grouping tests under their appointment. Appointment-level context
+	(progress across the whole panel, whether it's ready to send to the
+	doctor) is duplicated onto every row belonging to that appointment so
+	the front-end doesn't need a second round-trip per card, and
+	payment_status is resolved the same way lab_portal.py's own
+	get_pending_labs() resolves it for a direct-sourced row: no
+	custom_invoice at all means the panel was free (see
+	create_trial_lab_panel()'s docstring), otherwise it's Paid/Unpaid
+	depending on the linked Sales Invoice's own status.
+	"""
+	appointments = get_trial_lab_queue(date=date)
+
+	template_names = {}
+	all_templates = {test["template"] for appt in appointments for test in appt["tests"]}
+	if all_templates:
+		template_names = {
+			d.name: d.lab_test_name
+			for d in frappe.get_all(
+				"Lab Test Template",
+				filters={"name": ["in", list(all_templates)]},
+				fields=["name", "lab_test_name"],
+			)
+		}
+
+	rows = []
+	for appt in appointments:
+		for test in appt["tests"]:
+			invoice_name = frappe.db.get_value("Lab Test", test["name"], "custom_invoice")
+			if invoice_name:
+				invoice_status = frappe.db.get_value("Sales Invoice", invoice_name, "status")
+				payment_status = "Paid" if invoice_status == "Paid" else "Unpaid"
+			else:
+				payment_status = "Free"
+
+			rows.append(
+				{
+					"lab_test": test["name"],
+					"template": test["template"],
+					"lab_test_name": template_names.get(test["template"]) or test["template"],
+					"lab_test_status": test["status"],
+					"payment_status": payment_status,
+					"appointment": appt["name"],
+					"patient": appt["patient"],
+					"patient_name": appt["patient_name"],
+					"practitioner": appt["practitioner"],
+					"practitioner_name": appt["practitioner_name"],
+					"encounter_time": appt["encounter_time"],
+					"tests_total": appt["tests_total"],
+					"tests_completed": appt["tests_completed"],
+					"ready_for_doctor": appt["ready_for_doctor"],
+				}
+			)
 	return rows
 
 
