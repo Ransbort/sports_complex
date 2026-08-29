@@ -805,9 +805,10 @@ def _trial_lab_test_rows(appointment):
 
 
 @frappe.whitelist()
-def get_trial_lab_queue(date=None):
+def get_trial_lab_queue(date=None, to_date=None):
 	"""Feeds the Lab tab: every trial appointment currently sitting at
-	WITH_LAB_STATUS for `date` (default today), each with its panel's
+	WITH_LAB_STATUS for `date` (default today) - or, when `to_date` is
+	also given, for that whole date range - each with its panel's
 	per-test status so the front-end can show progress and enable/disable
 	the Send to Doctor action without a second round-trip per row.
 	"""
@@ -817,9 +818,20 @@ def get_trial_lab_queue(date=None):
 	date = date or nowdate()
 	rows = frappe.get_all(
 		"Patient Appointment",
-		filters={"appointment_date": date, "queue_status": WITH_LAB_STATUS},
-		fields=["name", "patient", "patient_name", "practitioner", "practitioner_name", "appointment_time"],
-		order_by="appointment_time asc",
+		filters={
+			"appointment_date": ["between", [date, to_date]] if to_date else date,
+			"queue_status": WITH_LAB_STATUS,
+		},
+		fields=[
+			"name",
+			"patient",
+			"patient_name",
+			"practitioner",
+			"practitioner_name",
+			"appointment_date",
+			"appointment_time",
+		],
+		order_by="appointment_date asc, appointment_time asc",
 	)
 	for row in rows:
 		row["encounter_time"] = row.pop("appointment_time")
@@ -832,14 +844,15 @@ def get_trial_lab_queue(date=None):
 
 
 @frappe.whitelist()
-def get_trial_lab_tests(date=None):
+def get_trial_lab_tests(date=None, to_date=None):
 	"""Feeds Lab Portal's Trial Labs tab: one row per individual Lab Test
 	in a trial panel, not one row per appointment like get_trial_lab_queue()
 	above - Lab Portal renders every tab as one card per Lab Test, so this
 	flattens the same underlying data to match that shape instead of
 	grouping tests under their appointment. Appointment-level context
 	(progress across the whole panel, whether it's ready to send to the
-	doctor) is duplicated onto every row belonging to that appointment so
+	doctor, and now which day it's on now that a range can span more than
+	one) is duplicated onto every row belonging to that appointment so
 	the front-end doesn't need a second round-trip per card, and
 	payment_status is resolved the same way lab_portal.py's own
 	get_pending_labs() resolves it for a direct-sourced row: no
@@ -847,7 +860,7 @@ def get_trial_lab_tests(date=None):
 	create_trial_lab_panel()'s docstring), otherwise it's Paid/Unpaid
 	depending on the linked Sales Invoice's own status.
 	"""
-	appointments = get_trial_lab_queue(date=date)
+	appointments = get_trial_lab_queue(date=date, to_date=to_date)
 
 	template_names = {}
 	all_templates = {test["template"] for appt in appointments for test in appt["tests"]}
@@ -883,6 +896,7 @@ def get_trial_lab_tests(date=None):
 					"patient_name": appt["patient_name"],
 					"practitioner": appt["practitioner"],
 					"practitioner_name": appt["practitioner_name"],
+					"appointment_date": appt["appointment_date"],
 					"encounter_time": appt["encounter_time"],
 					"tests_total": appt["tests_total"],
 					"tests_completed": appt["tests_completed"],

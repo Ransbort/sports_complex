@@ -5,6 +5,7 @@
  "custom": 0,
  "istable": 0,
  "issingle": 0,
+ "allow_import": 1,
  "autoname": "field:facility_type_name",
  "naming_rule": "By fieldname",
  "sort_field": "modified",

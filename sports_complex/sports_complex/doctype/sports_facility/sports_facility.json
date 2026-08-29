@@ -1,41 +1,52 @@
 {
- "doctype": "DocType",
- "name": "Sports Facility",
- "module": "Sports Complex",
- "custom": 0,
- "istable": 0,
- "issingle": 0,
+ "actions": [],
+ "allow_import": 1,
  "autoname": "field:facility_name",
- "naming_rule": "By fieldname",
- "sort_field": "modified",
- "sort_order": "DESC",
- "track_changes": 1,
+ "creation": "2026-08-22 01:58:16.050847",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "facility_name",
+  "facility_type",
+  "venue",
+  "column_break_1",
+  "capacity",
+  "surface_type",
+  "hourly_rate",
+  "billing_item",
+  "status",
+  "section_break_1",
+  "amenities",
+  "image",
+  "section_break_schedule",
+  "time_slots"
+ ],
  "fields": [
   {
    "fieldname": "facility_name",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Facility Name",
    "reqd": 1,
-   "unique": 1,
-   "in_list_view": 1
+   "unique": 1
   },
   {
    "fieldname": "facility_type",
    "fieldtype": "Link",
-   "options": "Facility Type",
-   "label": "Facility Type",
-   "reqd": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "label": "Facility Type",
+   "options": "Facility Type",
+   "reqd": 1
   },
   {
    "fieldname": "venue",
    "fieldtype": "Link",
-   "options": "Venue",
-   "label": "Venue",
-   "reqd": 1,
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "label": "Venue",
+   "options": "Venue",
+   "reqd": 1
   },
   {
    "fieldname": "column_break_1",
@@ -52,26 +63,26 @@
    "label": "Surface Type"
   },
   {
+   "description": "Leave blank to use the Facility Type's default rate",
    "fieldname": "hourly_rate",
    "fieldtype": "Currency",
-   "label": "Hourly Rate (override)",
-   "description": "Leave blank to use the Facility Type's default rate"
+   "label": "Hourly Rate (override)"
   },
   {
+   "description": "Sellable Item billed on the Sales Invoice for bookings of this facility. Leave blank to fall back to looking for an Item named the same as this facility's Facility Type.",
    "fieldname": "billing_item",
    "fieldtype": "Link",
-   "options": "Item",
    "label": "Billing Item",
-   "description": "Sellable Item billed on the Sales Invoice for bookings of this facility. Leave blank to fall back to looking for an Item named the same as this facility's Facility Type."
+   "options": "Item"
   },
   {
+   "default": "Active",
    "fieldname": "status",
    "fieldtype": "Select",
-   "options": "Active\nUnder Maintenance\nInactive",
-   "default": "Active",
-   "label": "Status",
    "in_list_view": 1,
-   "in_standard_filter": 1
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Active\nUnder Maintenance\nInactive"
   },
   {
    "fieldname": "section_break_1",
@@ -79,10 +90,10 @@
    "label": "Details"
   },
   {
+   "description": "Comma-separated for now; can be moved to a Child Table later if amenities need their own fields",
    "fieldname": "amenities",
    "fieldtype": "Small Text",
-   "label": "Amenities",
-   "description": "Comma-separated for now; can be moved to a Child Table later if amenities need their own fields"
+   "label": "Amenities"
   },
   {
    "fieldname": "image",
@@ -95,25 +106,42 @@
    "label": "Weekly Schedule"
   },
   {
+   "description": "When this facility can be booked. Saving here fully replaces its Booking Schedule entries with what's listed.",
    "fieldname": "time_slots",
    "fieldtype": "Table",
-   "options": "Sports Facility Time Slot",
    "label": "Time Slots",
-   "description": "When this facility can be booked. Saving here fully replaces its Booking Schedule entries with what's listed."
+   "options": "Sports Facility Time Slot"
   }
  ],
+ "links": [],
+ "modified": "2026-08-29 13:09:46.444995",
+ "modified_by": "Administrator",
+ "module": "Sports Complex",
+ "name": "Sports Facility",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
  "permissions": [
   {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
    "role": "System Manager",
-   "read": 1, "write": 1, "create": 1, "delete": 1
+   "write": 1
   },
   {
+   "create": 1,
+   "read": 1,
    "role": "Facility Manager",
-   "read": 1, "write": 1, "create": 1
+   "write": 1
   },
   {
-   "role": "Front Desk",
-   "read": 1
+   "read": 1,
+   "role": "Front Desk"
   }
- ]
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
 }
