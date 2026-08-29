@@ -5,7 +5,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
-from sports_complex.utils import get_member_customer, make_linked_sales_invoice
+from sports_complex.utils import cancel_linked_invoice, get_member_customer, make_linked_sales_invoice
 
 
 class TrainingSession(Document):
@@ -99,6 +99,9 @@ class TrainingSession(Document):
 	def on_submit(self):
 		self.create_session_invoice()
 
+	def on_cancel(self):
+		cancel_linked_invoice(self.sales_invoice)
+
 	def create_session_invoice(self):
 		"""One invoice per session, billed to the first participant's linked
 		Member/Customer for the total of fee_per_participant * headcount.
@@ -132,4 +135,5 @@ class TrainingSession(Document):
 			link_docname=self.name,
 			description=f"Training Session {self.name} ({len(self.participants)} participant(s))",
 		)
+		si.submit()
 		self.db_set("sales_invoice", si.name)

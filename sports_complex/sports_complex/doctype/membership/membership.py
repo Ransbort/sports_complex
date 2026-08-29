@@ -6,6 +6,13 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import add_months
 
+from sports_complex.utils.invoicing import (
+	cancel_linked_invoice,
+	get_default_company,
+	get_income_account,
+	get_receivable_account,
+)
+
 
 class Membership(Document):
 	def validate(self):
@@ -25,6 +32,7 @@ class Membership(Document):
 
 	def on_cancel(self):
 		frappe.db.set_value("Membership", self.name, "status", "Cancelled")
+		cancel_linked_invoice(self.sales_invoice)
 
 	def create_sales_invoice(self):
 		"""Bill the Membership Plan's price.
@@ -50,19 +58,29 @@ class Membership(Document):
 			frappe.throw(_("Member {0} has no linked Customer").format(self.member))
 
 		price = frappe.db.get_value("Membership Plan", self.membership_plan, "price")
+		company = get_default_company()
 
 		si = frappe.new_doc("Sales Invoice")
 		si.customer = customer
 		si.membership = self.name
-		si.append(
-			"items",
-			{
-				"item_code": self.membership_plan,
-				"qty": 1,
-				"rate": price,
-			},
-		)
+		if company:
+			si.company = company
+			receivable_account = get_receivable_account(company)
+			if receivable_account:
+				si.debit_to = receivable_account
+
+		item_row = {
+			"item_code": self.membership_plan,
+			"qty": 1,
+			"rate": price,
+		}
+		income_account = get_income_account(company)
+		if income_account:
+			item_row["income_account"] = income_account
+		si.append("items", item_row)
+
 		si.flags.ignore_permissions = True
 		si.insert()
+		si.submit()
 
 		self.sales_invoice = si.name

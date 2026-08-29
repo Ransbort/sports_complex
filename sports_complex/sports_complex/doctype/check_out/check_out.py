@@ -6,6 +6,13 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt, get_datetime, time_diff_in_hours
 
+from sports_complex.utils.invoicing import (
+	cancel_linked_invoice,
+	get_default_company,
+	get_income_account,
+	get_receivable_account,
+)
+
 
 class CheckOut(Document):
 	def validate(self):
@@ -55,6 +62,7 @@ class CheckOut(Document):
 
 	def on_cancel(self):
 		frappe.db.set_value("Facility Booking", self.facility_booking, "booking_status", "Checked-In")
+		cancel_linked_invoice(self.overage_sales_invoice)
 
 	def create_overage_invoice(self):
 		"""Bill overage time as an additional Sales Invoice.
@@ -75,19 +83,29 @@ class CheckOut(Document):
 			)
 
 		customer = frappe.db.get_value("Facility Booking", self.facility_booking, "customer")
+		company = get_default_company()
 
 		si = frappe.new_doc("Sales Invoice")
 		si.customer = customer
 		si.facility_booking = self.facility_booking
-		si.append(
-			"items",
-			{
-				"item_code": "Facility Overage",
-				"qty": 1,
-				"rate": self.overage_charge,
-			},
-		)
+		if company:
+			si.company = company
+			receivable_account = get_receivable_account(company)
+			if receivable_account:
+				si.debit_to = receivable_account
+
+		item_row = {
+			"item_code": "Facility Overage",
+			"qty": 1,
+			"rate": self.overage_charge,
+		}
+		income_account = get_income_account(company)
+		if income_account:
+			item_row["income_account"] = income_account
+		si.append("items", item_row)
+
 		si.flags.ignore_permissions = True
 		si.insert()
+		si.submit()
 
 		self.overage_sales_invoice = si.name

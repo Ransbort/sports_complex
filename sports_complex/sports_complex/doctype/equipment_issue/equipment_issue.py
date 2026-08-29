@@ -5,7 +5,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
-from sports_complex.utils import get_member_customer, make_linked_sales_invoice
+from sports_complex.utils import cancel_linked_invoice, get_member_customer, make_linked_sales_invoice
 
 
 class EquipmentIssue(Document):
@@ -24,6 +24,7 @@ class EquipmentIssue(Document):
 
 	def on_cancel(self):
 		frappe.db.set_value("Equipment", self.equipment, "status", "Available")
+		cancel_linked_invoice(self.sales_invoice)
 
 	def create_rental_invoice(self):
 		if not self.rental_fee:
@@ -43,6 +44,7 @@ class EquipmentIssue(Document):
 			link_docname=self.name,
 			description=f"Rental - {self.equipment}",
 		)
+		si.submit()
 		self.db_set("sales_invoice", si.name)
 
 	def get_customer(self):

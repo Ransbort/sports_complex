@@ -5,7 +5,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 
-from sports_complex.utils import get_member_customer, make_linked_sales_invoice
+from sports_complex.utils import cancel_linked_invoice, get_member_customer, make_linked_sales_invoice
 
 
 class EquipmentReturn(Document):
@@ -27,6 +27,15 @@ class EquipmentReturn(Document):
 		if self.damage_charge:
 			self.create_damage_invoice(issue)
 
+	def on_cancel(self):
+		# Put the originating Equipment Issue back to "Issued" - the direct,
+		# well-defined effect of undoing this Return. The Equipment's own
+		# status/condition are deliberately left alone: by the time a Return
+		# gets cancelled the Equipment may already have been re-issued, and
+		# forcing it back could clobber that newer, legitimate state.
+		frappe.db.set_value("Equipment Issue", self.equipment_issue, "status", "Issued")
+		cancel_linked_invoice(self.sales_invoice)
+
 	def create_damage_invoice(self, issue):
 		customer = None
 		if issue.issued_to_type == "Member" and issue.issued_to_member:
@@ -47,4 +56,5 @@ class EquipmentReturn(Document):
 			link_docname=self.name,
 			description=f"Damage charge - {issue.equipment} ({self.equipment_issue})",
 		)
+		si.submit()
 		self.db_set("sales_invoice", si.name)
