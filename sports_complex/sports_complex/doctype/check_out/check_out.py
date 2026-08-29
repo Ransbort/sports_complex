@@ -84,6 +84,7 @@ class CheckOut(Document):
 
 		customer = frappe.db.get_value("Facility Booking", self.facility_booking, "customer")
 		company = get_default_company()
+		company = get_default_company()
 
 		si = frappe.new_doc("Sales Invoice")
 		si.customer = customer

@@ -12,6 +12,49 @@ from frappe import _
 from frappe.utils import nowdate
 
 
+def get_default_company():
+	"""Sports Complex Setup's Default Company, falling back to the site's
+	global default Company if not configured."""
+	company = frappe.db.get_single_value("Sports Complex Setup", "default_company")
+	return company or frappe.defaults.get_global_default("company")
+
+
+def get_account(parentfield, company):
+	"""Look up a Company-specific account row from Sports Complex Setup's
+	Income Account / Receivable Account child tables (both use the core
+	Party Account child doctype: company + account + advance_account) -
+	same lookup shape as healthcare.healthcare.doctype.healthcare_settings.
+	healthcare_settings.get_account().
+	"""
+	if not company:
+		return None
+	return frappe.db.get_value(
+		"Party Account",
+		{"parenttype": "Sports Complex Setup", "parentfield": parentfield, "company": company},
+		"account",
+	)
+
+
+def get_receivable_account(company=None):
+	"""Sports Complex Setup > Default Accounts > Receivable Account for
+	`company` (or the default Company if not given), falling back to that
+	Company's own default receivable account if nothing is configured."""
+	company = company or get_default_company()
+	return get_account("receivable_account", company) or (
+		company and frappe.get_cached_value("Company", company, "default_receivable_account")
+	)
+
+
+def get_income_account(company=None):
+	"""Sports Complex Setup > Default Accounts > Income Account for
+	`company` (or the default Company if not given), falling back to that
+	Company's own default income account if nothing is configured."""
+	company = company or get_default_company()
+	return get_account("income_account", company) or (
+		company and frappe.get_cached_value("Company", company, "default_income_account")
+	)
+
+
 def get_or_create_item(item_code, item_group, rate=None):
 	"""Ensure a billable Item exists for a given source (facility usage,
 	tournament entry fee, equipment rental, etc.) so we don't hand
