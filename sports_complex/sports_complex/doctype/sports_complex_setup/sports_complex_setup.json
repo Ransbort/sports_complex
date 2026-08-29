@@ -252,7 +252,7 @@
    "label": "Default Accounts"
   },
   {
-   "description": "Default income accounts to be used if not set elsewhere to book Facility Booking, Membership, Tournament Registration, Equipment Rental and Training Session charges.",
+   "description": "Default income accounts to be used if not set to book Facility Booking, Membership, Tournament Registration, Equipment Rental and Training Session charges.",
    "fieldname": "income_account",
    "fieldtype": "Table",
    "label": "Income Account",
