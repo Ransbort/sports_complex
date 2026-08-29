@@ -11,6 +11,7 @@
  "editable_grid": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
+ "image_field": "photo",
  "fields": [
   {
    "fieldname": "team_name",
@@ -54,6 +55,11 @@
    "fieldtype": "Check",
    "label": "Is Active",
    "default": "1"
+  },
+  {
+   "fieldname": "photo",
+   "fieldtype": "Attach Image",
+   "label": "Photo"
   },
   {
    "fieldname": "section_break_1",

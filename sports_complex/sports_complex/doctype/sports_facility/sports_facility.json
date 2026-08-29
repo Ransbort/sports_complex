@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_import": 1,
+ "allow_rename": 1,
  "autoname": "field:facility_name",
  "creation": "2026-08-22 01:58:16.050847",
  "doctype": "DocType",
@@ -113,6 +114,7 @@
    "options": "Sports Facility Time Slot"
   }
  ],
+ "image_field": "image",
  "links": [],
  "modified": "2026-08-29 13:09:46.444995",
  "modified_by": "Administrator",

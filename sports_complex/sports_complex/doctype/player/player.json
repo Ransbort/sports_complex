@@ -86,7 +86,6 @@
   {
    "fieldname": "profile_photo",
    "fieldtype": "Attach Image",
-   "hidden": 1,
    "label": "Profile Photo"
   },
   {
@@ -348,6 +347,7 @@
    "read_only": 1
   }
  ],
+ "image_field": "profile_photo",
  "index_web_pages_for_search": 1,
  "links": [],
  "modified": "2026-08-10 00:00:00.000000",
