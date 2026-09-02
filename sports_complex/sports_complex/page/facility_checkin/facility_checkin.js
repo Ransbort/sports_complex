@@ -271,6 +271,11 @@ class FacilityCheckinBoard {
 				.fci-status-cancelled { background: #f1f3f5; color: #868e96; }
 				.fci-status-noshow { background: #f8d7da; color: #721c24; }
 
+				/* Status badge + its action button (Collect Payment/Check In/
+				   Check Out) share one cell now instead of being split across
+				   the table by the Payment column sitting between them. */
+				.fci-status-cell { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
 				.fci-view-toggle-group {
 					display: flex;
 					gap: 5px;
@@ -1616,9 +1621,8 @@ class FacilityCheckinBoard {
 						<td>${frappe.datetime.str_to_user(b.booking_date)}</td>
 						<td>${sc_fci_short_time(b.start_time)} - ${sc_fci_short_time(b.end_time)}</td>
 						<td>${format_currency(b.total_amount)}</td>
-						<td>${sc_fci_status_badge(b.booking_status)}</td>
+						<td><div class="fci-status-cell">${sc_fci_status_badge(b.booking_status)}${action}</div></td>
 						<td>${frappe.utils.escape_html(b.payment_status || "-")}</td>
-						<td>${action}</td>
 					</tr>
 				`;
 			})
@@ -1637,7 +1641,6 @@ class FacilityCheckinBoard {
 							<th>${__("Amount")}</th>
 							<th>${__("Status")}</th>
 							<th>${__("Payment")}</th>
-							<th></th>
 						</tr>
 					</thead>
 					<tbody>${rows}</tbody>
