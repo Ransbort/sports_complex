@@ -88,7 +88,7 @@
   {
    "fieldname": "patient",
    "fieldtype": "Link",
-   "label": "Patient (Healthcare)",
+   "label": "Approved Patient (Trialist)",
    "options": "Patient",
    "reqd": 1,
    "description": "Select the already medically-cleared Patient this trialist registration is for - only cleared, not-yet-registered patients are shown. Personal, contact and medical info auto-fill from their clinic record once selected."
