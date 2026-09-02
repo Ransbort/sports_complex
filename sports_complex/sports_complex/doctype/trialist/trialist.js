@@ -112,11 +112,11 @@ frappe.ui.form.on("Trialist", {
 
 		// Registration-fee billing - see create_registration_invoice() in
 		// trialist.py. Same "Cleared" gate as "Mark as Player" above: no
-		// bill until a doctor has actually signed off. The Trial
-		// Registration Cashier page (sports_complex/page/
-		// trial_registration_cashier) is the normal place to do this and
-		// collect payment, but the button here covers billing/checking a
-		// single trialist without leaving their record.
+		// bill until a doctor has actually signed off. The Cashier page's
+		// Trial Registrations tab (sports_complex/page/cashier) is the
+		// normal place to do this and collect payment, but the button here
+		// covers billing/checking a single trialist without leaving their
+		// record.
 		if (!frm.doc.__islocal && frm.doc.medical_clearance_status === "Cleared"
 			&& (!frm.doc.registration_fee_status || frm.doc.registration_fee_status === "Not Invoiced")) {
 			frm.add_custom_button(__("Create Registration Bill"), function () {

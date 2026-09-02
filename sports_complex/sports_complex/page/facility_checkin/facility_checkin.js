@@ -10,10 +10,15 @@
 // where the domain calls for it: two live queues side by side (Ready to
 // Check In / Currently Checked In) rather than rehab's click-through tabs,
 // since front-desk staff need to see both at a glance rather than switch
-// between them. Every mutation still just creates/submits a real Check-In
-// or Check-Out document - see check_in.py/check_out.py for the actual
-// state-machine logic (status transitions, overage billing); this page
-// never re-implements it.
+// between them. Every check-in/check-out mutation still just creates/
+// submits a real Check-In or Check-Out document - see check_in.py/
+// check_out.py for the actual state-machine logic (status transitions,
+// overage billing); this page never re-implements it. The "Book
+// Facility" button is the one exception - it's a front door onto
+// Facility Booking itself (staff-facing counterpart to the public
+// /book-facility flow), not the check-in/check-out queues below it; see
+// create_staff_booking() in facility_booking.py for the actual booking
+// creation/validation.
 
 frappe.pages["facility-checkin"].on_page_load = function (wrapper) {
 	const page = frappe.ui.make_app_page({
@@ -146,6 +151,125 @@ class FacilityCheckinBoard {
 					border-color: var(--primary-color);
 					color: var(--primary-color);
 				}
+
+				.fci-btn-book {
+					display: flex;
+					align-items: center;
+					gap: 7px;
+					height: 38px;
+					padding: 0 16px;
+					border-radius: 8px;
+					font-weight: 600;
+					font-size: 0.88rem;
+					border: none;
+					background: var(--primary-color);
+					color: white;
+					cursor: pointer;
+					transition: all 0.15s ease;
+				}
+
+				.fci-btn-book:hover {
+					opacity: 0.9;
+				}
+
+				.fci-slot-picker-header {
+					display: flex;
+					justify-content: space-between;
+					align-items: center;
+					font-size: 0.83rem;
+					color: #6c757d;
+					margin-bottom: 8px;
+				}
+
+				.fci-slot-select-all {
+					cursor: pointer;
+					font-weight: 600;
+				}
+
+				.fci-slot-picker-grid {
+					display: grid;
+					grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+					gap: 8px;
+					max-height: 220px;
+					overflow-y: auto;
+					padding-right: 4px;
+				}
+
+				.fci-slot-chip {
+					border: 1px solid #dee2e6;
+					border-radius: 8px;
+					padding: 8px 10px;
+					font-size: 0.83rem;
+					font-weight: 600;
+					text-align: center;
+					cursor: pointer;
+					transition: all 0.15s ease;
+					user-select: none;
+				}
+
+				.fci-slot-chip:hover {
+					border-color: var(--primary-color);
+					color: var(--primary-color);
+				}
+
+				.fci-slot-chip.selected {
+					background: var(--primary-color);
+					border-color: var(--primary-color);
+					color: white;
+				}
+
+				.fci-btn-outline {
+					display: flex;
+					align-items: center;
+					gap: 7px;
+					height: 38px;
+					padding: 0 14px;
+					border-radius: 8px;
+					font-weight: 600;
+					font-size: 0.88rem;
+					border: 1px solid #dee2e6;
+					background: white;
+					color: #495057;
+					cursor: pointer;
+					transition: all 0.15s ease;
+				}
+
+				.fci-btn-outline:hover {
+					border-color: var(--primary-color);
+					color: var(--primary-color);
+				}
+
+				.fci-all-bookings-table {
+					width: 100%;
+					border-collapse: collapse;
+					font-size: 0.85rem;
+				}
+
+				.fci-all-bookings-table thead {
+					background: #f8f9fa;
+				}
+
+				.fci-all-bookings-table th {
+					padding: 8px 10px;
+					text-align: left;
+					font-weight: 600;
+					font-size: 0.78rem;
+					color: #6c757d;
+					text-transform: uppercase;
+					border-bottom: 1px solid #e9ecef;
+				}
+
+				.fci-all-bookings-table td {
+					padding: 8px 10px;
+					vertical-align: middle;
+					border-bottom: 1px solid #f1f3f5;
+				}
+
+				.fci-status-payment-pending { background: #ffe8cc; color: #9c5500; }
+				.fci-status-draft { background: #e9ecef; color: #495057; }
+				.fci-status-completed { background: #d3f9d8; color: #2b8a3e; }
+				.fci-status-cancelled { background: #f1f3f5; color: #868e96; }
+				.fci-status-noshow { background: #f8d7da; color: #721c24; }
 
 				.fci-view-toggle-group {
 					display: flex;
@@ -476,6 +600,15 @@ class FacilityCheckinBoard {
 							</div>
 						</div>
 						<div class="fci-toolbar-actions">
+							<button class="fci-btn-outline" id="fci-cashier-btn">
+								<i class="fa fa-money"></i> ${__("Cashier")}
+							</button>
+							<button class="fci-btn-outline" id="fci-all-bookings-btn">
+								<i class="fa fa-list-alt"></i> ${__("All Bookings")}
+							</button>
+							<button class="fci-btn-book" id="fci-book-btn">
+								<i class="fa fa-plus"></i> ${__("Book Facility")}
+							</button>
 							<div class="fci-view-toggle-group">
 								<button class="fci-view-toggle-btn active" data-view="card" title="${__("Card View")}">
 									<i class="fa fa-th-large"></i>
@@ -541,6 +674,19 @@ class FacilityCheckinBoard {
 		this.$checked_in_count = this.page.main.find("#fci-checkedin-count");
 
 		this.page.main.find("#fci-refresh-btn").on("click", () => this.refresh_all());
+		this.page.main.find("#fci-book-btn").on("click", () => this.open_book_facility_dialog());
+		this.page.main.find("#fci-all-bookings-btn").on("click", () => this.open_all_bookings_dialog());
+		// Real payment collection (an actual Payment Entry) lives on the
+		// dedicated Cashier page, not here - see that page's own module
+		// docstring for why it's a separate page rather than a third thing
+		// bolted onto this one. There used to be a "Mark Paid & Confirm"
+		// attestation shortcut in the All Bookings panel below and a
+		// "Payment Collected" checkbox on the Book Facility dialog that
+		// both skipped straight to Facility Booking.mark_paid_and_confirm()
+		// with no Payment Entry ever created - that left the booking
+		// reading Paid while its Sales Invoice sat Unpaid. Both were
+		// removed; the Cashier page is the one place that flow now exists.
+		this.page.main.find("#fci-cashier-btn").on("click", () => frappe.set_route("cashier", "facility"));
 
 		this.page.main.find(".fci-view-toggle-btn").on("click", (e) => {
 			const view = $(e.currentTarget).attr("data-view");
@@ -1203,6 +1349,316 @@ class FacilityCheckinBoard {
 			},
 		});
 	}
+
+	open_book_facility_dialog() {
+		const dialog = new frappe.ui.Dialog({
+			title: __("Book a Facility"),
+			size: "large",
+			fields: [
+				{
+					fieldtype: "Link",
+					fieldname: "facility",
+					options: "Sports Facility",
+					label: __("Facility"),
+					reqd: 1,
+					get_query: () => ({ filters: { status: "Active" } }),
+					onchange: () => this.refresh_booking_slots(dialog),
+				},
+				{ fieldtype: "Column Break" },
+				{
+					fieldtype: "Date",
+					fieldname: "booking_date",
+					label: __("Date"),
+					default: frappe.datetime.get_today(),
+					reqd: 1,
+					onchange: () => this.refresh_booking_slots(dialog),
+				},
+				{ fieldtype: "Section Break" },
+				{
+					// Plain HTML rather than a MultiSelect control - staff are
+					// choosing from a short, fully-known list of open slots
+					// for one facility/date (not typing/searching against an
+					// open-ended set), so a bank of click-to-toggle chips
+					// reads faster than a dropdown, and lets several
+					// (including non-adjacent) slots be picked for one
+					// booking trip in one pass. Selection state lives in
+					// dialog._selected_slots (see render_slot_picker) since
+					// an HTML field has no get_value() of its own.
+					fieldtype: "HTML",
+					fieldname: "slot_picker",
+					label: __("Available Time Slots"),
+				},
+				{ fieldtype: "Section Break" },
+				{
+					fieldtype: "Link",
+					fieldname: "customer",
+					options: "Customer",
+					label: __("Customer"),
+					reqd: 1,
+				},
+				{ fieldtype: "Section Break" },
+				{
+					fieldtype: "Small Text",
+					fieldname: "notes",
+					label: __("Notes"),
+				},
+			],
+			primary_action_label: __("Book Facility"),
+			primary_action: (values) => {
+				const selected = dialog._selected_slots ? Array.from(dialog._selected_slots.values()) : [];
+				if (!selected.length) {
+					frappe.show_alert({ message: __("Select at least one available time slot"), indicator: "orange" });
+					return;
+				}
+				dialog.hide();
+				this.do_book_facility({
+					customer: values.customer,
+					notes: values.notes,
+					slots: selected.map((slot) => ({
+						sports_facility: values.facility,
+						booking_date: values.booking_date,
+						start_time: slot.start_time,
+						end_time: slot.end_time,
+					})),
+				});
+			},
+		});
+
+		dialog._selected_slots = new Map();
+		this.render_slot_picker(dialog, null);
+		dialog.show();
+	}
+
+	render_slot_picker(dialog, slots) {
+		const $wrapper = dialog.fields_dict.slot_picker.$wrapper;
+
+		if (slots === null) {
+			$wrapper.html(`<p class="text-muted">${__("Pick a facility and date to see open slots")}</p>`);
+			return;
+		}
+		if (!slots.length) {
+			$wrapper.html(`<p class="text-muted">${__("No open slots for this facility on this date")}</p>`);
+			return;
+		}
+
+		const chips = slots
+			.map((s) => {
+				const key = `${s.start_time}|${s.end_time}`;
+				const selected = dialog._selected_slots.has(key);
+				const label = `${sc_fci_short_time(s.start_time)} - ${sc_fci_short_time(s.end_time)}`;
+				return `
+					<div class="fci-slot-chip${selected ? " selected" : ""}" data-key="${frappe.utils.escape_html(key)}">
+						${label}
+					</div>
+				`;
+			})
+			.join("");
+
+		$wrapper.html(`
+			<div class="fci-slot-picker-header">
+				<span>${__("{0} slot(s) available", [slots.length])}</span>
+				<a class="fci-slot-select-all">${__("Select all")}</a>
+			</div>
+			<div class="fci-slot-picker-grid">${chips}</div>
+		`);
+
+		$wrapper.find(".fci-slot-chip").on("click", (e) => {
+			const $chip = $(e.currentTarget);
+			const key = $chip.attr("data-key");
+			if (dialog._selected_slots.has(key)) {
+				dialog._selected_slots.delete(key);
+				$chip.removeClass("selected");
+			} else {
+				const slot = slots.find((s) => `${s.start_time}|${s.end_time}` === key);
+				dialog._selected_slots.set(key, slot);
+				$chip.addClass("selected");
+			}
+		});
+
+		$wrapper.find(".fci-slot-select-all").on("click", () => {
+			// Toggles as a set: fills every slot in if any are still
+			// unselected, otherwise (all already selected) clears them all -
+			// so the same link works as both "select all" and "clear" without
+			// needing two separate controls.
+			const all_selected = slots.every((s) => dialog._selected_slots.has(`${s.start_time}|${s.end_time}`));
+			if (all_selected) {
+				dialog._selected_slots.clear();
+			} else {
+				slots.forEach((s) => dialog._selected_slots.set(`${s.start_time}|${s.end_time}`, s));
+			}
+			this.render_slot_picker(dialog, slots);
+		});
+	}
+
+	refresh_booking_slots(dialog) {
+		const facility = dialog.get_value("facility");
+		const booking_date = dialog.get_value("booking_date");
+
+		dialog._selected_slots = new Map();
+
+		if (!facility || !booking_date) {
+			this.render_slot_picker(dialog, null);
+			return;
+		}
+
+		dialog.fields_dict.slot_picker.$wrapper.html(`<p class="text-muted">${__("Loading available slots...")}</p>`);
+
+		frappe.call({
+			method: "sports_complex.sports_complex.doctype.facility_booking.facility_booking.get_available_slots",
+			args: { sports_facility: facility, date: booking_date },
+			callback: (r) => {
+				// Drop a stale response if the user already changed
+				// facility/date again (or the dialog moved on) before this
+				// landed - otherwise a slow first request finishing after a
+				// faster second one would clobber the slot list with the
+				// wrong facility/date's data.
+				if (dialog.get_value("facility") !== facility || dialog.get_value("booking_date") !== booking_date) {
+					return;
+				}
+				this.render_slot_picker(dialog, r.message || []);
+			},
+		});
+	}
+
+	do_book_facility(args) {
+		frappe.call({
+			method: "sports_complex.sports_complex.doctype.facility_booking.facility_booking.create_staff_booking_cart",
+			args,
+			freeze: true,
+			freeze_message: __("Booking..."),
+			callback: (r) => {
+				if (r.message && r.message.bookings) {
+					frappe.show_alert({
+						message: __("{0} booking(s) created ({1})", [r.message.bookings.length, r.message.booking_status]),
+						indicator: "green",
+					});
+					// New bookings may land on today's/this facility's board
+					// right away (e.g. Confirmed for a same-day slot) - reload
+					// both queues so they show up without a manual refresh.
+					this.refresh_all();
+				}
+			},
+			error: (err) => {
+				if (!(err && err._server_messages)) {
+					frappe.show_alert({ message: __("Booking failed"), indicator: "red" });
+				}
+			},
+		});
+	}
+
+	// "All Bookings" panel - the two queues above only ever show
+	// Confirmed/Checked-In bookings (all either queue can act on), so a
+	// booking sitting on Payment Pending, Draft, Completed, Cancelled or
+	// No-show is otherwise invisible anywhere on this page. This dialog
+	// is a read/lookup view honouring the board's own current filters
+	// (facility/date/customer/booking) - not a replacement for Facility
+	// Booking's own list view, which is still where staff would go for
+	// reporting, editing, or anything past 200 rows.
+	open_all_bookings_dialog() {
+		const dialog = new frappe.ui.Dialog({
+			title: __("All Bookings"),
+			size: "extra-large",
+			fields: [{ fieldtype: "HTML", fieldname: "bookings_table" }],
+		});
+		dialog.show();
+		this.load_all_bookings(dialog);
+	}
+
+	load_all_bookings(dialog) {
+		const $wrapper = dialog.fields_dict.bookings_table.$wrapper;
+		$wrapper.html(`<p class="text-muted">${__("Loading...")}</p>`);
+
+		frappe.call({
+			method: "sports_complex.sports_complex.page.facility_checkin.facility_checkin.get_all_bookings",
+			args: this.get_common_args(),
+			callback: (r) => {
+				this.render_all_bookings_table(dialog, r.message || []);
+			},
+		});
+	}
+
+	render_all_bookings_table(dialog, bookings) {
+		const $wrapper = dialog.fields_dict.bookings_table.$wrapper;
+
+		if (!bookings.length) {
+			$wrapper.html(`
+				<div class="fci-empty-state">
+					<i class="fa fa-inbox"></i>
+					<p>${__("No bookings match the current filters")}</p>
+				</div>
+			`);
+			return;
+		}
+
+		const rows = bookings
+			.map((b) => {
+				let action = "";
+				if (b.booking_status === "Payment Pending") {
+					// No "Mark Paid & Confirm" shortcut here any more - it used
+					// to flip this booking's own status fields without ever
+					// creating a Payment Entry, leaving its Sales Invoice
+					// sitting Unpaid. Real payment collection lives on the
+					// Cashier page, which creates and submits one before
+					// touching the booking's status - see this file's own
+					// toolbar comment above for the fuller story.
+					action = `<button class="btn btn-outline-primary btn-sm fci-btn-action fci-ab-collect-btn" data-booking="${b.name}">${__("Collect Payment")}</button>`;
+				} else if (b.booking_status === "Confirmed") {
+					action = `<button class="btn btn-success btn-sm fci-btn-action fci-ab-checkin-btn" data-booking="${b.name}">${__("Check In")}</button>`;
+				} else if (b.booking_status === "Checked-In") {
+					action = `<button class="btn btn-primary btn-sm fci-btn-action fci-ab-checkout-btn" data-booking="${b.name}">${__("Check Out")}</button>`;
+				}
+
+				return `
+					<tr>
+						<td><strong>${frappe.utils.escape_html(b.name)}</strong></td>
+						<td>${frappe.utils.escape_html(b.customer || "")}</td>
+						<td>${frappe.utils.escape_html(b.facility_name || "")}</td>
+						<td>${frappe.datetime.str_to_user(b.booking_date)}</td>
+						<td>${sc_fci_short_time(b.start_time)} - ${sc_fci_short_time(b.end_time)}</td>
+						<td>${format_currency(b.total_amount)}</td>
+						<td>${sc_fci_status_badge(b.booking_status)}</td>
+						<td>${frappe.utils.escape_html(b.payment_status || "-")}</td>
+						<td>${action}</td>
+					</tr>
+				`;
+			})
+			.join("");
+
+		$wrapper.html(`
+			<div class="fci-scrollable-content" style="max-height: 60vh;">
+				<table class="fci-all-bookings-table">
+					<thead>
+						<tr>
+							<th>${__("ID")}</th>
+							<th>${__("Customer")}</th>
+							<th>${__("Facility")}</th>
+							<th>${__("Date")}</th>
+							<th>${__("Time")}</th>
+							<th>${__("Amount")}</th>
+							<th>${__("Status")}</th>
+							<th>${__("Payment")}</th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>${rows}</tbody>
+				</table>
+			</div>
+		`);
+
+		$wrapper.find(".fci-ab-collect-btn").on("click", () => {
+			dialog.hide();
+			frappe.set_route("cashier", "facility");
+		});
+		$wrapper.find(".fci-ab-checkin-btn").on("click", (e) => {
+			dialog.hide();
+			this.open_check_in_dialog($(e.currentTarget).attr("data-booking"));
+		});
+		$wrapper.find(".fci-ab-checkout-btn").on("click", (e) => {
+			dialog.hide();
+			this.open_check_out_dialog($(e.currentTarget).attr("data-booking"));
+		});
+	}
+
 }
 
 function sc_fci_short_time(value) {
@@ -1215,4 +1671,23 @@ function sc_fci_short_datetime(value) {
 	if (!value) return "";
 	const parsed = moment(value);
 	return parsed.isValid() ? parsed.format("MMM D, h:mm A") : value;
+}
+
+function sc_fci_status_badge(status) {
+	// Covers every Facility Booking.booking_status value, not just the
+	// Confirmed/Checked-In ones the two live queues already render their
+	// own badges for (fci-status-confirmed/fci-status-checkedin, defined
+	// alongside these classes) - the "All Bookings" panel is the one
+	// place on this page every status can show up.
+	const classes = {
+		Draft: "fci-status-draft",
+		"Payment Pending": "fci-status-payment-pending",
+		Confirmed: "fci-status-confirmed",
+		"Checked-In": "fci-status-checkedin",
+		Completed: "fci-status-completed",
+		Cancelled: "fci-status-cancelled",
+		"No-show": "fci-status-noshow",
+	};
+	const cls = classes[status] || "fci-status-draft";
+	return `<span class="fci-status-badge ${cls}">${frappe.utils.escape_html(__(status || ""))}</span>`;
 }

@@ -993,6 +993,67 @@ def create_booking(sports_facility, booking_date, start_time, end_time, notes=No
 	return result
 
 
+@frappe.whitelist()
+def create_staff_booking(customer, sports_facility, booking_date, start_time, end_time, notes=None):
+	"""Front-desk counterpart to create_booking(): lets staff on the
+	Facility Check-In board (see facility_checkin.js's "Book Facility"
+	button) book a facility on behalf of a walk-in/phone customer, with
+	the Customer picked explicitly instead of resolved from the logged-in
+	session. This is the front door create_booking()'s own error message
+	already points staff without a linked Customer record at ("Contact
+	the front desk to book") - until now nothing on the desk side actually
+	answered that.
+
+	Runs through the exact same validate() chain (overlap, maintenance,
+	schedule, notice-window, per-day limit) as every other booking-
+	creation entry point in this file - only the *source* of the customer
+	differs, not the rules a booking has to pass.
+
+	No mark_paid attestation here (there used to be one, calling
+	FacilityBooking.mark_paid_and_confirm() directly) - that only ever
+	flips this booking's own payment_status/booking_status fields, it
+	never touches the linked Sales Invoice, so the invoice was left
+	sitting "Unpaid" with no Payment Entry for the money staff had just
+	told this to consider collected. A booking created here that's
+	actually been paid for in person should have that payment collected
+	through the Cashier page instead (page/cashier/cashier.py's
+	create_facility_payment_entry()), which creates and submits a real
+	Payment Entry before bringing the booking's own status fields in
+	line - the same accounting-grade path Paystack's own webhook goes
+	through (utils/paystack_hooks.py).
+
+	Restricted to Sports Complex Staff/Manager/System Manager (mirrors
+	Facility Booking's own permissions and Facility Check-In's page
+	roles) since, unlike create_booking(), the caller supplies the
+	customer rather than it being derived from who's logged in.
+	"""
+	if not _is_booking_staff():
+		frappe.throw(_("Not permitted to book on behalf of a customer"), frappe.PermissionError)
+
+	if not frappe.db.exists("Customer", customer):
+		frappe.throw(_("Customer {0} not found").format(customer))
+
+	email, phone = _resolve_member_contact(customer)
+
+	booking = frappe.new_doc("Facility Booking")
+	booking.customer = customer
+	booking.court = sports_facility
+	booking.booking_date = booking_date
+	booking.start_time = start_time
+	booking.end_time = end_time
+	booking.notes = notes
+	booking.email = email
+	booking.phone = phone
+	booking.rate = frappe.get_cached_doc("Sports Facility", sports_facility).get_effective_hourly_rate()
+	booking.flags.ignore_permissions = True
+	booking.insert()
+	booking.submit()
+
+	_send_booking_confirmation_email(email, [booking])
+
+	return {"booking": booking.name, "booking_status": booking.booking_status}
+
+
 # ---------------------------------------------------------------------
 # Cart booking (multiple slots, one payment)
 #
@@ -1197,6 +1258,59 @@ def _run_cart(customer, slots, notes=None, email=None, phone=None, guest_name=No
 		_rollback_cart_bookings(bookings)
 		raise
 	return bookings, status
+
+
+@frappe.whitelist()
+def create_staff_booking_cart(customer, slots, notes=None):
+	"""Cart counterpart to create_staff_booking(): lets staff on the
+	Facility Check-In board book several time slots for one walk-in/phone
+	customer in a single visit - same facility, back-to-back or spaced
+	out across the day - billed together on one Sales Invoice, exactly
+	like create_booking_cart() does for a customer checking themselves
+	out through /book-facility. See _run_cart() for the shared submit-
+	all/one-invoice/rollback-on-failure pipeline, and
+	_merge_contiguous_slots() for why picking "9-10" and "10-11" back to
+	back lands as a single 9-11 Facility Booking rather than two.
+
+	slots: list of {"sports_facility", "booking_date", "start_time",
+	"end_time"} dicts, one per selected slot - same shape
+	create_booking_cart() takes, just gathered from the check-in board's
+	own slot picker instead of the public booking page's cart.
+
+	There used to be a mark_paid flag here (a "Payment Collected"
+	checkbox on the Book Facility dialog, staff attesting cash/card was
+	already taken at the desk) that called
+	FacilityBooking.mark_paid_and_confirm() directly on every booking in
+	the cart. That method only flips the booking's own
+	payment_status/booking_status fields - it never touches the Sales
+	Invoice this cart just created, since every other caller of it
+	(Paystack's webhook in utils/paystack_hooks.py, Cashier's
+	create_facility_payment_entry()) only ever calls it *after* a real
+	Payment Entry has already settled the invoice. Calling it here with
+	no Payment Entry in between left the booking reading "Confirmed /
+	Paid" while its invoice sat "Unpaid" with no financial record of the
+	cash collected. A booking made here that's actually been paid for in
+	person should have that payment collected through the Cashier page
+	instead (page/cashier/cashier.py's create_facility_payment_entry()),
+	which creates and submits the Payment Entry first.
+	"""
+	if not _is_booking_staff():
+		frappe.throw(_("Not permitted to book on behalf of a customer"), frappe.PermissionError)
+
+	if not frappe.db.exists("Customer", customer):
+		frappe.throw(_("Customer {0} not found").format(customer))
+
+	email, phone = _resolve_member_contact(customer)
+
+	slots = _parse_slots(slots)
+	bookings, status = _run_cart(customer, slots, notes=notes, email=email, phone=phone)
+
+	_send_booking_confirmation_email(email, bookings)
+
+	return {
+		"bookings": [b.name for b in bookings],
+		"booking_status": status,
+	}
 
 
 @frappe.whitelist()

@@ -420,9 +420,9 @@ def _get_trial_registration_item_group():
 @frappe.whitelist()
 def create_registration_invoice(trialist):
 	"""Once the doctor confirms a trialist to be fit [...] a bill can be
-	created for the trialist registration fee" - called from the Trial
-	Registration Cashier page (see sports_complex/page/
-	trial_registration_cashier) and from the "Create Registration Bill"
+	created for the trialist registration fee" - called from the Cashier
+	page's Trial Registrations tab (see sports_complex/page/cashier) and
+	from the "Create Registration Bill"
 	button on the Trialist form itself (trialist.js). Bills the flat fee
 	configured at Sports Complex Setup > Trials > Trial Registration Fee
 	against this Trialist's own Customer (see create_customer() above),

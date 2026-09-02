@@ -7,13 +7,36 @@ healthcare's own rehab_portal.py: make_app_page bootstrap on the JS side,
 a flat whitelisted-endpoint file here returning either a plain list (read
 endpoints) or a {"status": "Success", ...} dict (mutating endpoints).
 
-Deliberately thin: every mutation here creates and submits a real Check-In
-or Check-Out document rather than reimplementing their validate()/
-on_submit() rules - see check_in.py/check_out.py for the actual state-
-machine logic (status transitions, overage billing). This page is just a
-faster front door to those same two doctypes for a front desk working
-through a queue of arrivals/departures, instead of navigating to each
-doctype's own list and creating records by hand.
+Deliberately thin: every check-in/check-out mutation here creates and
+submits a real Check-In or Check-Out document rather than reimplementing
+their validate()/on_submit() rules - see check_in.py/check_out.py for the
+actual state-machine logic (status transitions, overage billing). This
+page is just a faster front door to those same two doctypes for a front
+desk working through a queue of arrivals/departures, instead of
+navigating to each doctype's own list and creating records by hand.
+
+get_all_bookings() below is the exception: the two queues above only
+ever show Confirmed/Checked-In bookings (that's all either queue can act
+on), which means a booking sitting on Payment Pending, Draft, Completed,
+Cancelled or No-show was otherwise invisible anywhere on this page -
+including a just-created walk-in booking waiting on Sports Complex
+Setup's "Require Payment Before Booking Confirmation" gate, which looked
+like it had vanished. The "All Bookings" panel (see facility_checkin.js)
+exists to close that visibility gap, not to extend the check-in/check-out
+state machine itself - it's read-only. There used to be a
+mark_booking_paid() write endpoint here too (a "Mark Paid & Confirm"
+button, staff attesting a Payment Pending booking's cash/card was already
+collected at the desk) that called Facility Booking.mark_paid_and_confirm()
+directly. That method only flips the booking's own payment_status/
+booking_status fields - every other caller of it (Paystack's webhook in
+utils/paystack_hooks.py, Cashier's create_facility_payment_entry()) only
+calls it *after* a real Payment Entry has settled the linked Sales
+Invoice, so calling it here with no Payment Entry in between left a
+booking reading "Confirmed / Paid" while its invoice sat "Unpaid" with no
+financial record of the money staff had just said was collected. Real
+payment collection for a Payment Pending booking belongs on the Cashier
+page (page/cashier/cashier.py's create_facility_payment_entry()), which
+creates and submits the Payment Entry first.
 """
 
 import frappe
@@ -232,3 +255,29 @@ def check_out_booking(facility_booking, check_out_time=None):
 		"name": checkout.name,
 		"overage_charge": checkout.overage_charge,
 	}
+
+
+@frappe.whitelist()
+def get_all_bookings(facility=None, date=None, customer=None, facility_booking=None):
+	"""Every booking matching the board's current filters, any status -
+	the read endpoint behind the "All Bookings" panel (see this module's
+	own docstring for why that panel exists at all: the two queues above
+	only ever show Confirmed/Checked-In, so this is the one place on the
+	page a Payment Pending/Draft/Completed/Cancelled/No-show booking is
+	visible). Capped at 200 rows, most recent first - a browsing/lookup
+	view, not a report; Facility Booking's own list view is still there
+	for anything heavier.
+	"""
+	filters, or_filters = _booking_filters(facility, date, customer, facility_booking)
+	bookings = frappe.get_all(
+		"Facility Booking",
+		filters=filters,
+		or_filters=or_filters,
+		fields=[
+			"name", "customer", "court", "booking_date", "start_time", "end_time",
+			"total_amount", "booking_status", "payment_status",
+		],
+		order_by="booking_date desc, start_time desc",
+		limit_page_length=200,
+	)
+	return _with_facility_names(bookings)

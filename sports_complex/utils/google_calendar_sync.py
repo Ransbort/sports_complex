@@ -28,6 +28,21 @@ _finalize_cart_bookings, on_cancel) rather than wired through hooks.py's
 doc_events - most of those transitions go through db_set()/db_update()
 rather than a full save(), which doesn't fire doc_events either way, so a
 direct call at the source is the only place this reliably runs.
+
+Best-effort, same as facility_booking._send_booking_confirmation_email():
+every one of those call sites is in the middle of a real business
+transaction (confirming a booking, collecting a payment, cancelling one) -
+a broken Google connection (expired/revoked OAuth token, API outage,
+whatever) has to be logged, not allowed to fail that transaction. Before
+these two functions caught their own exceptions, a stale Google token
+turned every single one of those call sites into a hard failure - a
+cashier collecting a real, already-submitted Payment Entry against a
+booking would see the whole request roll back (Payment Entry included,
+via Frappe's own rollback-on-unhandled-exception) just because the
+calendar push at the very end of mark_paid_and_confirm() couldn't refresh
+its token. See Google Calendar > Authorize Google Calendar Access to fix
+an expired connection - this module will keep working (Events just won't
+reach Google) until that's done.
 """
 
 import frappe
@@ -57,28 +72,38 @@ def sync_booking_to_calendar(booking):
 	if not (booking.court and booking.booking_date and booking.start_time and booking.end_time):
 		return
 
-	facility_name = frappe.db.get_value("Sports Facility", booking.court, "facility_name") or booking.court
+	try:
+		facility_name = frappe.db.get_value("Sports Facility", booking.court, "facility_name") or booking.court
 
-	event_name = frappe.db.get_value("Facility Booking", booking.name, "google_calendar_event")
-	if event_name and frappe.db.exists("Event", event_name):
-		event = frappe.get_doc("Event", event_name)
-	else:
-		event_name = None
-		event = frappe.new_doc("Event")
-		event.event_type = "Private"
+		event_name = frappe.db.get_value("Facility Booking", booking.name, "google_calendar_event")
+		if event_name and frappe.db.exists("Event", event_name):
+			event = frappe.get_doc("Event", event_name)
+		else:
+			event_name = None
+			event = frappe.new_doc("Event")
+			event.event_type = "Private"
 
-	event.subject = _("{0} - {1}").format(facility_name, booking.customer)
-	event.starts_on = get_datetime(f"{booking.booking_date} {booking.start_time}")
-	event.ends_on = get_datetime(f"{booking.booking_date} {booking.end_time}")
-	event.google_calendar = calendar
-	event.sync_with_google_calendar = 1
-	event.description = _("Facility Booking: {0}").format(booking.name)
+		event.subject = _("{0} - {1}").format(facility_name, booking.customer)
+		event.starts_on = get_datetime(f"{booking.booking_date} {booking.start_time}")
+		event.ends_on = get_datetime(f"{booking.booking_date} {booking.end_time}")
+		event.google_calendar = calendar
+		event.sync_with_google_calendar = 1
+		event.description = _("Facility Booking: {0}").format(booking.name)
 
-	event.flags.ignore_permissions = True
-	event.save()
+		event.flags.ignore_permissions = True
+		event.save()
 
-	if not event_name:
-		frappe.db.set_value("Facility Booking", booking.name, "google_calendar_event", event.name)
+		if not event_name:
+			frappe.db.set_value("Facility Booking", booking.name, "google_calendar_event", event.name)
+	except Exception:
+		# See this module's own docstring - the booking/payment transaction
+		# this was called from has already succeeded by this point and must
+		# not be undone just because the calendar push couldn't reach
+		# Google (expired token, API outage, etc.).
+		frappe.log_error(
+			title="Sports Complex: could not sync booking to Google Calendar",
+			message=frappe.get_traceback(),
+		)
 
 
 def remove_booking_from_calendar(booking):
@@ -90,7 +115,16 @@ def remove_booking_from_calendar(booking):
 	if not event_name:
 		return
 
-	if frappe.db.exists("Event", event_name):
-		frappe.delete_doc("Event", event_name, ignore_permissions=True, force=True)
+	try:
+		if frappe.db.exists("Event", event_name):
+			frappe.delete_doc("Event", event_name, ignore_permissions=True, force=True)
 
-	frappe.db.set_value("Facility Booking", booking.name, "google_calendar_event", None)
+		frappe.db.set_value("Facility Booking", booking.name, "google_calendar_event", None)
+	except Exception:
+		# Same reasoning as sync_booking_to_calendar()'s own try/except -
+		# this runs from on_cancel(), and a broken Google connection can't
+		# be allowed to block cancelling a booking.
+		frappe.log_error(
+			title="Sports Complex: could not remove booking from Google Calendar",
+			message=frappe.get_traceback(),
+		)
