@@ -671,9 +671,26 @@ def create_trial_lab_panel(appointment):
 	Pending Labs - shown there with no linked invoice, same as a bundled
 	paid one, just nothing owed.
 
-	Idempotent: skips any template that already has a Lab Test for this
-	appointment, so a retried/duplicated call (e.g. save_vitals() somehow
-	invoked twice) never creates a second panel.
+	Duplicate-safe across more than just this one appointment: skips any
+	template for which the Patient already has an earlier, non-cancelled
+	Lab Test from ANOTHER trial appointment's panel - i.e. this same
+	panel being raised twice for the same patient (a second Trial
+	Appointment, or a previous call for this same appointment). This
+	originally only checked Lab Tests already linked to *this*
+	appointment, which meant a patient routed through vitals more than
+	once ended up with two open Lab Test records for the same template -
+	one from the earlier trial visit, one freshly auto-created and marked
+	Free - both sitting in Pending Labs at once.
+
+	Deliberately scoped to trial-panel-sourced Lab Tests only
+	(sc_trial_appointment is set) - an ordinary doctor-ordered Lab
+	Prescription off a Patient Encounter is a separate request for a
+	separate reason (the doctor's own clinical judgement on that visit)
+	from the trial's own required screening panel (what a trialist needs
+	for the trial examination itself). Sharing an Item Template name
+	(e.g. "Typhoid") doesn't make them the same request, so neither is
+	ever allowed to suppress the other. A patient whose earlier panel
+	entry for that template is already Cancelled still gets a fresh one.
 	"""
 	templates = _trial_lab_panel_templates()
 	if not templates:
@@ -687,10 +704,25 @@ def create_trial_lab_panel(appointment):
 
 	patient = frappe.get_cached_doc("Patient", appt.patient)
 
+	# Any earlier, non-cancelled trial-panel Lab Test the patient already
+	# has for one of these templates - i.e. an earlier Trial Appointment
+	# already raised this same panel entry - counts as "already covered".
+	# Scoped to sc_trial_appointment IS SET so an ordinary doctor-ordered
+	# Lab Prescription (a separate request, off a Patient Encounter) is
+	# never treated as covering the trial panel, or vice versa. See
+	# docstring above.
 	existing = {
 		row.template
 		for row in frappe.get_all(
-			"Lab Test", filters={"sc_trial_appointment": appointment}, fields=["template"]
+			"Lab Test",
+			filters={
+				"patient": patient.name,
+				"template": ["in", templates],
+				"sc_trial_appointment": ["is", "set"],
+				"status": ["!=", "Cancelled"],
+				"docstatus": ["!=", 2],
+			},
+			fields=["template"],
 		)
 	}
 
