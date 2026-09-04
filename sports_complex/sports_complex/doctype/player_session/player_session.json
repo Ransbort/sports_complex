@@ -1,0 +1,136 @@
+{
+ "doctype": "DocType",
+ "name": "Player Session",
+ "module": "Sports Complex",
+ "custom": 0,
+ "istable": 0,
+ "issingle": 0,
+ "is_submittable": 1,
+ "track_changes": 1,
+ "engine": "InnoDB",
+ "editable_grid": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "fields": [
+  {
+   "fieldname": "player",
+   "fieldtype": "Link",
+   "label": "Player",
+   "options": "Player",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "The roster Player this session is booked with - distinct from Training Session.coach (a private/1-on-1 session with a Player, not a coaching session with a Coach)."
+  },
+  {
+   "fieldname": "court",
+   "fieldtype": "Link",
+   "label": "Facility",
+   "options": "Sports Facility",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "label": "Date",
+   "reqd": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break",
+   "label": ""
+  },
+  {
+   "fieldname": "start_time",
+   "fieldtype": "Time",
+   "label": "Start Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_time",
+   "fieldtype": "Time",
+   "label": "End Time",
+   "reqd": 1
+  },
+  {
+   "fieldname": "rate",
+   "fieldtype": "Currency",
+   "label": "Rate",
+   "read_only": 1,
+   "description": "Snapshot of Player.hourly_rate at the time this session was booked."
+  },
+  {
+   "fieldname": "section_break_participant",
+   "fieldtype": "Section Break",
+   "label": "Participant"
+  },
+  {
+   "fieldname": "player_registration",
+   "fieldtype": "Link",
+   "label": "Booked For",
+   "options": "Player Registration",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "Who this session is actually for - same Player Registration record Training Session Participant.player links to. Not to be confused with the `player` field above (the roster Player being booked)."
+  },
+  {
+   "fieldname": "section_break_billing",
+   "fieldtype": "Section Break",
+   "label": "Billing"
+  },
+  {
+   "fieldname": "total_amount",
+   "fieldtype": "Currency",
+   "label": "Total Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sales_invoice",
+   "fieldtype": "Link",
+   "label": "Sales Invoice",
+   "options": "Sales Invoice",
+   "read_only": 1
+  },
+  {
+   "fieldname": "payment_status",
+   "fieldtype": "Select",
+   "label": "Payment Status",
+   "options": "Unpaid\nPaid",
+   "default": "Unpaid",
+   "read_only": 1
+  }
+ ],
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sports Complex Manager",
+   "share": 1,
+   "write": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1
+  }
+ ],
+ "autoname": "hash"
+}

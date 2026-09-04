@@ -648,7 +648,7 @@ def _send_booking_confirmation_email(email, bookings, tokens=None):
 				frappe.db.get_value("Sports Facility", booking.court, "facility_name") or booking.court
 			)
 
-		link = f"{site_url}/booking-confirmation/{booking.name}"
+		link = f"{site_url}/portal/booking-confirmation/{booking.name}"
 		token = tokens.get(booking.name)
 		if token:
 			link += f"?token={token}"
@@ -900,7 +900,7 @@ def _send_booking_reminder_email(booking):
 	"""
 	facility_name = frappe.db.get_value("Sports Facility", booking.court, "facility_name") or booking.court
 	site_url = frappe.utils.get_url()
-	link = f"{site_url}/booking-confirmation/{booking.name}"
+	link = f"{site_url}/portal/booking-confirmation/{booking.name}"
 
 	message = f"""
 		<p>This is a reminder that your booking is coming up soon:</p>
@@ -971,6 +971,33 @@ def create_booking(sports_facility, booking_date, start_time, end_time, notes=No
 
 	email, phone = _resolve_member_contact(customer)
 
+	# resolve_session_customer() above already did the real ownership
+	# check as the actual session user. booking.insert()/submit() only
+	# need a per-document bypass (booking.flags.ignore_permissions below,
+	# same for create_sales_invoice()'s own Sales Invoice doc) - neither
+	# creates a new Customer, so there's no nested Contact-auto-creation
+	# cascade to worry about here (that only fires for a brand-new
+	# Customer without a Contact yet - see create_guest_booking() and
+	# resolve_or_create_guest_customer() in utils/guest_booking.py, which
+	# still need a broader elevation for exactly that reason). This
+	# customer already exists and already has whatever Contact it has, so
+	# a plain per-document flag is enough for booking.insert()/submit().
+	#
+	# get_booking_payment_link() below is different: it calls into
+	# frappe_paystack's own create_payment_link(), code we don't own, and
+	# that function does a raw frappe.get_doc() read (and other lookups)
+	# with no ignore_permissions of its own - there's no document
+	# instance of ours to attach a per-doc flag to for that. It keeps its
+	# own narrow, request-scoped frappe.flags.ignore_permissions block
+	# (save/restore via try/finally) rather than session elevation
+	# (frappe.set_user("Administrator") used to be how this was bypassed,
+	# but that mutates frappe.session.user/sid - shared, mutable,
+	# request-global state - and a slow elevated block there occasionally
+	# left a *different* concurrent/next request on the same session
+	# seeing "Administrator" instead of the real customer, surfacing as
+	# the customer looking logged out right after booking, e.g. "User
+	# None not found" / "not allowed to access this booking" when they
+	# immediately clicked View).
 	booking = frappe.new_doc("Facility Booking")
 	booking.customer = customer
 	booking.court = sports_facility
@@ -985,11 +1012,20 @@ def create_booking(sports_facility, booking_date, start_time, end_time, notes=No
 	booking.insert()
 	booking.submit()
 
+	payment_link = None
+	if booking.booking_status == "Payment Pending":
+		original_ignore_permissions = frappe.flags.ignore_permissions
+		frappe.flags.ignore_permissions = True
+		try:
+			payment_link = get_booking_payment_link(booking.name)
+		finally:
+			frappe.flags.ignore_permissions = original_ignore_permissions
+
 	_send_booking_confirmation_email(email, [booking])
 
 	result = {"booking": booking.name, "booking_status": booking.booking_status}
-	if booking.booking_status == "Payment Pending":
-		result["payment_link"] = get_booking_payment_link(booking.name)
+	if payment_link:
+		result["payment_link"] = payment_link
 	return result
 
 
@@ -1332,7 +1368,36 @@ def create_booking_cart(slots, notes=None):
 	email, phone = _resolve_member_contact(customer)
 
 	slots = _parse_slots(slots)
+
+	# Same reasoning as create_booking()'s own refactored comment just
+	# above it: resolve_session_customer() already did the real ownership
+	# check as the actual session user, this customer already exists (no
+	# new Customer insert -> no nested Contact-auto-creation cascade to
+	# worry about), and _run_cart() -> _new_cart_booking()/_create_cart_
+	# invoice() already carry their own per-document ignore_permissions
+	# (booking.insert(ignore_permissions=True), si.flags.ignore_
+	# permissions) - see those for why that alone is enough here.
+	#
+	# get_booking_payment_link() is the one piece that still needs a
+	# request-scoped frappe.flags.ignore_permissions block (not session
+	# elevation - frappe.set_user("Administrator") mutates frappe.session.
+	# user/sid, shared request-global state that used to occasionally leak
+	# into a *different* concurrent/next request on the same session,
+	# surfacing as the customer looking logged out right after booking):
+	# it calls into frappe_paystack's own create_payment_link(), code we
+	# don't own, which does a raw frappe.get_doc() read with no
+	# ignore_permissions of its own - there's no document instance of ours
+	# to attach a per-doc flag to for that.
 	bookings, status = _run_cart(customer, slots, notes=notes, email=email, phone=phone)
+
+	payment_link = None
+	if status == "Payment Pending":
+		original_ignore_permissions = frappe.flags.ignore_permissions
+		frappe.flags.ignore_permissions = True
+		try:
+			payment_link = get_booking_payment_link(bookings[0].name)
+		finally:
+			frappe.flags.ignore_permissions = original_ignore_permissions
 
 	_send_booking_confirmation_email(email, bookings)
 
@@ -1340,8 +1405,8 @@ def create_booking_cart(slots, notes=None):
 		"bookings": [{"name": b.name, "token": None} for b in bookings],
 		"booking_status": status,
 	}
-	if status == "Payment Pending":
-		result["payment_link"] = get_booking_payment_link(bookings[0].name)
+	if payment_link:
+		result["payment_link"] = payment_link
 	return result
 
 
@@ -1420,7 +1485,7 @@ def list_bookable_facilities():
 @frappe.whitelist(allow_guest=True, methods=["POST"])
 def create_guest_booking(
 	sports_facility, booking_date, start_time, end_time, email, otp=None, full_name=None,
-	phone=None, notes=None, remember_token=None
+	phone=None, notes=None, remember_token=None, create_account=0, account_password=None
 ):
 	"""Guest counterpart to create_booking(): verifies the emailed OTP,
 	resolves (or creates) a Member/Customer for that email, then runs the
@@ -1454,6 +1519,7 @@ def create_guest_booking(
 	one time they entered a code.
 	"""
 	from sports_complex.utils.guest_booking import (
+		create_account_for_guest,
 		issue_booking_remember_token,
 		resolve_or_create_guest_customer,
 		verify_booking_otp,
@@ -1477,8 +1543,23 @@ def create_guest_booking(
 	# been restored back to Guest. Elevating around this whole block too
 	# closes that off without needing to know exactly which ERPNext
 	# controller does it.
-	original_user = frappe.session.user
-	frappe.set_user("Administrator")
+	# Elevating the whole *session* here (frappe.set_user("Administrator"))
+	# used to be how this bypassed the permission gap described below -
+	# but that turned out to intermittently corrupt the real caller's own
+	# session (frappe.session.user/sid are shared, mutable, request-
+	# global state - a slow elevated block here occasionally left a
+	# *different* concurrent/next request on the same session seeing
+	# "Administrator" instead of the real customer, which surfaced as
+	# the customer looking logged out right after booking, e.g. "User
+	# None not found" / "not allowed to access this booking" when they
+	# immediately clicked View). frappe.flags.ignore_permissions does the
+	# one thing actually needed - bypass permission checks for nested
+	# framework-internal doc operations (Account/Contact/... a plain
+	# Website User has no desk-side read permission for) - without ever
+	# touching who the caller *is*, so there is nothing here that can
+	# leak into another request's identity.
+	original_ignore_permissions = frappe.flags.ignore_permissions
+	frappe.flags.ignore_permissions = True
 	try:
 		customer = resolve_or_create_guest_customer(email, full_name, phone)
 		customer_created_here = not pre_existing_customer
@@ -1508,8 +1589,15 @@ def create_guest_booking(
 			if customer_created_here:
 				_delete_orphaned_guest_customer(customer)
 			raise
+
+		# Only after the booking itself has succeeded - see
+		# create_account_for_guest()'s own docstring for why a problem
+		# here is reported back rather than raised.
+		account = None
+		if cint(create_account) and account_password:
+			account = create_account_for_guest(normalized_email, guest_name, account_password)
 	finally:
-		frappe.set_user(original_user)
+		frappe.flags.ignore_permissions = original_ignore_permissions
 
 	token = get_booking_access_token(booking.name)
 	_send_booking_confirmation_email(email, [booking], tokens={booking.name: token})
@@ -1522,11 +1610,16 @@ def create_guest_booking(
 	}
 	if booking.booking_status == "Payment Pending":
 		result["payment_link"] = get_booking_payment_link(booking.name, token=token)
+	if account:
+		result["account"] = account
 	return result
 
 
 @frappe.whitelist(allow_guest=True, methods=["POST"])
-def create_guest_booking_cart(slots, email, otp=None, full_name=None, phone=None, notes=None, remember_token=None):
+def create_guest_booking_cart(
+	slots, email, otp=None, full_name=None, phone=None, notes=None, remember_token=None,
+	create_account=0, account_password=None
+):
 	"""Guest counterpart to create_booking_cart(): same email-OTP identity
 	check and the same Administrator elevation, for the same reasons, as
 	create_guest_booking() - just wrapping a whole cart of bookings and
@@ -1539,6 +1632,7 @@ def create_guest_booking_cart(slots, email, otp=None, full_name=None, phone=None
 	the same email either way.
 	"""
 	from sports_complex.utils.guest_booking import (
+		create_account_for_guest,
 		issue_booking_remember_token,
 		resolve_or_create_guest_customer,
 		verify_booking_otp,
@@ -1552,8 +1646,23 @@ def create_guest_booking_cart(slots, email, otp=None, full_name=None, phone=None
 
 	pre_existing_customer = frappe.db.get_value("Member", {"email": normalized_email}, "customer")
 
-	original_user = frappe.session.user
-	frappe.set_user("Administrator")
+	# Elevating the whole *session* here (frappe.set_user("Administrator"))
+	# used to be how this bypassed the permission gap described below -
+	# but that turned out to intermittently corrupt the real caller's own
+	# session (frappe.session.user/sid are shared, mutable, request-
+	# global state - a slow elevated block here occasionally left a
+	# *different* concurrent/next request on the same session seeing
+	# "Administrator" instead of the real customer, which surfaced as
+	# the customer looking logged out right after booking, e.g. "User
+	# None not found" / "not allowed to access this booking" when they
+	# immediately clicked View). frappe.flags.ignore_permissions does the
+	# one thing actually needed - bypass permission checks for nested
+	# framework-internal doc operations (Account/Contact/... a plain
+	# Website User has no desk-side read permission for) - without ever
+	# touching who the caller *is*, so there is nothing here that can
+	# leak into another request's identity.
+	original_ignore_permissions = frappe.flags.ignore_permissions
+	frappe.flags.ignore_permissions = True
 	try:
 		customer = resolve_or_create_guest_customer(email, full_name, phone)
 		customer_created_here = not pre_existing_customer
@@ -1567,8 +1676,15 @@ def create_guest_booking_cart(slots, email, otp=None, full_name=None, phone=None
 			if customer_created_here:
 				_delete_orphaned_guest_customer(customer)
 			raise
+
+		# Only after the cart's bookings have succeeded - see
+		# create_account_for_guest()'s own docstring for why a problem
+		# here is reported back rather than raised.
+		account = None
+		if cint(create_account) and account_password:
+			account = create_account_for_guest(normalized_email, guest_name, account_password)
 	finally:
-		frappe.set_user(original_user)
+		frappe.flags.ignore_permissions = original_ignore_permissions
 
 	bookings_out = [{"name": b.name, "token": get_booking_access_token(b.name)} for b in bookings]
 	_send_booking_confirmation_email(
@@ -1582,6 +1698,8 @@ def create_guest_booking_cart(slots, email, otp=None, full_name=None, phone=None
 	}
 	if status == "Payment Pending":
 		result["payment_link"] = get_booking_payment_link(bookings[0].name, token=bookings_out[0]["token"])
+	if account:
+		result["account"] = account
 	return result
 
 
@@ -1852,9 +1970,44 @@ def list_my_bookings(email=None, otp=None, remember_token=None):
 		fields=[
 			"name", "court", "booking_date", "start_time", "end_time",
 			"booking_status", "payment_status", "total_amount", "no_show_penalty_amount",
+			"sales_invoice",
 		],
-		order_by="booking_date desc, start_time desc",
+		# Newest-created booking first, regardless of the date/time it books -
+		# a booking made just now for next week should still lead the list
+		# over one made weeks ago for tomorrow.
+		order_by="creation desc",
 	)
+
+	# Cart checkouts put every slot on one shared Sales Invoice (see
+	# _create_cart_invoice()) - total_amount is only this one slot's own
+	# price, but Pay Now settles the whole invoice's grand_total (see
+	# get_booking_payment_link()). Showing total_amount alone here was
+	# misleading the same way _get_invoice_group()'s docstring already
+	# describes for the confirmation page: a guest sees e.g. 700 in this
+	# list, then Pay Now bills them for the full 5,250 the cart actually
+	# invoiced together. Computed here in bulk (one query plus an
+	# in-memory tally, see below) rather than calling _get_invoice_group()
+	# once per row, since that helper also builds a full sibling breakdown
+	# this list doesn't need.
+	invoice_names = list({b.sales_invoice for b in bookings if b.sales_invoice})
+	invoice_totals = dict(frappe.get_all(
+		"Sales Invoice",
+		filters={"name": ["in", invoice_names]},
+		fields=["name", "grand_total"],
+		as_list=True,
+	)) if invoice_names else {}
+	# frappe.get_all() no longer accepts a raw "count(name) as cnt" SQL
+	# string in fields (raises ValidationError: "SQL functions are not
+	# allowed as strings in SELECT..."), and there's a simpler option
+	# anyway: every sibling on a shared invoice belongs to this same
+	# customer (_create_cart_invoice() creates one invoice per customer's
+	# own cart), so `bookings` above - already every one of this
+	# customer's bookings, no status filter - already contains every
+	# sibling. Tallying it in Python needs no second query at all.
+	invoice_counts = {}
+	for b in bookings:
+		if b.sales_invoice:
+			invoice_counts[b.sales_invoice] = invoice_counts.get(b.sales_invoice, 0) + 1
 
 	facility_names = list({b.court for b in bookings if b.court})
 	facility_labels = dict(frappe.get_all(
@@ -1885,6 +2038,20 @@ def list_my_bookings(email=None, otp=None, remember_token=None):
 		b["venue_city"] = venue.get("city")
 		b["venue_lat"] = venue.get("lat")
 		b["venue_lon"] = venue.get("lon")
+
+		# invoice_amount is what Pay Now will actually charge - the shared
+		# invoice's grand_total when this slot was part of a multi-slot
+		# cart, otherwise just this slot's own total_amount (same value,
+		# so the UI can always show invoice_amount without a special case).
+		sibling_count = invoice_counts.get(b.sales_invoice, 1) if b.sales_invoice else 1
+		b["invoice_amount"] = (
+			invoice_totals.get(b.sales_invoice) if b.sales_invoice and sibling_count > 1 else b.total_amount
+		)
+		b["invoice_sibling_count"] = sibling_count - 1 if sibling_count > 1 else 0
+		# sales_invoice itself (not just the derived amount/count above) is
+		# kept in the response now too - the My Bookings list groups sibling
+		# rows sharing one invoice into a single displayed entry, and needs
+		# this as the grouping key.
 
 	return {
 		"bookings": bookings,

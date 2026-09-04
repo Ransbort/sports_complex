@@ -224,8 +224,19 @@ def resolve_or_create_guest_customer(email, full_name, phone=None):
 	# Restored to the real (Guest) session user immediately after, in a
 	# finally so it can't leak into the rest of the request even if
 	# member.insert() raises.
-	original_user = frappe.session.user
-	frappe.set_user("Administrator")
+	# See facility_booking.py's create_booking_cart() for why this uses
+	# frappe.flags.ignore_permissions rather than frappe.set_user(
+	# "Administrator") - the latter mutates frappe.session.user/sid,
+	# shared request-global state that turned out to occasionally leak
+	# into a different concurrent/next request on the same session
+	# (surfacing as that caller looking logged out). This matters even
+	# here, when the caller may be a signed-in staff member creating a
+	# guest booking at the front desk rather than the guest themselves
+	# - they have a real session too. ignore_permissions bypasses the
+	# permission checks this actually needs without ever touching who
+	# the caller *is*.
+	original_ignore_permissions = frappe.flags.ignore_permissions
+	frappe.flags.ignore_permissions = True
 	try:
 		member = frappe.new_doc("Member")
 		member.member_name = full_name
@@ -234,6 +245,75 @@ def resolve_or_create_guest_customer(email, full_name, phone=None):
 			member.phone = phone
 		member.insert(ignore_permissions=True)
 	finally:
-		frappe.set_user(original_user)
+		frappe.flags.ignore_permissions = original_ignore_permissions
 
 	return member.customer
+
+
+def create_account_for_guest(email, full_name, password):
+	"""Create a real, password-login-capable Frappe User for a guest who
+	checked "create an account" while booking - called only after their
+	booking has already succeeded (see create_guest_booking()/
+	create_guest_booking_cart() in facility_booking.py), so a problem
+	here never undoes or blocks a booking that already went through.
+
+	This email is exactly the one resolve_or_create_guest_customer() just
+	resolved/created a Member+Customer for, and ERPNext's own Customer
+	controller wires up a matching Contact (with a Dynamic Link back to
+	that Customer) as a side effect of that - the same Contact
+	resolve_session_customer() (facility_booking.py) looks up by session-
+	user email. So once this User exists, logging in as it makes every
+	booking already under this email visible on My Bookings immediately,
+	with no extra linking step needed here.
+
+	Never raises - the most common failure (an account already exists for
+	this email) and any password-policy rejection are both reported back
+	in the return value instead, since the caller's booking has already
+	been committed and shouldn't be hidden behind an account-creation
+	error the guest never explicitly asked to block on. A savepoint keeps
+	a failed User insert from rolling back anything else already pending
+	in this same request's transaction (the booking itself included).
+	"""
+	email = (email or "").strip().lower()
+	password = password or ""
+	if not email or not password:
+		return {"created": False, "reason": "missing_fields"}
+	if frappe.db.exists("User", email):
+		return {"created": False, "reason": "exists"}
+
+	# See facility_booking.py's create_booking_cart() for why this uses
+	# frappe.flags.ignore_permissions rather than frappe.set_user(
+	# "Administrator") - the latter mutates frappe.session.user/sid,
+	# shared request-global state that turned out to occasionally leak
+	# into a different concurrent/next request on the same session
+	# (surfacing as that caller looking logged out). This matters even
+	# here, when the caller may be a signed-in staff member creating a
+	# guest booking at the front desk rather than the guest themselves
+	# - they have a real session too. ignore_permissions bypasses the
+	# permission checks this actually needs without ever touching who
+	# the caller *is*.
+	original_ignore_permissions = frappe.flags.ignore_permissions
+	frappe.flags.ignore_permissions = True
+	frappe.db.savepoint("guest_account_creation")
+	try:
+		name_parts = full_name.strip().split(None, 1) if full_name else []
+		user = frappe.new_doc("User")
+		user.email = email
+		user.first_name = name_parts[0] if name_parts else email.split("@")[0]
+		if len(name_parts) > 1:
+			user.last_name = name_parts[1]
+		user.user_type = "Website User"
+		user.send_welcome_email = 0
+		user.new_password = password
+		user.insert(ignore_permissions=True)
+	except frappe.ValidationError as e:
+		frappe.db.rollback(save_point="guest_account_creation")
+		return {"created": False, "reason": "invalid", "message": str(e)}
+	except Exception:
+		frappe.db.rollback(save_point="guest_account_creation")
+		frappe.log_error(title="Sports Complex: failed to create guest account")
+		return {"created": False, "reason": "error"}
+	finally:
+		frappe.flags.ignore_permissions = original_ignore_permissions
+
+	return {"created": True}

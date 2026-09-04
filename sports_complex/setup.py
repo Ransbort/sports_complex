@@ -55,6 +55,16 @@ def get_custom_fields():
 				"reqd": 0,
 				"hidden": 0,
 			},
+			{
+				"fieldname": "player_session",
+				"label": "Player Session",
+				"fieldtype": "Link",
+				"options": "Player Session",
+				"insert_after": "player",
+				"reqd": 0,
+				"hidden": 0,
+				"description": "Set when this invoice was raised for a \"Book a Player\" booking - the private/1-on-1 session with a roster Player, not the coach-booking flow (see the training_session field above for that).",
+			},
 		],
 		# Medical-first trial candidacy flow (see healthcare_integration.py
 		# for the full picture). The Patient is the entry point now: a

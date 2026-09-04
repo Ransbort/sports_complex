@@ -1,0 +1,31 @@
+/* Theme (design tokens) + utilities only - deliberately NOT importing
+   Tailwind's Preflight (the full "@import 'tailwindcss';" would include
+   it). This page still loads the site's own Bootstrap stylesheet via
+   templates/web.html (see App.vue's own comment) - Preflight's element-
+   level reset would fight that rather than layer cleanly on top of it.
+   Utility classes alone are enough for everything this app's own
+   components need. */
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+
+/* This site's Bootstrap-based web theme also loads Bootstrap Icons
+   globally on some pages but not this one - see www/portal/index.html's
+   own @import for that (kept in the Jinja shell, not here, since it's
+   genuinely page-chrome, not app styling). */
+
+body {
+  background-color: #f8fafc;
+}
+
+/* Defensive box-sizing for this app's own subtree - Preflight (excluded
+   above) normally sets this globally; the site's Bootstrap Reboot likely
+   already does too, but this makes it explicit and independent of that,
+   so nothing in here can overflow its container from a stray content-box
+   width/padding combination. */
+#app, #app *, #app *::before, #app *::after {
+  box-sizing: border-box;
+}
+
+#app {
+  overflow-x: hidden;
+}

@@ -83,6 +83,7 @@ createApp({
     return {
       facilities: window.facilities || [],
       isGuest: !!window.isGuest,
+      currencySymbol: window.currencySymbol || '',
       step: 'grid', // 'grid' -> 'browse' -> 'details' -> 'result'
       today,
       selectedFacility: '',
@@ -171,7 +172,10 @@ createApp({
   },
   methods: {
     fmt(amount) {
-      return Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      // currencySymbol comes from index.py's get_context (the site's
+      // default currency, resolved server-side to a symbol) - prices
+      // here used to render as a bare number with no currency at all.
+      return this.currencySymbol + Number(amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     },
     pad2(n) {
       return String(n).padStart(2, '0');

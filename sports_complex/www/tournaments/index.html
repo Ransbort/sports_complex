@@ -1,0 +1,244 @@
+{% extends "templates/web.html" %}
+{% block title %}{{ _("Register for a Tournament") }}{% endblock %}
+
+{% block navbar %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block page_content %}
+<div id="app" class="tournaments">
+    <div class="container tr-page">
+
+        <!-- Step 0: browse open tournaments -->
+        <div v-if="step === 'grid'" class="tr-grid-wrap">
+            <div class="tr-grid-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <a href="/facilities" class="btn btn-link tr-back-top">&larr; Home</a>
+            </div>
+
+            <h1 class="tr-page-title">Register for a Tournament</h1>
+            <p class="tr-page-subtitle">Enter an upcoming tournament as a team or an individual player.</p>
+
+            <p v-if="!tournaments.length" class="text-center text-muted py-5">No tournaments are open for registration right now.</p>
+
+            <div v-else class="tr-t-grid">
+                <div class="tr-t-card card border-0 h-100" v-for="t in tournaments" :key="t.name">
+                    <div class="tr-t-img" :style="t.photo ? { backgroundImage: 'url(' + t.photo + ')' } : {}">
+                        <i v-if="!t.photo" class="bi bi-trophy"></i>
+                        <span class="tr-t-badge" :class="isFull(t) ? 'tr-badge-full' : 'tr-badge-open'">
+                            [[ isFull(t) ? 'Full' : (t.spots_remaining != null ? t.spots_remaining + ' spots left' : 'Open') ]]
+                        </span>
+                    </div>
+                    <div class="card-body d-flex flex-column tr-t-body">
+                        <h6 class="fw-bold mb-1">[[ t.tournament_name ]]</h6>
+                        <p class="text-muted small mb-1">
+                            <span v-if="t.sport">[[ t.sport ]]</span>
+                            <span v-if="t.venue"> &middot; [[ t.venue ]]</span>
+                        </p>
+                        <p class="text-muted small mb-2">[[ dateRange(t) ]]</p>
+                        <p class="tr-t-price mb-2">
+                            [[ fmt(t.entry_fee) ]] <span class="text-muted small fw-normal">entry fee &middot; per [[ t.registration_type.toLowerCase() ]]</span>
+                        </p>
+                        <button class="btn btn-success tr-btn mt-auto" :disabled="isFull(t)" @click="pickTournament(t)">
+                            [[ isFull(t) ? 'Full' : 'Register' ]]
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 1: registration details -->
+        <div v-else class="tr-card card border-0 rounded-4">
+            <div class="card-body p-0">
+                <div class="tr-card-header">
+                    <button class="btn btn-link tr-back" @click="backToGrid"><i class="bi bi-arrow-left"></i> Back</button>
+                    <div class="tr-card-title">
+                        <i class="bi bi-trophy"></i>
+                        <span>[[ selectedTournament.tournament_name ]]</span>
+                    </div>
+                    <p class="text-muted small mb-0">[[ dateRange(selectedTournament) ]] &middot; [[ fmt(selectedTournament.entry_fee) ]] entry fee</p>
+                </div>
+
+                <div class="tr-card-body">
+
+                    <!-- result -->
+                    <div v-if="step === 'result'" class="tr-result text-center py-4">
+                        <i class="bi bi-check-circle-fill tr-result-icon"></i>
+                        <h5 class="mt-3">Registration submitted!</h5>
+                        <p class="text-muted">[[ resultMessage ]]</p>
+                        <a v-if="paymentLink" :href="paymentLink" class="btn btn-success tr-btn mt-2">Pay Entry Fee</a>
+                        <div class="mt-3"><a href="/facilities" class="btn btn-link">Back to Home</a></div>
+                    </div>
+
+                    <template v-else>
+                        <!-- Team path -->
+                        <div v-if="selectedTournament.registration_type === 'Team'" class="tr-section">
+                            <label class="tr-label">Select Team</label>
+                            <p v-if="loadingTeams" class="text-muted small">Loading teams...</p>
+                            <p v-else-if="!teams.length" class="text-muted small">No active teams found for this sport - contact the front desk.</p>
+                            <select v-else class="form-select" v-model="selectedTeam">
+                                <option value="" disabled>Choose a team</option>
+                                <option v-for="tm in teams" :key="tm.name" :value="tm.name">[[ tm.team_name ]]<template v-if="tm.age_group"> ([[ tm.age_group ]])</template></option>
+                            </select>
+                        </div>
+
+                        <!-- Player path -->
+                        <template v-else>
+                            <div class="tr-section">
+                                <label class="tr-label">Player's Full Name</label>
+                                <input type="text" class="form-control" v-model="playerName">
+                            </div>
+                            <div class="tr-section">
+                                <label class="tr-label">Player's Date of Birth</label>
+                                <input type="date" class="form-control" v-model="dateOfBirth" :max="today">
+                            </div>
+                            <div v-if="isMinor" class="tr-guardian-box">
+                                <p class="fw-bold mb-2 small">Guardian details (required for players under 18)</p>
+                                <div class="row g-2">
+                                    <div class="col-md-6"><input type="text" class="form-control" v-model="guardianName" placeholder="Guardian name"></div>
+                                    <div class="col-md-6"><input type="text" class="form-control" v-model="guardianRelationship" placeholder="Relationship to player"></div>
+                                    <div class="col-md-6"><input type="text" class="form-control" v-model="guardianContact" placeholder="Guardian phone"></div>
+                                    <div class="col-md-6"><input type="email" class="form-control" v-model="guardianEmail" placeholder="Guardian email"></div>
+                                </div>
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" v-model="consentGiven" id="tr-consent">
+                                    <label class="form-check-label small" for="tr-consent">I am this player's parent/guardian and consent to this registration.</label>
+                                </div>
+                            </div>
+                        </template>
+
+                        <hr class="tr-divider">
+
+                        <!-- guest identity -->
+                        <div v-if="isGuest" class="tr-section">
+                            <label class="tr-label">Your Email</label>
+                            <div class="input-group">
+                                <input type="email" class="form-control" v-model="email" :disabled="otpSent" placeholder="you@example.com">
+                                <button v-if="!otpSent" class="btn btn-outline-success" type="button" :disabled="sendingOtp" @click="sendOtp">
+                                    [[ sendingOtp ? 'Sending...' : 'Send Code' ]]
+                                </button>
+                                <button v-else class="btn btn-outline-secondary" type="button" @click="otpSent = false">Change</button>
+                            </div>
+                            <div v-if="otpSent" class="mt-2">
+                                <label class="tr-label">Verification Code</label>
+                                <input type="text" class="form-control" v-model="otp" maxlength="6" placeholder="6-digit code">
+                            </div>
+                        </div>
+                        <div v-if="isGuest" class="tr-section">
+                            <label class="tr-label">Your Full Name</label>
+                            <input type="text" class="form-control" v-model="guestName" placeholder="Who's registering?">
+                        </div>
+
+                        <button class="btn btn-success tr-btn w-100 mt-2" :disabled="!canSubmit || submitting" @click="submitRegistration">
+                            [[ submitting ? 'Submitting...' : 'Confirm Registration - ' + fmt(selectedTournament.entry_fee) ]]
+                        </button>
+                        <p v-if="errorMessage" class="text-danger small mt-2 mb-0">[[ errorMessage ]]</p>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<style>
+    @import url("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css");
+
+    .tournaments { --tr-primary: {{ theme_color }}; --tr-primary-hover: {{ theme_color_hover }}; --tr-primary-rgb: {{ theme_color_rgb }}; }
+
+    .tr-page { max-width: 900px; padding: 2rem 1.5rem 4rem; min-height: 70vh; }
+    .tr-back-top { color: #6b7280; text-decoration: none; padding-left: 0; }
+    .tr-page-title { font-weight: 800; font-size: 1.9rem; color: #1f2937; margin: 1.5rem 0 0.25rem; }
+    .tr-page-subtitle { color: #6b7280; margin-bottom: 1.75rem; }
+
+    .tr-t-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.25rem; }
+    .tr-t-card { border-radius: 1rem; overflow: hidden; box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06); }
+    .tr-t-img { height: 130px; background: #f3f4f6 center/cover no-repeat; display: flex; align-items: center; justify-content: center; position: relative; }
+    .tr-t-img i { font-size: 2.5rem; color: #cbd5e1; }
+    .tr-t-badge { position: absolute; bottom: 8px; left: 8px; font-size: 0.72rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; color: #fff; }
+    .tr-badge-open { background: rgba(22, 163, 74, 0.9); }
+    .tr-badge-full { background: rgba(220, 38, 38, 0.85); }
+    .tr-t-body { padding: 1rem; }
+    .tr-t-price { font-weight: 700; color: #1f2937; }
+    .tr-btn { background: var(--tr-primary); border-color: var(--tr-primary); font-weight: 600; }
+    .tr-btn:hover { background: var(--tr-primary-hover); border-color: var(--tr-primary-hover); }
+
+    .tr-card { max-width: 640px; margin: 2rem auto; box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08); }
+    .tr-card-header { padding: 1.25rem 1.5rem 0.5rem; }
+    .tr-back { color: #6b7280; padding-left: 0; text-decoration: none; font-size: 0.85rem; }
+    .tr-card-title { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 1.25rem; color: #1f2937; margin-top: 0.5rem; }
+    .tr-card-title i { color: var(--tr-primary); }
+    .tr-card-body { padding: 1rem 1.5rem 1.75rem; }
+    .tr-section { margin-bottom: 1rem; }
+    .tr-label { font-weight: 600; font-size: 0.85rem; color: #374151; display: block; margin-bottom: 0.35rem; }
+    .tr-divider { margin: 1.25rem 0; }
+    .tr-guardian-box { background: #fffbeb; border: 1px solid #fde68a; border-radius: 0.6rem; padding: 0.9rem 1rem; margin-bottom: 1rem; }
+    .tr-result-icon { font-size: 3rem; color: var(--tr-primary); }
+</style>
+{% endblock %}
+
+{% block script %}
+<script src="/assets/frappe_paystack/js/vue.global.js"></script>
+<script src="/assets/frappe_paystack/js/sweetalert2@11.js"></script>
+<script>
+  window.tournaments = {{ tournaments_json | safe }};
+  window.isGuest = {{ 1 if is_guest else 0 }};
+  window.currencySymbol = {{ currency_symbol_json | safe }};
+</script>
+<script>
+  // Fallback for the navbar/footer block overrides above - copied
+  // verbatim from book-facility/index.html's own copy of this script.
+  (function () {
+    function mainContentRoot() {
+      return document.querySelector("#app");
+    }
+    function containsMainContent(el) {
+      var root = mainContentRoot();
+      return !!(root && el && el.contains(root));
+    }
+    function hideSiteNav() {
+      var anchors = document.querySelectorAll("a[href]");
+      for (var i = 0; i < anchors.length; i++) {
+        var path;
+        try {
+          path = new URL(anchors[i].getAttribute("href"), window.location.origin).pathname;
+        } catch (e) {
+          continue;
+        }
+        if (path === "/login") {
+          var bar = anchors[i].closest("nav") || anchors[i].closest("header") || anchors[i].closest(".navbar");
+          if (bar && !containsMainContent(bar)) {
+            bar.style.display = "none";
+          }
+          break;
+        }
+      }
+    }
+    function hidePoweredByFooter() {
+      var nodes = document.querySelectorAll("body *");
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (el.children.length === 0 && /powered by/i.test(el.textContent || "")) {
+          var target = el.closest("footer") || el.closest(".web-footer") || el.parentElement || el;
+          if (target && !containsMainContent(target)) {
+            target.style.display = "none";
+          }
+        }
+      }
+    }
+    function run() {
+      try {
+        hideSiteNav();
+      } catch (e) {}
+      try {
+        hidePoweredByFooter();
+      } catch (e) {}
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", run);
+    } else {
+      run();
+    }
+    setTimeout(run, 800);
+  })();
+</script>
+<script src="/assets/sports_complex/js/tournaments/index.js"></script>
+{% endblock %}

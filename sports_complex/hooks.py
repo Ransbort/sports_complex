@@ -43,8 +43,18 @@ before_uninstall = "sports_complex.uninstall.before_uninstall"
 # /book-facility needs no rule (default www/book-facility routing handles it);
 # /booking-confirmation/<name> takes a path segment, same as
 # frappe_paystack's own /my-payment/<reference> rule.
+#
+# /portal/<app_path> is the Vue Portal SPA (sports_complex/frontend - see
+# its own README.md): Vue Router handles routing client-side once the page
+# has loaded, but a hard reload or a shared link straight to a nested
+# route like /portal/book-coach is still a fresh server-side request for
+# that exact path - without this catch-all, Frappe would 404 it before
+# Vue Router ever got a chance to take over. Every /portal/* path maps to
+# the same www/portal/index.html shell; the bare /portal itself needs no
+# rule of its own, same as /book-facility above.
 website_route_rules = [
     {"from_route": "/booking-confirmation/<booking>", "to_route": "booking-confirmation"},
+    {"from_route": "/portal/<path:app_path>", "to_route": "portal"},
 ]
 
 # Dashboards

@@ -1,0 +1,269 @@
+{% extends "templates/web.html" %}
+{% block title %}{{ _("Book a Player") }}{% endblock %}
+
+{# Same navbar/footer suppression as book-facility/index.html - see that
+   file's own comment for why both the block-override and JS fallback
+   approaches are both here. #}
+{% block navbar %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block page_content %}
+<div id="app" class="book-player">
+    <div class="container bp-page">
+
+        <!-- Step 0: browse bookable players -->
+        <div v-if="step === 'grid'" class="bp-grid-wrap">
+            <div class="bp-grid-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <a href="/facilities" class="btn btn-link bp-back-top">&larr; Home</a>
+            </div>
+
+            <h1 class="bp-page-title">Book a Player</h1>
+            <p class="bp-page-subtitle">Book a one-on-one session directly with one of our players.</p>
+
+            <p v-if="!players.length" class="text-center text-muted py-5">No players are open for booking right now.</p>
+
+            <div v-else class="bp-player-grid">
+                <div class="bp-player-card card border-0 h-100" v-for="p in players" :key="p.name">
+                    <div class="bp-player-img" :style="p.profile_photo ? { backgroundImage: 'url(' + p.profile_photo + ')' } : {}">
+                        <i v-if="!p.profile_photo" class="bi bi-person-circle"></i>
+                        <span class="bp-player-badge" :class="p.open_slots_today ? 'bp-badge-open' : 'bp-badge-full'">
+                            [[ p.open_slots_today ? p.open_slots_today + ' open today' : 'Fully booked today' ]]
+                        </span>
+                    </div>
+                    <div class="card-body d-flex flex-column bp-player-body">
+                        <h6 class="fw-bold mb-1">[[ p.full_name ]]</h6>
+                        <p v-if="p.position" class="bp-player-tags mb-1">
+                            <span class="bp-tag">[[ p.position ]]</span>
+                        </p>
+                        <p class="bp-player-price mb-2">
+                            [[ fmt(p.hourly_rate) ]] <span class="text-muted small fw-normal">/ hour</span>
+                        </p>
+                        <button class="btn btn-success bp-btn mt-auto" @click="pickPlayer(p)">Book Now</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 1: date/slot pick, identity, result -->
+        <div v-else class="bp-card card border-0 rounded-4">
+            <div class="card-body p-0">
+                <div class="bp-card-header">
+                    <button class="btn btn-link bp-back" @click="backToGrid"><i class="bi bi-arrow-left"></i> Back</button>
+                    <div class="bp-card-title">
+                        <i class="bi bi-person-circle"></i>
+                        <span>[[ selectedPlayer.full_name ]]</span>
+                    </div>
+                    <p class="text-muted small mb-0" v-if="selectedPlayer.position">[[ selectedPlayer.position ]]</p>
+                </div>
+
+                <div class="bp-card-body">
+
+                    <!-- result -->
+                    <div v-if="step === 'result'" class="bp-result text-center py-4">
+                        <i class="bi bi-check-circle-fill bp-result-icon"></i>
+                        <h5 class="mt-3">Session booked!</h5>
+                        <p class="text-muted">[[ resultMessage ]]</p>
+                        <a v-if="paymentLink" :href="paymentLink" class="btn btn-success bp-btn mt-2">Pay Now</a>
+                        <div class="mt-3"><a href="/facilities" class="btn btn-link">Back to Home</a></div>
+                    </div>
+
+                    <template v-else>
+                        <!-- date + slots -->
+                        <div class="bp-section">
+                            <label class="bp-label">Date</label>
+                            <input type="date" class="form-control bp-date-input" v-model="selectedDate" :min="today" @change="loadSlots">
+                        </div>
+
+                        <div class="bp-section" v-if="selectedDate">
+                            <label class="bp-label">Available Times</label>
+                            <p v-if="loadingSlots" class="text-muted small">Loading availability...</p>
+                            <p v-else-if="!slots.length" class="text-muted small">No open times on this date - try another day.</p>
+                            <div v-else class="bp-slot-grid">
+                                <button
+                                    v-for="s in slots" :key="s.start_time"
+                                    type="button"
+                                    class="bp-slot"
+                                    :class="{ 'bp-slot-selected': selectedSlot && selectedSlot.start_time === s.start_time }"
+                                    @click="selectedSlot = s"
+                                >[[ shortTime(s.start_time) ]] - [[ shortTime(s.end_time) ]]</button>
+                            </div>
+                        </div>
+
+                        <template v-if="selectedSlot">
+                            <hr class="bp-divider">
+
+                            <!-- guest identity -->
+                            <div v-if="isGuest" class="bp-section">
+                                <label class="bp-label">Your Email</label>
+                                <div class="input-group">
+                                    <input type="email" class="form-control" v-model="email" :disabled="otpSent" placeholder="you@example.com">
+                                    <button v-if="!otpSent" class="btn btn-outline-success" type="button" :disabled="sendingOtp" @click="sendOtp">
+                                        [[ sendingOtp ? 'Sending...' : 'Send Code' ]]
+                                    </button>
+                                    <button v-else class="btn btn-outline-secondary" type="button" @click="otpSent = false">Change</button>
+                                </div>
+                                <div v-if="otpSent" class="mt-2">
+                                    <label class="bp-label">Verification Code</label>
+                                    <input type="text" class="form-control" v-model="otp" maxlength="6" placeholder="6-digit code">
+                                </div>
+                            </div>
+
+                            <div class="bp-section">
+                                <label class="bp-label">Full Name</label>
+                                <input type="text" class="form-control" v-model="participantName" placeholder="Who's this session for?">
+                            </div>
+                            <div class="bp-section">
+                                <label class="bp-label">Date of Birth</label>
+                                <input type="date" class="form-control" v-model="dateOfBirth" :max="today">
+                            </div>
+
+                            <div v-if="isMinor" class="bp-guardian-box">
+                                <p class="fw-bold mb-2 small">Guardian details (required for participants under 18)</p>
+                                <div class="row g-2">
+                                    <div class="col-md-6"><input type="text" class="form-control" v-model="guardianName" placeholder="Guardian name"></div>
+                                    <div class="col-md-6"><input type="text" class="form-control" v-model="guardianRelationship" placeholder="Relationship to participant"></div>
+                                    <div class="col-md-6"><input type="text" class="form-control" v-model="guardianContact" placeholder="Guardian phone"></div>
+                                    <div class="col-md-6"><input type="email" class="form-control" v-model="guardianEmail" placeholder="Guardian email"></div>
+                                </div>
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" v-model="consentGiven" id="bp-consent">
+                                    <label class="form-check-label small" for="bp-consent">I am this participant's parent/guardian and consent to this booking.</label>
+                                </div>
+                            </div>
+
+                            <div class="bp-section" v-if="!isGuest">
+                                <label class="bp-label">Notes (optional)</label>
+                                <textarea class="form-control" v-model="notes" rows="2"></textarea>
+                            </div>
+
+                            <button class="btn btn-success bp-btn w-100 mt-3" :disabled="!canSubmit || submitting" @click="submitBooking">
+                                [[ submitting ? 'Booking...' : 'Confirm Booking - ' + fmt(sessionFee) ]]
+                            </button>
+                            <p v-if="errorMessage" class="text-danger small mt-2 mb-0">[[ errorMessage ]]</p>
+                        </template>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<style>
+    @import url("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css");
+
+    .book-player { --bp-primary: {{ theme_color }}; --bp-primary-hover: {{ theme_color_hover }}; --bp-primary-rgb: {{ theme_color_rgb }}; }
+
+    .bp-page { max-width: 900px; padding: 2rem 1.5rem 4rem; min-height: 70vh; }
+    .bp-back-top { color: #6b7280; text-decoration: none; padding-left: 0; }
+    .bp-page-title { font-weight: 800; font-size: 1.9rem; color: #1f2937; margin: 1.5rem 0 0.25rem; }
+    .bp-page-subtitle { color: #6b7280; margin-bottom: 1.75rem; }
+
+    .bp-player-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 1.25rem; }
+    .bp-player-card { border-radius: 1rem; overflow: hidden; box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06); }
+    .bp-player-img { height: 130px; background: #f3f4f6 center/cover no-repeat; display: flex; align-items: center; justify-content: center; position: relative; }
+    .bp-player-img i { font-size: 2.5rem; color: #cbd5e1; }
+    .bp-player-badge { position: absolute; bottom: 8px; left: 8px; font-size: 0.72rem; font-weight: 600; padding: 3px 10px; border-radius: 999px; color: #fff; }
+    .bp-badge-open { background: rgba(22, 163, 74, 0.9); }
+    .bp-badge-full { background: rgba(107, 114, 128, 0.85); }
+    .bp-player-body { padding: 1rem; }
+    .bp-player-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+    .bp-tag { font-size: 0.72rem; font-weight: 600; background: rgba(var(--bp-primary-rgb), 0.1); color: var(--bp-primary); padding: 2px 9px; border-radius: 999px; }
+    .bp-player-price { font-weight: 700; color: #1f2937; }
+    .bp-btn { background: var(--bp-primary); border-color: var(--bp-primary); font-weight: 600; }
+    .bp-btn:hover { background: var(--bp-primary-hover); border-color: var(--bp-primary-hover); }
+
+    .bp-card { max-width: 640px; margin: 2rem auto; box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08); }
+    .bp-card-header { padding: 1.25rem 1.5rem 0.5rem; }
+    .bp-back { color: #6b7280; padding-left: 0; text-decoration: none; font-size: 0.85rem; }
+    .bp-card-title { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 1.25rem; color: #1f2937; margin-top: 0.5rem; }
+    .bp-card-title i { color: var(--bp-primary); }
+    .bp-card-body { padding: 1rem 1.5rem 1.75rem; }
+    .bp-section { margin-bottom: 1rem; }
+    .bp-label { font-weight: 600; font-size: 0.85rem; color: #374151; display: block; margin-bottom: 0.35rem; }
+    .bp-date-input { max-width: 220px; }
+    .bp-slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.5rem; }
+    .bp-slot { border: 1px solid #e5e7eb; background: #fff; border-radius: 0.5rem; padding: 0.5rem; font-size: 0.85rem; font-weight: 600; color: #374151; cursor: pointer; }
+    .bp-slot:hover { border-color: var(--bp-primary); }
+    .bp-slot-selected { background: var(--bp-primary); border-color: var(--bp-primary); color: #fff; }
+    .bp-divider { margin: 1.25rem 0; }
+    .bp-guardian-box { background: #fffbeb; border: 1px solid #fde68a; border-radius: 0.6rem; padding: 0.9rem 1rem; margin-bottom: 1rem; }
+    .bp-result-icon { font-size: 3rem; color: var(--bp-primary); }
+</style>
+{% endblock %}
+
+{% block script %}
+<script src="/assets/frappe_paystack/js/vue.global.js"></script>
+<script src="/assets/frappe_paystack/js/sweetalert2@11.js"></script>
+<script>
+  window.players = {{ players_json | safe }};
+  window.isGuest = {{ 1 if is_guest else 0 }};
+  window.currencySymbol = {{ currency_symbol_json | safe }};
+</script>
+<script>
+  // Fallback for the navbar/footer block overrides above, in case this
+  // site's web.html doesn't define blocks by those names - copied
+  // verbatim from book-coach/index.html's own copy of this script rather
+  // than re-derived, so all these pages stay identically safe/
+  // conservative (every candidate element checked against
+  // containsMainContent() before being touched).
+  (function () {
+    function mainContentRoot() {
+      return document.querySelector("#app");
+    }
+    function containsMainContent(el) {
+      var root = mainContentRoot();
+      return !!(root && el && el.contains(root));
+    }
+    function hideSiteNav() {
+      var anchors = document.querySelectorAll("a[href]");
+      for (var i = 0; i < anchors.length; i++) {
+        var path;
+        try {
+          path = new URL(anchors[i].getAttribute("href"), window.location.origin).pathname;
+        } catch (e) {
+          continue;
+        }
+        if (path === "/login") {
+          var bar = anchors[i].closest("nav") || anchors[i].closest("header") || anchors[i].closest(".navbar");
+          if (bar && !containsMainContent(bar)) {
+            bar.style.display = "none";
+          }
+          break;
+        }
+      }
+    }
+    function hidePoweredByFooter() {
+      var nodes = document.querySelectorAll("body *");
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (el.children.length === 0 && /powered by/i.test(el.textContent || "")) {
+          var target = el.closest("footer") || el.closest(".web-footer") || el.parentElement || el;
+          if (target && !containsMainContent(target)) {
+            target.style.display = "none";
+          }
+        }
+      }
+    }
+    function run() {
+      try {
+        hideSiteNav();
+      } catch (e) {
+        /* non-fatal: nav just stays visible */
+      }
+      try {
+        hidePoweredByFooter();
+      } catch (e) {
+        /* non-fatal: footer just stays visible */
+      }
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", run);
+    } else {
+      run();
+    }
+    setTimeout(run, 800);
+  })();
+</script>
+<script src="/assets/sports_complex/js/book-player/index.js"></script>
+{% endblock %}

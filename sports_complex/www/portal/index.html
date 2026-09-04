@@ -1,0 +1,151 @@
+{% extends "templates/web.html" %}
+{% block title %}{{ _("Sports Complex") }}{% endblock %}
+
+{# Same navbar/footer suppression as every other guest-facing page in this
+   app (book-facility, book-coach, ...) - see those files' own comments
+   for why both the block-override and the JS fallback below are here.
+   The Vue app renders its own <Navbar> instead. #}
+{% block navbar %}{% endblock %}
+{% block footer %}{% endblock %}
+
+{% block page_content %}
+<link rel="stylesheet" href="/assets/sports_complex/portal/assets/main.css">
+<style>
+  @import url("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css");
+  /* Theme color as CSS custom properties on :root - resolved server-side
+     from Sports Complex Setup > Website > Theme Color (see theme.py),
+     same source every legacy page's own --sc-primary/--bc-primary/etc.
+     already reads. One shared name (--portal-primary*) here instead of a
+     different prefix per page, since every component in this app can now
+     just reference the same variables. */
+  :root {
+    --portal-primary: {{ theme_color }};
+    --portal-primary-hover: {{ theme_color_hover }};
+    --portal-primary-rgb: {{ theme_color_rgb }};
+  }
+
+  /* Fullscreen SPA, no stray scrollbars. templates/web.html still wraps
+     page_content in the site's own theme chrome (a container div with its
+     own max-width/padding/margin), so on top of the navbar/footer block
+     overrides above, html/body get their default margin zeroed and #app
+     is stretched edge-to-edge - see the stretchAppToFullWidth() script
+     below, which strips the *ancestor* container's width constraints
+     directly (robust to whatever this theme's actual class names are,
+     same defensive spirit as hideSiteNav/hidePoweredByFooter below). */
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+  }
+  #app {
+    height: 100vh;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+</style>
+<div id="app"></div>
+{% endblock %}
+
+{% block script %}
+<script src="/assets/frappe_paystack/js/sweetalert2@11.js"></script>
+<script>
+  window.portalBoot = {{ portal_boot_json | safe }};
+</script>
+<script>
+  // Fallback for the navbar/footer block overrides above, in case this
+  // site's web.html doesn't define blocks by those names - copied
+  // verbatim from every other guest-facing page's own copy of this
+  // script (see book-facility/index.html) so they all stay identically
+  // safe/conservative: every candidate element is checked against
+  // containsMainContent() before being touched.
+  (function () {
+    function mainContentRoot() {
+      return document.querySelector("#app");
+    }
+    function containsMainContent(el) {
+      var root = mainContentRoot();
+      return !!(root && el && el.contains(root));
+    }
+    function stretchAppToFullWidth() {
+      // Walk up from #app to <body>, stripping any max-width/width/
+      // padding/margin the site's theme put on the wrapping container(s)
+      // (e.g. a Bootstrap ".container") so this page renders truly
+      // edge-to-edge instead of sitting in a narrow centered column with
+      // side gutters. Only touches ancestors of #app, so it can't affect
+      // unrelated markup elsewhere on the page.
+      var el = mainContentRoot();
+      if (!el) return;
+      el = el.parentElement;
+      while (el && el !== document.body && el.nodeType === 1) {
+        el.style.maxWidth = "none";
+        el.style.width = "100%";
+        el.style.marginLeft = "0";
+        el.style.marginRight = "0";
+        el.style.paddingLeft = "0";
+        el.style.paddingRight = "0";
+        el = el.parentElement;
+      }
+    }
+    function hideSiteNav() {
+      var anchors = document.querySelectorAll("a[href]");
+      for (var i = 0; i < anchors.length; i++) {
+        var path;
+        try {
+          path = new URL(anchors[i].getAttribute("href"), window.location.origin).pathname;
+        } catch (e) {
+          continue;
+        }
+        if (path === "/login") {
+          var bar = anchors[i].closest("nav") || anchors[i].closest("header") || anchors[i].closest(".navbar");
+          if (bar && !containsMainContent(bar)) {
+            bar.style.display = "none";
+          }
+          break;
+        }
+      }
+    }
+    function hidePoweredByFooter() {
+      var nodes = document.querySelectorAll("body *");
+      for (var i = 0; i < nodes.length; i++) {
+        var el = nodes[i];
+        if (el.children.length === 0 && /powered by/i.test(el.textContent || "")) {
+          var target = el.closest("footer") || el.closest(".web-footer") || el.parentElement || el;
+          if (target && !containsMainContent(target)) {
+            target.style.display = "none";
+          }
+        }
+      }
+    }
+    function run() {
+      try {
+        hideSiteNav();
+      } catch (e) {
+        /* non-fatal: nav just stays visible */
+      }
+      try {
+        hidePoweredByFooter();
+      } catch (e) {
+        /* non-fatal: footer just stays visible */
+      }
+      try {
+        stretchAppToFullWidth();
+      } catch (e) {
+        /* non-fatal: app just stays inset in the theme's container */
+      }
+    }
+    if (document.readyState === "loading") {
+      document.addEventListener("DOMContentLoaded", run);
+    } else {
+      run();
+    }
+    setTimeout(run, 800);
+  })();
+</script>
+<!-- Vite build output (fixed filenames - see frontend/vite.config.js).
+     type="module" so this loads/executes after the DOM above exists and
+     after window.portalBoot has already been set by the inline script
+     above it. -->
+<script type="module" src="/assets/sports_complex/portal/assets/main.js"></script>
+{% endblock %}

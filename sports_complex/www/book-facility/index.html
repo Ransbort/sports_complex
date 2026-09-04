@@ -769,6 +769,7 @@
 <script>
   window.facilities = {{ facilities_json | safe }};
   window.isGuest = {{ 1 if is_guest else 0 }};
+  window.currencySymbol = {{ currency_symbol_json | safe }};
 </script>
 <script>
   // Fallback for the navbar/footer block overrides above, in case this

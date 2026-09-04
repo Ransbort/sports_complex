@@ -6,6 +6,7 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "tab_details",
   "full_name",
   "first_name",
   "middle_name",
@@ -53,12 +54,20 @@
   "joining_date",
   "contract_start_date",
   "contract_end_date",
-  "section_break_billing",
-  "customer",
   "section_break_origin",
-  "trialist"
+  "trialist",
+  "tab_billing",
+  "customer",
+  "hourly_rate",
+  "section_break_player_availability",
+  "availability"
  ],
  "fields": [
+  {
+   "fieldname": "tab_details",
+   "fieldtype": "Tab Break",
+   "label": "Details"
+  },
   {
    "fieldname": "full_name",
    "fieldtype": "Data",
@@ -84,8 +93,10 @@
    "label": "Last Name"
   },
   {
+   "description": "Same field the sidebar's own avatar/photo widget reads and writes (image_field: profile_photo, set at the doctype level) - hidden here so it isn't shown twice on the form.",
    "fieldname": "profile_photo",
    "fieldtype": "Attach Image",
+   "hidden": 1,
    "label": "Profile Photo"
   },
   {
@@ -322,19 +333,6 @@
   },
   {
    "collapsible": 1,
-   "fieldname": "section_break_billing",
-   "fieldtype": "Section Break",
-   "label": "Billing"
-  },
-  {
-   "fieldname": "customer",
-   "fieldtype": "Link",
-   "label": "Customer",
-   "options": "Customer",
-   "read_only": 1
-  },
-  {
-   "collapsible": 1,
    "fieldname": "section_break_origin",
    "fieldtype": "Section Break",
    "label": "Origin"
@@ -345,6 +343,37 @@
    "label": "Converted From Trialist",
    "options": "Trialist",
    "read_only": 1
+  },
+  {
+   "fieldname": "tab_billing",
+   "fieldtype": "Tab Break",
+   "label": "Billing"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer",
+   "read_only": 1
+  },
+  {
+   "description": "Rate for booking a private/1-on-1 session directly with this player (distinct from Coach.hourly_rate, which prices a session with a coach).",
+   "fieldname": "hourly_rate",
+   "fieldtype": "Currency",
+   "label": "Hourly Rate"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_player_availability",
+   "fieldtype": "Section Break",
+   "label": "Booking Availability"
+  },
+  {
+   "description": "Weekly windows this player can be booked for a private/1-on-1 session on the public Book a Player page. A day with no window here means the player shows as fully booked that day, even if Active with a rate set.",
+   "fieldname": "availability",
+   "fieldtype": "Table",
+   "label": "Availability",
+   "options": "Player Availability"
   }
  ],
  "image_field": "profile_photo",

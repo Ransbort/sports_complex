@@ -1,8 +1,8 @@
 # Copyright (c) 2026, Your Company and contributors
 # For license information, please see license.txt
 
-"""Theme color for the guest booking flow's public pages (facilities,
-book-facility, my-bookings, booking-confirmation).
+"""Theme color + app logo for the guest booking flow's public pages
+(facilities, book-facility, my-bookings, booking-confirmation, portal).
 
 Configured via Sports Complex Setup > Website > Theme Color (a Color
 field), so a manager can rebrand the booking flow without touching code.
@@ -13,6 +13,8 @@ page's own root element - see the "--sc-primary*" declarations near the
 top of each page's <style> block.
 """
 
+import base64
+import mimetypes
 import re
 
 import frappe
@@ -39,7 +41,27 @@ def get_theme_context():
 		"theme_color": _rgb_to_hex(rgb),
 		"theme_color_hover": _rgb_to_hex(hover_rgb),
 		"theme_color_rgb": "{}, {}, {}".format(*rgb),
+		"app_name": get_company_name(),
 	}
+
+
+def get_company_name():
+	"""The real-world business name, for anywhere the site would otherwise
+	hardcode "Sports Complex" (the app's own generic/internal name) - the
+	Navbar, Login page, browser tab title, etc. Sourced from Sports
+	Complex Setup's own Default Company (already configured there for
+	invoicing - see doctype/sports_complex_setup), falling back to the
+	site's global default company, and finally to the app's generic name
+	if neither is set so every caller always gets a usable string back.
+	"""
+	company = frappe.db.get_single_value("Sports Complex Setup", "default_company")
+	if not company:
+		company = frappe.defaults.get_global_default("company")
+	if company:
+		company_name = frappe.db.get_value("Company", company, "company_name")
+		if company_name:
+			return company_name
+	return "Sports Complex"
 
 
 def _hex_to_rgb(value):
@@ -59,3 +81,32 @@ def _rgb_to_hex(rgb):
 
 def _darken(rgb, amount):
 	return tuple(c * (1 - amount) for c in rgb)
+
+
+def get_app_logo_data_uri():
+	"""Read the site's configured App Logo (Website Settings > App Logo)
+	and inline it as a data: URI instead of pointing an <img> at its
+	file_url - moved here from www/facilities/index.py so www/portal/
+	index.py can reuse the exact same logic instead of a second copy.
+
+	The App Logo is commonly uploaded as a private file (as it is on this
+	site: /private/files/...), and Frappe serves private files through a
+	route that checks the requesting user's permissions - a guest on a
+	public booking page gets a 403 for that URL, same as anyone else who
+	isn't logged in would on the login page's own logo. Reading the bytes
+	here happens server-side during page render, before any browser
+	request for the image URL exists, so that permission check never
+	comes into play - this works whether the file is public or private,
+	with no need to change how it's stored.
+	"""
+	file_url = frappe.db.get_single_value("Website Settings", "app_logo")
+	if not file_url:
+		return None
+	try:
+		file_doc = frappe.get_doc("File", {"file_url": file_url})
+		content = file_doc.get_content()
+		mime_type = mimetypes.guess_type(file_doc.file_name or file_url)[0] or "image/png"
+		return f"data:{mime_type};base64,{base64.b64encode(content).decode()}"
+	except Exception:
+		frappe.log_error(title="Sports Complex: failed to load app logo")
+		return None

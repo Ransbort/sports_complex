@@ -32,6 +32,21 @@
                 <span class="sc-action-title">Book a Facility</span>
                 <span class="sc-action-desc">Browse facilities and reserve a time slot</span>
             </a>
+            <a href="/book-coach" class="sc-action sc-action-secondary">
+                <i class="bi bi-person-badge"></i>
+                <span class="sc-action-title">Book a Coach</span>
+                <span class="sc-action-desc">Book a one-on-one session with one of our coaches</span>
+            </a>
+            <a href="/book-player" class="sc-action sc-action-secondary">
+                <i class="bi bi-person-circle"></i>
+                <span class="sc-action-title">Book a Player</span>
+                <span class="sc-action-desc">Book a one-on-one session with one of our players</span>
+            </a>
+            <a href="/tournaments" class="sc-action sc-action-secondary">
+                <i class="bi bi-trophy"></i>
+                <span class="sc-action-title">Register for a Tournament</span>
+                <span class="sc-action-desc">Enter as a team or an individual player</span>
+            </a>
             <a href="/my-bookings" class="sc-action sc-action-secondary">
                 <i class="bi bi-list-check"></i>
                 <span class="sc-action-title">My Bookings</span>
@@ -44,6 +59,10 @@
             <li><i class="bi bi-credit-card-fill"></i> Secure online payment</li>
             <li><i class="bi bi-person-check-fill"></i> No account needed to book</li>
         </ul>
+
+        <p class="sc-landing-signin">
+            Have an account? <a href="/portal/login">Sign in</a>
+        </p>
     </div>
 </div>
 
@@ -222,6 +241,22 @@
 
     .sc-landing-features i {
         color: var(--sc-primary);
+    }
+
+    .sc-landing-signin {
+        margin: 1.5rem 0 0;
+        font-size: 0.85rem;
+        color: #6b7280;
+    }
+
+    .sc-landing-signin a {
+        color: var(--sc-primary);
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .sc-landing-signin a:hover {
+        text-decoration: underline;
     }
 </style>
 {% endblock %}
