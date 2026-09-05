@@ -5,22 +5,30 @@
        the user's explicit request for a hamburger + sidebar nav rather
        than a responsive-only mobile menu. No sticky positioning needed:
        App.vue's fixed h-screen shell means this bar structurally can't
-       scroll out of view. -->
-  <nav class="shrink-0 z-20 bg-white border-b border-slate-200 px-4 sm:px-6">
-    <div class="mx-auto flex max-w-6xl items-center justify-between py-2.5">
-      <router-link to="/" class="flex items-center gap-2 font-extrabold text-slate-900 shrink-0" @click="closeMenu">
-        <img v-if="auth.appLogo" :src="auth.appLogo" :alt="auth.appName" class="h-6 w-6 object-contain rounded" />
-        <i v-else class="bi bi-trophy-fill text-[var(--portal-primary,#16a34a)]"></i>
-        {{ auth.appName }}
+       scroll out of view. Styled to match the "Book a Facility" header
+       bar inside the booking modal (white background, hairline bottom
+       border, px-6/py-5 padding) so the two read as one consistent
+       header treatment across the site. -->
+  <nav v-if="!ui.navbarHidden" class="shrink-0 z-20 border-b border-slate-900/5 bg-white px-6 py-5">
+    <div class="mx-auto flex max-w-6xl items-center justify-between">
+      <router-link to="/" class="flex items-center gap-2.5 shrink-0" @click="closeMenu">
+        <span
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg"
+          style="background-color: color-mix(in srgb, var(--portal-primary, #16a34a) 14%, white);"
+        >
+          <img v-if="auth.appLogo" :src="auth.appLogo" :alt="auth.appName" class="h-5 w-5 object-contain rounded" />
+          <i v-else class="bi bi-trophy-fill text-[var(--portal-primary,#16a34a)]"></i>
+        </span>
+        <span class="font-extrabold leading-tight text-slate-900">{{ auth.appName }}</span>
       </router-link>
 
       <button
         type="button"
-        class="flex h-9 w-9 items-center justify-center rounded-lg border-0 bg-transparent p-0 text-[var(--portal-primary,#16a34a)] hover:bg-slate-100"
+        class="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white p-0 text-slate-700 shadow-sm hover:bg-slate-50"
         aria-label="Open menu"
         aria-haspopup="true"
-        :aria-expanded="menuOpen"
-        @click="menuOpen = true"
+        :aria-expanded="ui.menuOpen"
+        @click="ui.openMenu()"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
           <path d="M4 5h16"/>
@@ -39,7 +47,7 @@
   <Teleport to="body">
     <Transition name="sc-fade">
       <div
-        v-if="menuOpen"
+        v-if="ui.menuOpen"
         class="fixed inset-0 z-30 bg-slate-900/40"
         @click="closeMenu"
       ></div>
@@ -47,7 +55,7 @@
 
     <Transition name="sc-slide">
       <aside
-        v-if="menuOpen"
+        v-if="ui.menuOpen"
         class="fixed inset-y-0 right-0 z-40 flex w-72 max-w-[85vw] flex-col bg-white shadow-2xl"
         role="dialog"
         aria-modal="true"
@@ -126,17 +134,17 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, ref, watch } from 'vue';
+import { onBeforeUnmount, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import { useUiStore } from '@/stores/ui';
 
 const auth = useAuthStore();
+const ui = useUiStore();
 const route = useRoute();
-const menuOpen = ref(false);
-
 
 function closeMenu() {
-  menuOpen.value = false;
+  ui.closeMenu();
 }
 
 function handleSignOut() {
@@ -153,7 +161,7 @@ watch(() => route.fullPath, closeMenu);
 function handleKeydown(e) {
   if (e.key === 'Escape') closeMenu();
 }
-watch(menuOpen, (open) => {
+watch(() => ui.menuOpen, (open) => {
   document.documentElement.classList.toggle('sc-menu-open', open);
   if (open) {
     window.addEventListener('keydown', handleKeydown);

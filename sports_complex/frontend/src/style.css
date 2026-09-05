@@ -8,6 +8,25 @@
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 
+/* The site's own Bootstrap-based theme (website.bundle.css, loaded via
+   templates/web.html - see this file's own comment above) ships a plain,
+   *unlayered* `button { border-radius: 0px; }` reset. CSS Cascade Layers
+   give ANY unlayered rule priority over ANY layered one, regardless of
+   selector specificity or source order - so every rounded-* utility this
+   app puts on a <button> (Book Now, the hamburger, dots, thumbnail tiles,
+   ...) was being silently overridden back to square corners, no matter
+   how the rest of the button's styling looked correct. These are the
+   same rounded-* class names actually used on <button> elements across
+   this app's components (grep `rounded-` under src/), re-declared here,
+   unlayered, so they win the same way the Bootstrap reset does. */
+button.rounded-md { border-radius: var(--radius-md); }
+button.rounded-lg { border-radius: var(--radius-lg); }
+button.rounded-xl { border-radius: var(--radius-xl); }
+button.rounded-2xl { border-radius: var(--radius-2xl); }
+button.rounded-full { border-radius: 9999px; }
+button.rounded-t-2xl { border-top-left-radius: var(--radius-2xl); border-top-right-radius: var(--radius-2xl); }
+button.rounded-b-2xl { border-bottom-left-radius: var(--radius-2xl); border-bottom-right-radius: var(--radius-2xl); }
+
 /* This site's Bootstrap-based web theme also loads Bootstrap Icons
    globally on some pages but not this one - see www/portal/index.html's
    own @import for that (kept in the Jinja shell, not here, since it's
@@ -28,4 +47,15 @@ body {
 
 #app {
   overflow-x: hidden;
+}
+
+/* Horizontally-scrollable strips (e.g. the "All facilities" thumbnail
+   row on the browse page) that should stay scrollable by drag/wheel but
+   never show a visible scrollbar track underneath. */
+.hide-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* old Edge/IE */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/new Edge */
 }
