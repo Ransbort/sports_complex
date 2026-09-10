@@ -1,6 +1,3 @@
-# Copyright (c) 2026, Pep Sports Limited and contributors
-# For license information, please see license.txt
-
 import json
 
 import frappe
@@ -44,18 +41,7 @@ TRIAL_ONLY_ENCOUNTER_FIELDS = [
 ]
 
 FITNESS_RESULT_VISIBILITY_SCRIPT = (
-	"""// __sports_complex_fitness_result_visibility__
-// Managed by sports_complex.sports_complex.healthcare_integration.
-// ensure_fitness_result_visibility_script() - re-applied on every bench
-// migrate. Edit the logic below if needed, but keep the marker comment
-// above intact so that function can keep finding this record.
-//
-// Fitness Result and the trial-only history fields below only mean
-// something for a trial-medical encounter, so hide them entirely for
-// every other Appointment Type - fewer fields for doctors doing ordinary
-// consultations to puzzle over.
-
-var SPORTS_COMPLEX_TRIAL_ONLY_FIELDS = """
+	"""var SPORTS_COMPLEX_TRIAL_ONLY_FIELDS = """
 	+ json.dumps(TRIAL_ONLY_ENCOUNTER_FIELDS)
 	+ """;
 
@@ -114,28 +100,7 @@ def ensure_fitness_result_visibility_script():
 
 
 VIEW_LAB_RESULTS_SCRIPT = (
-	"""// __sports_complex_view_lab_results__
-// Managed by sports_complex.sports_complex.healthcare_integration.
-// ensure_view_lab_results_script() - re-applied on every bench migrate.
-// Edit the logic below if needed, but keep the marker comment above
-// intact so that function can keep finding this record.
-//
-// Opens a popup showing just each linked Lab Test's own result table
-// (Normal/Descriptive - whichever the template uses - plus any lab_test_
-// comment), tabbed by test name when there's more than one, rather than
-// navigating the doctor away from the Encounter or loading each test's
-// entire Form (which used to be what this did - patient/gender fields,
-// Comments/Custom Result/Medical Coding/Worksheet Print sections and
-// all). The data comes straight from Lab Portal's own
-// get_lab_test_detail() (healthcare/page/lab_portal/lab_portal.py,
-// unmodified) - the exact same whitelisted method that already feeds
-// the "Open Lab Test" popup's own result grid there - rather than
-// re-deriving result rows from Lab Test's child tables by hand here, so
-// this can never drift from what that popup shows. A small "Open Full
-// Test" link on each tab is the escape hatch to the real Lab Test form
-// for anything not covered here (attachments, worksheet print, etc.).
-
-frappe.ui.form.on("Patient Encounter", {
+	"""frappe.ui.form.on("Patient Encounter", {
 	refresh: function (frm) {
 		frm.add_custom_button(
 			__("View Lab Results"),
@@ -264,9 +229,6 @@ def ensure_view_lab_results_script():
 	else:
 		frappe.get_doc({
 			"doctype": "Client Script",
-			# Same reasoning as Fitness Result Visibility's own name above -
-			# fixed and descriptive so re-running this after a manual
-			# deletion recreates the same record name.
 			"name": "Sports Complex View Lab Results",
 			"dt": "Patient Encounter",
 			"view": "Form",
@@ -275,37 +237,6 @@ def ensure_view_lab_results_script():
 		}).insert(ignore_permissions=True)
 
 
-# A "Labs" dashboard group used to be layered onto Patient Encounter's
-# existing grouped "linked documents" cards (Orders, Inpatient, Notes/
-# Tasks/Vitals, Medical Records - all baked into the vendored
-# patient_encounter.json's own `links` array) via frm.dashboard.
-# add_transactions(["Lab Test"]) from a Client Script. Removed: that
-# front-end grouping call is only half the picture - the moment the form
-# loads, the client also asks the server (frappe.desk.notifications.
-# get_open_count) for a badge count for every item shown, on EVERY
-# dashboard group, including ones added this way. The server resolves
-# that by looking up each item doctype's link_fieldname back to Patient
-# Encounter from the doctype's own metadata - and since Lab Test has no
-# such field (its only link is sc_trial_appointment, pointing at Patient
-# Appointment, two hops away - see get_trial_lab_tests()'s neighbourhood
-# above), the server had nothing correct to resolve and fell through to
-# an unrelated field name from a different group, throwing "Unknown
-# column 'order_group'" on every single Patient Encounter form load - a
-# real, confirmed production error, not just the imprecision this was
-# originally flagged as living with. Frappe's linked-document dashboard
-# framework fundamentally can't express "count rows in Lab Test whose
-# sc_trial_appointment matches the Patient Appointment this Encounter
-# points at" - that needs a two-table join, and the framework only ever
-# filters one doctype by one fieldname equal to the parent's own name.
-# The doctor still reaches a trial's completed panel exactly as
-# accurately via the "View Lab Results" button above (get_encounter_lab_
-# test_names()), which never goes through this badge-count subsystem.
-#
-# remove_lab_dashboard_group_script() below is the active teardown for a
-# site that already ran the buggy version - same reasoning and pattern as
-# sports_complex.install.remove_stale_trial_medical_exam_field(): merely
-# no longer creating the Client Script wouldn't retroactively delete one
-# a previous bench migrate already inserted.
 def remove_lab_dashboard_group_script():
 	"""One-time cleanup for a site that already ran the "Labs" dashboard
 	group Client Script described above (removed as of this change - see
@@ -322,17 +253,6 @@ def remove_lab_dashboard_group_script():
 		frappe.delete_doc("Client Script", existing_name, ignore_permissions=True, force=True)
 		frappe.clear_cache(doctype="Patient Encounter")
 
-
-# =============================================================================
-# LAB STAGE — predetermined labs between vitals and the doctor
-#
-# For a trial appointment, nurse_station.py's save_vitals() no longer sends
-# the patient straight to the doctor. route_trial_after_vitals() below is
-# what nurse_station.py's _route_after_vitals() extension point calls;
-# everything from queue_status through the Lab tab's data (now on Doctor
-# Station - see doctor_station.py/js) and the eventual handoff back to the
-# doctor lives here, not in nurse_station.py or doctor_station.py/js.
-# =============================================================================
 
 WITH_LAB_STATUS = "With Lab"
 
@@ -355,20 +275,12 @@ def ensure_queue_status_with_lab_option():
 		"Custom Field", {"dt": "Patient Appointment", "fieldname": "queue_status"}, "options"
 	)
 	if not base_options:
-		# Healthcare's own setup.py hasn't run yet on this site (fresh
-		# install ordering) - nothing to layer on top of yet. Healthcare's
-		# after_install/after_migrate always runs make_custom_fields()
-		# too, so a later bench migrate picks this back up.
 		return
 
 	options_list = base_options.split("\n")
 	if WITH_LAB_STATUS in options_list:
 		return
 
-	# Slot it in right after "With Nurse" so the list still reads as one
-	# coherent, ordered pipeline wherever it's shown as a plain Select
-	# (list filters, reports) - not load-bearing for the code itself,
-	# which only ever compares queue_status by exact string.
 	if "With Nurse" in options_list:
 		insert_at = options_list.index("With Nurse") + 1
 		options_list.insert(insert_at, WITH_LAB_STATUS)
@@ -469,13 +381,6 @@ def create_trial_lab_panel(appointment):
 
 	patient = frappe.get_cached_doc("Patient", appt.patient)
 
-	# Any earlier, non-cancelled trial-panel Lab Test the patient already
-	# has for one of these templates - i.e. an earlier Trial Appointment
-	# already raised this same panel entry - counts as "already covered".
-	# Scoped to sc_trial_appointment IS SET so an ordinary doctor-ordered
-	# Lab Prescription (a separate request, off a Patient Encounter) is
-	# never treated as covering the trial panel, or vice versa. See
-	# docstring above.
 	existing = {
 		row.template
 		for row in frappe.get_all(
@@ -505,8 +410,6 @@ def create_trial_lab_panel(appointment):
 				"status": "Draft",
 				"sc_trial_appointment": appointment,
 				"custom_invoice": appt.consultation_invoice,
-				# See docstring above - a free (unbilled) trial visit means
-				# nothing is owed for its lab panel either.
 				"invoiced": 1 if not appt.consultation_invoice else 0,
 			}
 		)
@@ -748,23 +651,6 @@ def send_trial_to_doctor(appointment, override_reason=None):
 	return {"status": "Success"}
 
 
-# attach_trial_lab_results_to_encounter() used to live here, hooked on
-# Patient Encounter's before_insert, and copied a trial's completed panel
-# into the Encounter's own lab_test_prescription child table so the
-# doctor would see it "in the normal place". Removed: lab_test_prescription
-# (Lab Prescription) is the doctor's OWN request grid - the same table
-# accept_lab_request() in lab_portal.py fills in when a lab tech accepts a
-# doctor-ordered request - and a technician-completed trial panel the
-# doctor never requested doesn't belong in it. The doctor now sees a
-# trial's completed panel exclusively via the "View Lab Results" button
-# (VIEW_LAB_RESULTS_SCRIPT above), which reads Lab Test's own
-# sc_trial_appointment field directly - see get_encounter_lab_test_names()
-# below, which VIEW_LAB_RESULTS_SCRIPT calls. hooks.py's before_insert
-# list for Patient Encounter no longer references this function. (A
-# separate "Labs" dashboard card was also tried and removed - see
-# remove_lab_dashboard_group_script() above for why.)
-
-
 @frappe.whitelist()
 def get_encounter_lab_test_names(encounter):
 	"""Every Lab Test linked to this Patient Encounter, from the two
@@ -965,9 +851,6 @@ def _propagate_to_trialist(doc, trialist_name, fitness_result):
 		return
 
 	frappe.db.set_value("Trialist", trialist_name, "medical_encounter", doc.name)
-	# Auto-set, informational only (see this module's docstring) - lets
-	# someone looking at the Patient Encounter see which Trialist it
-	# ended up updating, without requiring anyone to have set it by hand.
 	frappe.db.set_value("Patient Encounter", doc.name, "trialist", trialist_name)
 
 	if fitness_result == "Fit":
