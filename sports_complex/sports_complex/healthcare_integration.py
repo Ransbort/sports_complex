@@ -1,189 +1,24 @@
 # Copyright (c) 2026, Pep Sports Limited and contributors
 # For license information, please see license.txt
 
-"""Hooks into the Healthcare app's Patient Appointment / Patient Encounter
-doctypes, wired up via this app's hooks.py. Keeps the trial-candidacy
-pipeline in sync with the doctor's verdict.
-
-This module still owns every bit of trial-specific decision-making, but as
-of the predetermined-lab stage below, the Healthcare app itself is no
-longer completely untouched — it has one small, generic extension point
-added to it: a _route_after_vitals() hook, called from nurse_station.py's
-save_vitals(). It doesn't contain trial-specific logic itself; it only
-ever calls into this module. See route_trial_after_vitals() below for
-exactly where control crosses back over.
-
-The "lab" tab this feeds (checking on a trial's predetermined labs and
-sending the patient on to the doctor) lives on Lab Portal now
-(healthcare/page/lab_portal/lab_portal.py and lab_portal.js, as its "Trial
-Labs" tab - previously on Front Desk, then on Doctor Station, moved once
-more so trial lab work sits alongside every other lab request instead of
-splitting it across two pages). Nothing in this module changed for that
-move: lab_portal.js calls the same get_trial_lab_queue()/
-get_trial_lab_tests()/send_trial_to_doctor() below directly, and this
-module never depended on which page hosted the tab, only on the
-Healthcare Settings fields (front_desk_lab_roles/
-front_desk_lab_override_roles) and the "With Lab" queue_status value
-itself.
-
-Registration flow (medical-first, per the team's confirmed redesign):
-  1. A person enters the pipeline the moment ANY Patient Appointment gets
-     created for them with Appointment Type = the site's configured Trial
-     Appointment Type (Sports Complex Setup > Trials, defaults to
-     "Trialist" — see get_trial_appointment_type() below) — a walk-in
-     check-in or a pre-booked appointment, first exam or a re-trial, it's
-     all the exact same mechanism now. Front Desk's own check-in flow
-     (checkin/queue tabs), Nurse Station, and Doctor Station (queue, lab,
-     and patient search tabs) are used as-is; nothing sports-specific
-     needs to exist there. on_patient_appointment_after_insert() below
-     reacts to that and flags the Patient as a trial candidate.
-  2. The person goes through Front Desk's normal queue - Nurse Station
-     takes vitals. For a trial appointment, nurse_station.py's
-     save_vitals() no longer sends them straight to the doctor:
-     route_trial_after_vitals() below intercepts (via nurse_station.py's
-     _route_after_vitals() extension point), auto-creates one Lab Test per
-     row configured under Sports Complex Setup > Trials > Required Lab
-     Tests (create_trial_lab_panel() below - already paid for by the same
-     consultation fee charged at check-in, never billed a second time),
-     and parks the appointment on a new "With Lab" queue_status / Doctor
-     Station's Lab tab instead of "With Doctor". Lab staff work those
-     tests exactly like any other Lab Test, then a lab tech (or, for an
-     incomplete panel, a front-desk/nursing override — see
-     send_trial_to_doctor() below) sends the appointment on to the Doctor
-     Queue. Only then does the doctor call start_consultation(),
-     which creates the actual Patient Encounter, inherits appointment_type
-     from the appointment automatically. The completed panel is never
-     copied into the Encounter's own lab_test_prescription table - that
-     child table is the doctor's own request grid (see accept_lab_request()
-     in lab_portal.py), not a place for technician-completed trial results
-     to land - so instead the doctor sees them via the "View Lab Results"
-     button (VIEW_LAB_RESULTS_SCRIPT below, calling get_encounter_lab_
-     test_names()), which reads Lab Test's own sc_trial_appointment field
-     directly rather than anything stored on the Encounter. The doctor
-     records a Fitness Result and submits. If Sports Complex Setup's
-     Required Lab Tests table is
-     left empty, route_trial_after_vitals() declines to claim the
-     appointment and it goes straight to the doctor as before - the lab
-     stage is opt-in per site, not a hard requirement of the trial flow.
-  3. on_patient_encounter_submit() below reads that verdict. It always
-     updates the originating Patient's own trial-candidacy fields; if
-     that Patient already has a registered Trialist (sc_trialist set —
-     i.e. this was a *re-trial*, not a first exam), it also propagates
-     the verdict onto that existing Trialist record the same way it
-     always has.
-  4. Once Patient.sc_trial_clearance_status = "Cleared", sports-complex
-     staff pull up that Patient by name from the Trialist form's Patient
-     picker (see trial_candidate_patient_query() in trialist.py) and
-     enter the sport-specific details (dominant foot, playing level,
-     previous club, interests, experience) — trialist.get_patient_snapshot()
-     carries across everything already captured so it isn't re-typed.
-
-There is deliberately only ONE mechanism for both a first-time exam and a
-re-trial (e.g. re-attempting after injury, or a previous "Not Fit"/
-"Not Cleared" result): check the person in again with the configured Trial
-Appointment Type. Whether that's a first exam or a re-trial is derived from
-whether the Patient already has a Trialist (sc_trialist) at verdict time —
-nothing needs to be chosen up front.
-
-Relies on custom fields added by get_custom_fields() in setup.py:
-  Patient:
-    - sc_is_trial_candidate     Check
-    - sc_trial_clearance_status Select "\nPending\nCleared\nNot Cleared"
-    - sc_trial_cleared_on       Date
-    - sc_trial_encounter        Link -> Patient Encounter
-    - sc_trialist               Link -> Trialist (set once converted -
-                                 see Trialist.after_insert()/on_update())
-  Patient Encounter:
-    - sc_trial_tab                  Tab Break ("Trial Medical Exam")
-    - trialist                      Link -> Trialist (auto-set, informational
-                                     only — see _propagate_to_trialist() below)
-    - fitness_result                Select "\nFit\nNot Fit"
-    - fitness_notes                 Small Text (doctor's reasoning behind
-                                     Fitness Result)
-    - known_allergies               Small Text (pre-filled from Patient.
-                                     allergies on creation - see
-                                     sync_trial_medical_history_from_patient()
-                                     below)
-    - chronic_medical_conditions    Small Text
-    - previous_surgeries            Small Text
-    - current_medications           Small Text (pre-filled from Patient.
-                                     medication on creation, same as
-                                     known_allergies above)
-    - previous_serious_injuries     Small Text
-      (all eight fields above live together under the sc_trial_tab Tab
-      Break; the five Medical Information fields are captured by the
-      doctor alongside the Fitness Result during a trial-medical
-      encounter, and carried across onto the new Trialist by
-      get_patient_snapshot() in trialist.py)
-  Lab Test:
-    - sc_trial_appointment      Link -> Patient Appointment (auto-set only
-                                 on the Lab Tests create_trial_lab_panel()
-                                 itself creates - see that function)
-
-Plus, on the Healthcare app's own Healthcare Settings single (added by
-healthcare/setup.py, not this app, since it's Doctor Station tab-access
-plumbing rather than anything trial-specific):
-  - front_desk_lab_roles           Small Text, default "Laboratory User"
-  - front_desk_lab_override_roles  Small Text, default "Nursing User,Physician"
-  (field names kept as-is from when this lived on Front Desk - only the
-  Small Text labels on the Healthcare Settings form changed, to "Doctor
-  Station Lab Tab Roles"/"...Override Roles")
-
-...plus the "trial_appointment_type" and "trial_required_lab_tests" fields
-on the Sports Complex Setup single doctype (Trials tab), and four things
-auto-provisioned by install.py's after_install/after_migrate so nobody has
-to create them by hand first:
-  - the Appointment Type record itself, via ensure_trial_appointment_type()
-  - a Client Script on Patient Encounter's Form view, via
-    ensure_fitness_result_visibility_script(), that hides the whole
-    "Trial Medical Exam" tab (sc_trial_tab, Fitness Result, Fitness
-    Assessment Notes, and the five Medical Information fields above —
-    TRIAL_ONLY_ENCOUNTER_FIELDS) entirely unless the open encounter's
-    Appointment Type matches
-    get_trial_appointment_type() — doctors doing an ordinary (non-trial)
-    consultation never see a tab that means nothing to them.
-  - a Property Setter on Patient Appointment.queue_status, via
-    ensure_queue_status_with_lab_option(), that appends "With Lab" to the
-    Select options Healthcare's own setup.py defines for that field —
-    layered on top rather than editing that field's own definition, so
-    it survives Healthcare's own after_migrate re-syncing its Custom
-    Field record.
-"""
-
 import json
 
 import frappe
 from frappe import _
 from frappe.utils import nowdate, today
 
-# Used only if Sports Complex Setup's Trial Appointment Type field has
-# never been set (e.g. a brand new site before Setup has been opened
-# once) - get_trial_appointment_type() below is what everything else in
-# this module actually calls.
+
 DEFAULT_TRIAL_APPOINTMENT_TYPE = "Trialist"
 
 
 def get_trial_appointment_type():
-	"""The Appointment Type that marks a Patient Appointment (and, once
-	start_consultation() inherits it, the resulting Patient Encounter) as
-	part of the trial pipeline. Configurable per site via Sports Complex
-	Setup > Trials > Trial Appointment Type (falls back to "Trialist" if
-	that's ever left blank). frappe.get_cached_doc() means this is cheap
-	to call from every hook below rather than threading the value through
-	as a parameter.
-	"""
+
 	settings = frappe.get_cached_doc("Sports Complex Setup")
 	return settings.get("trial_appointment_type") or DEFAULT_TRIAL_APPOINTMENT_TYPE
 
 
 def ensure_trial_appointment_type():
-	"""Idempotently provision whichever Appointment Type is currently
-	configured in Sports Complex Setup (default "Trialist") so it shows
-	up in Front Desk's Appointment Type picker out of the box. Called
-	from sports_complex.install (after_install/after_migrate) — safe to
-	call repeatedly, and re-provisions correctly if the configured name
-	is changed later (rename in Setup, then bench migrate).
-	"""
+
 	appointment_type = get_trial_appointment_type()
 	if not frappe.db.exists("Appointment Type", appointment_type):
 		frappe.get_doc({
@@ -194,39 +29,9 @@ def ensure_trial_appointment_type():
 
 @frappe.whitelist()
 def get_trial_appointment_type_for_client():
-	"""Read-only wrapper around get_trial_appointment_type() for the
-	Fitness Result visibility Client Script below - any logged-in user
-	can call this (e.g. a Healthcare Practitioner filling in a Patient
-	Encounter), even without read access to Sports Complex Setup itself,
-	which is deliberately locked down to System Manager / Sports Complex
-	Manager (payment gateway config, tax templates, etc. live there too).
-	This only ever exposes the one non-sensitive value the client script
-	needs, nothing else from Setup.
-	"""
+
 	return get_trial_appointment_type()
 
-
-# Client Script content is intentionally kept as a plain string (not a
-# separate .js file) since it has to be pushed into the DB via
-# ensure_fitness_result_visibility_script() below rather than loaded as a
-# static asset - Patient Encounter belongs to the Healthcare app, and this
-# app deliberately never edits Healthcare's own files (see this module's
-# top docstring). The marker comment lets ensure_fitness_result_visibility_script()
-# find and update its own record on every bench migrate without touching
-# any other Client Script someone might separately add for this same
-# dt+view (Frappe runs every enabled Client Script for a given dt+view,
-# not just one, so there's no conflict either way).
-#
-# Covers the whole "Trial Medical Exam" Tab Break (sc_trial_tab) plus
-# fitness_result, fitness_notes, and the five Medical Information fields
-# (known_allergies, chronic_medical_conditions, previous_surgeries,
-# current_medications, previous_serious_injuries) added alongside it in
-# setup.get_custom_fields() - none of them mean anything outside a
-# trial-medical encounter, so all eight are toggled together. Toggling the
-# Tab Break itself hides the tab entirely rather than leaving an empty one
-# in the tab bar; the individual fields are toggled too, defensively, in
-# case a future Frappe version ever renders a hidden tab's fields some
-# other way.
 TRIAL_ONLY_ENCOUNTER_FIELDS = [
 	"sc_trial_tab",
 	"fitness_result",
@@ -286,17 +91,7 @@ function sports_complex_toggle_trial_fields(frm) {
 
 
 def ensure_fitness_result_visibility_script():
-	"""Idempotently create/update the Client Script that hides Patient
-	Encounter's Fitness Result field (and the five Medical Information
-	fields alongside it — see TRIAL_ONLY_ENCOUNTER_FIELDS above) unless the
-	encounter's Appointment Type matches get_trial_appointment_type() (see
-	FITNESS_RESULT_VISIBILITY_SCRIPT above). Called from
-	sports_complex.install (after_install/after_migrate) — safe to call
-	repeatedly; matches on the marker comment inside the script content
-	rather than just dt+view, so re-running this never clobbers some
-	other, unrelated Client Script someone later adds for Patient
-	Encounter's Form view.
-	"""
+
 	marker = "__sports_complex_fitness_result_visibility__"
 	existing_name = frappe.db.get_value(
 		"Client Script",
@@ -310,11 +105,6 @@ def ensure_fitness_result_visibility_script():
 	else:
 		frappe.get_doc({
 			"doctype": "Client Script",
-			# Client Script is a "Set by user" (Prompt) autoname doctype -
-			# Frappe won't generate a name on its own, so one must be
-			# supplied here or insert() raises "Please set the document
-			# name". Fixed and descriptive so re-running this after a
-			# manual deletion recreates the same record name.
 			"name": "Sports Complex Fitness Result Visibility",
 			"dt": "Patient Encounter",
 			"view": "Form",
@@ -323,31 +113,6 @@ def ensure_fitness_result_visibility_script():
 		}).insert(ignore_permissions=True)
 
 
-# Same "managed programmatic Client Script" mechanism as
-# FITNESS_RESULT_VISIBILITY_SCRIPT above, for an unrelated button: a
-# "View Lab Results" entry on Patient Encounter's View dropdown, next to
-# Healthcare's own built-in "View Vitals" (healthcare/setup.py's
-# create_view_vitals_client_script() - that one does
-# frappe.set_route("List", "Vital Signs", {patient, encounter}), since
-# Vital Signs carries its own `encounter` field directly). Lab Test has
-# no such field - the only link back to an encounter runs through either
-# (a) this encounter's own lab_test_prescription child table (Lab
-# Prescription.custom_lab_test, a Custom Field healthcare/setup.py
-# already applies) for doctor-ordered requests accepted through Lab
-# Portal's own accept_lab_request(), or (b) Lab Test's own
-# sc_trial_appointment field for a trial's predetermined panel - the two
-# sources don't share a field, so this button calls the whitelisted
-# get_encounter_lab_test_names() below (server-side) rather than reading
-# frm.doc directly, and that server method is what actually combines
-# them. A trial panel's results are deliberately never copied into
-# lab_test_prescription itself - see get_encounter_lab_test_names()'s own
-# docstring for why. Lives here rather than in healthcare/setup.py
-# alongside its Vitals sibling because sports_complex.install's
-# after_install/after_migrate hooks are what's actually proven to run
-# this on every bench migrate on an already-installed site -
-# healthcare/setup.py's own equivalent is only wired to after_install, so
-# a change added only there would need a manual one-off run to reach a
-# site that installed before it existed.
 VIEW_LAB_RESULTS_SCRIPT = (
 	"""// __sports_complex_view_lab_results__
 // Managed by sports_complex.sports_complex.healthcare_integration.
