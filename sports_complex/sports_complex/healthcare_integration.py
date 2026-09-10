@@ -1009,13 +1009,22 @@ def get_encounter_lab_test_names(encounter):
 
 	  - doctor-ordered labs accepted through Lab Portal's
 		accept_lab_request(), which write the linked Lab Test's name onto
-		lab_test_prescription's custom_lab_test field.
+		lab_test_prescription's custom_lab_test field. This is the path
+		that serves EVERY patient encounter, sports-complex trial or
+		otherwise - it's the ordinary Healthcare flow, untouched here.
 	  - a trial appointment's predetermined panel, found via Lab Test's
 		own sc_trial_appointment field (set at creation - see
 		create_trial_lab_panel()), matched against this encounter's
 		`appointment` - not reachable from the encounter's child tables at
 		all, since Lab Test has no field pointing back to Patient
 		Encounter, only to the Patient Appointment it was created against.
+		This second source only ever contributes rows for a sports-complex
+		trial appointment; guarded with has_field() below so it degrades
+		to a no-op (rather than throwing) on any site/version where the
+		sc_trial_appointment custom field doesn't exist - e.g. if this
+		function is ever relocated out of the sports_complex app into a
+		general healthcare customization, or the app is temporarily
+		disabled.
 
 	Called from the client (VIEW_LAB_RESULTS_SCRIPT's "View Lab Results"
 	button) rather than read straight off frm.doc, specifically because
@@ -1043,7 +1052,7 @@ def get_encounter_lab_test_names(encounter):
 		)
 	)
 
-	if appointment:
+	if appointment and frappe.get_meta("Lab Test").has_field("sc_trial_appointment"):
 		names.update(
 			frappe.get_all(
 				"Lab Test",

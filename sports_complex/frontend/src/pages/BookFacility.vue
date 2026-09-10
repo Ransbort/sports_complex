@@ -120,10 +120,10 @@
             </div>
           </div>
 
-          <div class="flex min-h-0 flex-1 flex-col justify-between gap-6 p-6! pb-0! lg:p-10! lg:pb-0!">
+          <div class="flex min-h-0 flex-1 flex-col justify-between gap-2 p-6! pb-0! lg:pt-4! lg:px-10! lg:pb-0!">
             <div class="shrink-0">
               <p class="mb-1 text-xs font-bold uppercase tracking-wide text-[var(--portal-primary,#16a34a)]">Browse Facilities</p>
-              <h2 class="m-0 text-[clamp(2.5rem,7vw,4rem)]! font-black! leading-tight text-slate-900">Find your court,<br>pick a time, play.</h2>
+              <h2 class="m-0 text-[clamp(2.5rem,7vw,4rem)]! font-black! leading-none! text-slate-900">Find your court,<br>pick a time, play.</h2>
               <p class="mt-1 text-slate-500">Browse facilities and reserve a time slot.</p>
             </div>
 
@@ -143,8 +143,8 @@
             </div>
 
             <div class="shrink-0">
-              <p class="mb-3 text-xs font-bold uppercase tracking-wide text-slate-800">How Booking Works</p>
-              <div class="flex flex-col gap-3.5">
+              <p class="mb-2 text-xs font-bold uppercase tracking-wide text-slate-800">How Booking Works</p>
+              <div class="flex flex-col gap-2.5">
                 <div class="flex items-start gap-3">
                   <span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[var(--portal-primary,#16a34a)]" style="background-color: color-mix(in srgb, var(--portal-primary, #16a34a) 14%, white);">
                     <i class="bi bi-calendar2-check text-sm"></i>
@@ -175,8 +175,8 @@
               </div>
             </div>
 
-            <div class="flex min-h-0 flex-1 flex-col">
-              <div class="mb-3 flex shrink-0 items-center justify-between">
+            <div class="shrink-0">
+              <div class="mb-2 flex items-center justify-between">
                 <p class="m-0 text-xs font-bold uppercase tracking-wide text-slate-800">All facilities</p>
                 <div class="flex items-center gap-2">
                   <button
@@ -193,17 +193,18 @@
               </div>
               <div
                 ref="facilityStrip"
-                class="hide-scrollbar flex flex-1 min-h-[4.5rem] lg:min-h-[10.5rem] touch-pan-y select-none gap-3 overflow-x-auto p-1"
+                class="hide-scrollbar flex touch-pan-y select-none gap-3 overflow-x-auto p-1"
                 :class="stripDragActive ? 'cursor-grabbing' : 'cursor-grab'"
                 @pointerdown="onStripPointerDown"
                 @pointermove="onStripPointerMove"
                 @pointerup="onStripPointerUp"
                 @pointerleave="onStripPointerUp"
                 @pointercancel="onStripPointerUp"
+                @wheel="onStripWheel"
               >
                 <button
                   v-for="(f, i) in facilities" :key="f.name" type="button" :aria-label="f.facility_name"
-                  class="relative h-full w-24 shrink-0 overflow-hidden rounded-2xl border-0 bg-slate-100 bg-cover bg-center p-0 lg:w-56"
+                  class="relative aspect-[4/3] w-24 shrink-0 overflow-hidden rounded-2xl border-0 bg-slate-100 bg-cover bg-center p-0 lg:w-56"
                   :style="f.image ? { backgroundImage: 'url(' + f.image + ')' } : {}"
                   :class="i === browseIndex ? 'ring-2 ring-[var(--portal-primary,#16a34a)]' : 'ring-1 ring-slate-900/10'"
                   @click="browseGoTo(i)"
@@ -788,6 +789,40 @@ export default {
     },
     onStripPointerUp() {
       this.stripDragActive = false;
+    },
+    onStripWheel(e) {
+      // Convert vertical wheel/trackpad scroll into horizontal scrolling
+      // while the cursor is over the facility strip, so users can browse
+      // the thumbnails without needing to shift+scroll or drag. Eased with
+      // a small rAF momentum loop instead of jumping scrollLeft directly,
+      // so it feels smooth/buttery rather than stepping in wheel-tick jumps.
+      const strip = this.$refs.facilityStrip;
+      if (!strip) return;
+      const delta = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX;
+      if (!delta) return;
+      e.preventDefault();
+
+      const max = strip.scrollWidth - strip.clientWidth;
+      // Start the easing target from wherever the strip actually is right
+      // now (not the stale target) whenever the animation isn't already
+      // mid-flight, so a fresh scroll after it settles feels 1:1.
+      if (!this._stripWheelRAF) this._stripWheelTarget = strip.scrollLeft;
+      this._stripWheelTarget = Math.max(0, Math.min(max, this._stripWheelTarget + delta));
+
+      if (!this._stripWheelRAF) {
+        const ease = () => {
+          const current = strip.scrollLeft;
+          const diff = this._stripWheelTarget - current;
+          if (Math.abs(diff) < 0.5) {
+            strip.scrollLeft = this._stripWheelTarget;
+            this._stripWheelRAF = null;
+            return;
+          }
+          strip.scrollLeft = current + diff * 0.18;
+          this._stripWheelRAF = requestAnimationFrame(ease);
+        };
+        this._stripWheelRAF = requestAnimationFrame(ease);
+      }
     },
     loadFacilities() {
       this.loadingFacilities = true;
