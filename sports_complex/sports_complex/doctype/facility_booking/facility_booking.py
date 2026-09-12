@@ -1520,6 +1520,7 @@ def create_guest_booking(
 	"""
 	from sports_complex.utils.guest_booking import (
 		create_account_for_guest,
+		elevated_for_guest_booking,
 		issue_booking_remember_token,
 		resolve_or_create_guest_customer,
 		verify_booking_otp,
@@ -1537,30 +1538,27 @@ def create_guest_booking(
 	# elevation ends the moment it returns. booking.submit() below fires
 	# on_submit() -> create_sales_invoice(), and ERPNext's own Sales
 	# Invoice controller touches/creates a Contact too (the same class of
-	# ERPNext-internal side effect, just a second, later occurrence of it)
-	# - which was 403ing again for Guest even after the first Contact
-	# error was fixed, because by then the earlier elevation had already
-	# been restored back to Guest. Elevating around this whole block too
-	# closes that off without needing to know exactly which ERPNext
-	# controller does it.
-	# Elevating the whole *session* here (frappe.set_user("Administrator"))
-	# used to be how this bypassed the permission gap described below -
-	# but that turned out to intermittently corrupt the real caller's own
-	# session (frappe.session.user/sid are shared, mutable, request-
-	# global state - a slow elevated block here occasionally left a
-	# *different* concurrent/next request on the same session seeing
-	# "Administrator" instead of the real customer, which surfaced as
-	# the customer looking logged out right after booking, e.g. "User
-	# None not found" / "not allowed to access this booking" when they
-	# immediately clicked View). frappe.flags.ignore_permissions does the
-	# one thing actually needed - bypass permission checks for nested
-	# framework-internal doc operations (Account/Contact/... a plain
-	# Website User has no desk-side read permission for) - without ever
-	# touching who the caller *is*, so there is nothing here that can
-	# leak into another request's identity.
-	original_ignore_permissions = frappe.flags.ignore_permissions
-	frappe.flags.ignore_permissions = True
-	try:
+	# ERPNext-internal side effect, just a second, later occurrence of
+	# it), plus other internal reads further down through the payment
+	# link call - so this stays elevated for the *entire*
+	# create-through-payment-link pipeline below, not narrowly re-elevated
+	# around each individual call.
+	#
+	# Widening frappe.flags.ignore_permissions to cover this whole block
+	# still wasn't enough on its own - guests kept hitting "User don't
+	# have permissions to select/read this account" even with the flag
+	# set the entire time, because that flag only affects
+	# Document.insert/save/submit's own permission check, not the
+	# separate frappe.has_permission() utility some ERPNext-internal
+	# validation calls directly (most likely during the Sales Invoice's
+	# own on-insert/on-submit side effects), which never consults that
+	# flag at all. See elevated_for_guest_booking()'s own docstring
+	# (utils/guest_booking.py) for why it patches both, and why it
+	# doesn't use frappe.set_user("Administrator") to do it (that mutates
+	# frappe.session.user - shared, request-global state - and risks the
+	# response's own session cookie coming back authenticated as
+	# Administrator instead of anonymous).
+	with elevated_for_guest_booking():
 		customer = resolve_or_create_guest_customer(email, full_name, phone)
 		customer_created_here = not pre_existing_customer
 		# guest_name records who actually typed *this* booking, independent
@@ -1596,10 +1594,17 @@ def create_guest_booking(
 		account = None
 		if cint(create_account) and account_password:
 			account = create_account_for_guest(normalized_email, guest_name, account_password)
-	finally:
-		frappe.flags.ignore_permissions = original_ignore_permissions
 
-	token = get_booking_access_token(booking.name)
+		token = get_booking_access_token(booking.name)
+
+		payment_link = None
+		if booking.booking_status == "Payment Pending":
+			# get_booking_payment_link() calls into frappe_paystack's
+			# create_payment_link() - see the module-level comment above,
+			# still elevated at this point along with everything else in
+			# this block.
+			payment_link = get_booking_payment_link(booking.name, token=token)
+
 	_send_booking_confirmation_email(email, [booking], tokens={booking.name: token})
 
 	result = {
@@ -1608,25 +1613,8 @@ def create_guest_booking(
 		"token": token,
 		"remember_token": issue_booking_remember_token(normalized_email),
 	}
-	if booking.booking_status == "Payment Pending":
-		# Same request-scoped elevation create_booking() uses around this
-		# same call (see its own comment) - get_booking_payment_link()
-		# calls into frappe_paystack's create_payment_link(), code we
-		# don't own that does a raw frappe.get_doc() read with no
-		# ignore_permissions of its own. Missing here (unlike the two
-		# logged-in siblings, create_booking()/create_booking_cart(),
-		# which already wrap this) was the actual cause of "User don't
-		# have permissions to select/read this account" for first-time
-		# guest bookings: by this point in the function the earlier
-		# elevation around resolve_or_create_guest_customer()/booking.
-		# submit() has already been restored back to Guest in the
-		# `finally` above.
-		original_ignore_permissions = frappe.flags.ignore_permissions
-		frappe.flags.ignore_permissions = True
-		try:
-			result["payment_link"] = get_booking_payment_link(booking.name, token=token)
-		finally:
-			frappe.flags.ignore_permissions = original_ignore_permissions
+	if payment_link:
+		result["payment_link"] = payment_link
 	if account:
 		result["account"] = account
 	return result
@@ -1650,6 +1638,7 @@ def create_guest_booking_cart(
 	"""
 	from sports_complex.utils.guest_booking import (
 		create_account_for_guest,
+		elevated_for_guest_booking,
 		issue_booking_remember_token,
 		resolve_or_create_guest_customer,
 		verify_booking_otp,
@@ -1663,24 +1652,23 @@ def create_guest_booking_cart(
 
 	pre_existing_customer = frappe.db.get_value("Member", {"email": normalized_email}, "customer")
 
-	# Elevating the whole *session* here (frappe.set_user("Administrator"))
-	# used to be how this bypassed the permission gap described below -
-	# but that turned out to intermittently corrupt the real caller's own
-	# session (frappe.session.user/sid are shared, mutable, request-
-	# global state - a slow elevated block here occasionally left a
-	# *different* concurrent/next request on the same session seeing
-	# "Administrator" instead of the real customer, which surfaced as
-	# the customer looking logged out right after booking, e.g. "User
-	# None not found" / "not allowed to access this booking" when they
-	# immediately clicked View). frappe.flags.ignore_permissions does the
-	# one thing actually needed - bypass permission checks for nested
-	# framework-internal doc operations (Account/Contact/... a plain
-	# Website User has no desk-side read permission for) - without ever
-	# touching who the caller *is*, so there is nothing here that can
-	# leak into another request's identity.
-	original_ignore_permissions = frappe.flags.ignore_permissions
-	frappe.flags.ignore_permissions = True
-	try:
+	# Elevated for the *entire* create-through-payment-link pipeline below,
+	# not just around resolve_or_create_guest_customer()/_run_cart() - see
+	# create_guest_booking()'s own (much longer) comment on why: a
+	# narrower elevation that stopped right after _run_cart() and only
+	# re-elevated around get_booking_payment_link() further down still let
+	# guests hit "User don't have permissions to select/read this
+	# account". Even widening frappe.flags.ignore_permissions to cover
+	# this whole block wasn't enough on its own - that flag only affects
+	# Document.insert/save/submit's own permission check, not the
+	# separate frappe.has_permission() utility some ERPNext-internal
+	# validation calls directly (most likely during the linked Sales
+	# Invoice's own on-insert/on-submit side effects inside _run_cart()'s
+	# _create_cart_invoice()), which never consults that flag at all. See
+	# elevated_for_guest_booking()'s own docstring (utils/guest_booking.py)
+	# for why it patches both, and why it doesn't use
+	# frappe.set_user("Administrator") to do it.
+	with elevated_for_guest_booking():
 		customer = resolve_or_create_guest_customer(email, full_name, phone)
 		customer_created_here = not pre_existing_customer
 		guest_name = (full_name or "").strip() or frappe.db.get_value("Customer", customer, "customer_name")
@@ -1700,10 +1688,17 @@ def create_guest_booking_cart(
 		account = None
 		if cint(create_account) and account_password:
 			account = create_account_for_guest(normalized_email, guest_name, account_password)
-	finally:
-		frappe.flags.ignore_permissions = original_ignore_permissions
 
-	bookings_out = [{"name": b.name, "token": get_booking_access_token(b.name)} for b in bookings]
+		bookings_out = [{"name": b.name, "token": get_booking_access_token(b.name)} for b in bookings]
+
+		payment_link = None
+		if status == "Payment Pending":
+			# get_booking_payment_link() calls into frappe_paystack's
+			# create_payment_link() - see the module-level comment above,
+			# still elevated at this point along with everything else in
+			# this block.
+			payment_link = get_booking_payment_link(bookings[0].name, token=bookings_out[0]["token"])
+
 	_send_booking_confirmation_email(
 		email, bookings, tokens={b["name"]: b["token"] for b in bookings_out}
 	)
@@ -1713,20 +1708,8 @@ def create_guest_booking_cart(
 		"booking_status": status,
 		"remember_token": issue_booking_remember_token(normalized_email),
 	}
-	if status == "Payment Pending":
-		# Same request-scoped elevation create_booking_cart() uses around
-		# this same call (see its own comment) - and the same gap
-		# create_guest_booking() above just had: by this point the
-		# earlier elevation around resolve_or_create_guest_customer()/
-		# _run_cart() has already been restored back to Guest in the
-		# `finally` above, so get_booking_payment_link() -> frappe_
-		# paystack's create_payment_link() needs its own elevation here.
-		original_ignore_permissions = frappe.flags.ignore_permissions
-		frappe.flags.ignore_permissions = True
-		try:
-			result["payment_link"] = get_booking_payment_link(bookings[0].name, token=bookings_out[0]["token"])
-		finally:
-			frappe.flags.ignore_permissions = original_ignore_permissions
+	if payment_link:
+		result["payment_link"] = payment_link
 	if account:
 		result["account"] = account
 	return result

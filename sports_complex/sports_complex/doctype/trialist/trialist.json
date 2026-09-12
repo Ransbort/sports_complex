@@ -88,10 +88,10 @@
   {
    "fieldname": "patient",
    "fieldtype": "Link",
-   "label": "Approved Patient (Trialist)",
+   "label": "Approved Pep Trialist(s)",
    "options": "Patient",
    "reqd": 1,
-   "description": "Select the already medically-cleared Patient this trialist registration is for - only cleared, not-yet-registered patients are shown. Personal, contact and medical info auto-fill from their clinic record once selected."
+   "description": "Select the already medically-cleared Patient this trialist registration is for - only cleared, not-yet-registered patients are shown (a patient already saved as a Trialist drops off this list - see trial_candidate_patient_query()). Personal, contact and medical info auto-fill from their clinic record once selected."
   },
   {
    "fieldname": "medical_clearance_status",

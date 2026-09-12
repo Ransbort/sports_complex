@@ -16,6 +16,7 @@ import hashlib
 import hmac
 import random
 import time
+from contextlib import contextmanager
 
 import frappe
 from frappe import _
@@ -24,6 +25,80 @@ from frappe.utils.password import get_encryption_key
 
 OTP_CACHE_PREFIX = "sc_booking_otp"
 OTP_TTL_SECONDS = 10 * 60
+
+
+@contextmanager
+def elevated_for_guest_booking():
+	"""Temporarily bypasses every permission-check layer Frappe/ERPNext
+	uses, for the duration of a guest booking's create-through-payment
+	pipeline (see create_guest_booking()/create_guest_booking_cart() in
+	facility_booking.py).
+
+	frappe.flags.ignore_permissions only covers Document.insert/save/
+	submit's own permission check (Document.check_permission() reads
+	that flag directly). It does NOT cover frappe.has_permission() - a
+	separate, standalone utility that ERPNext-internal validation calls
+	directly for OTHER documents it needs to read along the way (not
+	through *their own* Document.check_permission()) - first surfacing
+	as "User don't have permissions to select/read this account" (some
+	Account read during the linked Sales Invoice's own insert/submit
+	side effects), then, once that call site was covered, the identical
+	shape again for Item ("does not have doctype access via role
+	permission for document Item... does not have access to this
+	document") from a *different* internal call site to the same
+	underlying check. Rather than keep chasing one doctype at a time,
+	this patches every layer at once:
+
+	  - frappe.flags.ignore_permissions, for Document.check_permission().
+	  - frappe.has_permission and frappe.permissions.has_permission -
+	    two names for the same function, but a module that did
+	    `import frappe.permissions` and calls it as
+	    `frappe.permissions.has_permission(...)` only sees a patch
+	    applied to *that* attribute, not to frappe's top-level re-export
+	    (and vice versa) - both are patched so it doesn't matter which
+	    form a given ERPNext internal happens to use.
+	  - frappe.model.document.Document.has_permission/check_permission
+	    at the class level, so *any* document instance's own permission
+	    check - however that code imported its way to calling it -
+	    resolves through the same patched method.
+
+	Deliberately does NOT use frappe.set_user("Administrator") - for an
+	allow_guest=True endpoint, frappe.session.user is the literal string
+	"Guest" with no real session behind it, and swapping it mid-request
+	risks the response's own session cookie coming back authenticated as
+	Administrator instead of anonymous once the request ends - a much
+	worse problem than the permission errors this works around (this is
+	also why an earlier attempt at session-level elevation was reverted -
+	see facility_booking.py's own history/comments on it). Monkeypatching
+	the permission-check functions instead never touches who the caller
+	*is* - same reasoning as the flags-only approach, just closing every
+	gap it didn't cover. Everything is restored in `finally` either way.
+	"""
+	from frappe.model.document import Document
+	import frappe.permissions  # noqa: F401 - guarantees the attribute below exists
+
+	def _always_allow(*args, **kwargs):
+		return True
+
+	original_ignore_permissions = frappe.flags.ignore_permissions
+	original_has_permission = frappe.has_permission
+	original_permissions_has_permission = frappe.permissions.has_permission
+	original_doc_has_permission = Document.has_permission
+	original_doc_check_permission = Document.check_permission
+
+	frappe.flags.ignore_permissions = True
+	frappe.has_permission = _always_allow
+	frappe.permissions.has_permission = _always_allow
+	Document.has_permission = _always_allow
+	Document.check_permission = _always_allow
+	try:
+		yield
+	finally:
+		Document.check_permission = original_doc_check_permission
+		Document.has_permission = original_doc_has_permission
+		frappe.permissions.has_permission = original_permissions_has_permission
+		frappe.has_permission = original_has_permission
+		frappe.flags.ignore_permissions = original_ignore_permissions
 
 # "Remember this device" for the My Bookings page: after a guest proves
 # email ownership once via OTP, list_my_bookings() (facility_booking.py)

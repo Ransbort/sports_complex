@@ -6,7 +6,7 @@
    "label": "Sports Complex Revenue Trend"
   }
  ],
- "content": "[{\"id\":\"2w3s_cLUWR\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Sports Complex Revenue Trend\",\"col\":12}},{\"id\":\"header1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"sc2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Trialist\",\"col\":3}},{\"id\":\"sc1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Player\",\"col\":3}},{\"id\":\"sc3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Member\",\"col\":3}},{\"id\":\"spacer1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"header2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Modules</b></span>\",\"col\":12}},{\"id\":\"eNSqdF253c\",\"type\":\"card\",\"data\":{\"card_name\":\"Home\",\"col\":4}},{\"id\":\"dxtm-28NW5\",\"type\":\"card\",\"data\":{\"card_name\":\"Facility Management\",\"col\":4}},{\"id\":\"pukPcyVn3Z\",\"type\":\"card\",\"data\":{\"card_name\":\"Booking Management\",\"col\":4}},{\"id\":\"gWzDJD2ctl\",\"type\":\"card\",\"data\":{\"card_name\":\"Coaching\",\"col\":4}}]",
+ "content": "[{\"id\":\"2w3s_cLUWR\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Sports Complex Revenue Trend\",\"col\":12}},{\"id\":\"header1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"sc2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Trialist\",\"col\":3}},{\"id\":\"sc1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Player\",\"col\":3}},{\"id\":\"sc3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Member\",\"col\":3}},{\"id\":\"biapvGmMk9\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Sport Booking\",\"col\":3}},{\"id\":\"spacer1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"header2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Modules</b></span>\",\"col\":12}},{\"id\":\"eNSqdF253c\",\"type\":\"card\",\"data\":{\"card_name\":\"Home\",\"col\":4}},{\"id\":\"dxtm-28NW5\",\"type\":\"card\",\"data\":{\"card_name\":\"Facility Management\",\"col\":4}},{\"id\":\"pukPcyVn3Z\",\"type\":\"card\",\"data\":{\"card_name\":\"Booking Management\",\"col\":4}},{\"id\":\"gWzDJD2ctl\",\"type\":\"card\",\"data\":{\"card_name\":\"Coaching\",\"col\":4}}]",
  "creation": "2026-08-04 00:00:00",
  "custom_blocks": [],
  "docstatus": 0,
@@ -215,7 +215,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-08-27 13:06:47.572219",
+ "modified": "2026-09-12 18:07:38.391377",
  "modified_by": "Administrator",
  "module": "Sports Complex",
  "name": "Sports Complex",
@@ -233,6 +233,13 @@
    "link_to": "Trialist",
    "stats_filter": "[]",
    "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Sport Booking",
+   "type": "URL",
+   "url": "/portal"
   },
   {
    "color": "Green",
