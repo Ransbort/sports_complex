@@ -6,7 +6,7 @@
    "label": "Sports Complex Revenue Trend"
   }
  ],
- "content": "[{\"id\":\"2w3s_cLUWR\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Sports Complex Revenue Trend\",\"col\":12}},{\"id\":\"header1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"sc2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Trialist\",\"col\":3}},{\"id\":\"sc1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Player\",\"col\":3}},{\"id\":\"sc3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Member\",\"col\":3}},{\"id\":\"sc4\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Tournament\",\"col\":3}},{\"id\":\"spacer1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"header2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Modules</b></span>\",\"col\":12}},{\"id\":\"eNSqdF253c\",\"type\":\"card\",\"data\":{\"card_name\":\"Home\",\"col\":4}},{\"id\":\"dxtm-28NW5\",\"type\":\"card\",\"data\":{\"card_name\":\"Facility Management\",\"col\":4}},{\"id\":\"pukPcyVn3Z\",\"type\":\"card\",\"data\":{\"card_name\":\"Booking Management\",\"col\":4}},{\"id\":\"Dgr6ojg5MQ\",\"type\":\"card\",\"data\":{\"card_name\":\"Membership\",\"col\":4}},{\"id\":\"gWzDJD2ctl\",\"type\":\"card\",\"data\":{\"card_name\":\"Coaching\",\"col\":4}},{\"id\":\"1lmmWSYrOw\",\"type\":\"card\",\"data\":{\"card_name\":\"Events & Tournaments\",\"col\":4}}]",
+ "content": "[{\"id\":\"2w3s_cLUWR\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Sports Complex Revenue Trend\",\"col\":12}},{\"id\":\"header1\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Your Shortcuts</b></span>\",\"col\":12}},{\"id\":\"sc2\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Trialist\",\"col\":3}},{\"id\":\"sc1\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Player\",\"col\":3}},{\"id\":\"sc3\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Member\",\"col\":3}},{\"id\":\"spacer1\",\"type\":\"spacer\",\"data\":{\"col\":12}},{\"id\":\"header2\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Modules</b></span>\",\"col\":12}},{\"id\":\"eNSqdF253c\",\"type\":\"card\",\"data\":{\"card_name\":\"Home\",\"col\":4}},{\"id\":\"dxtm-28NW5\",\"type\":\"card\",\"data\":{\"card_name\":\"Facility Management\",\"col\":4}},{\"id\":\"pukPcyVn3Z\",\"type\":\"card\",\"data\":{\"card_name\":\"Booking Management\",\"col\":4}},{\"id\":\"gWzDJD2ctl\",\"type\":\"card\",\"data\":{\"card_name\":\"Coaching\",\"col\":4}}]",
  "creation": "2026-08-04 00:00:00",
  "custom_blocks": [],
  "docstatus": 0,
@@ -158,45 +158,6 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Membership",
-   "link_count": 3,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Membership Plan",
-   "link_count": 0,
-   "link_to": "Membership Plan",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Membership Renewal",
-   "link_count": 0,
-   "link_to": "Membership Renewal",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Member Attendance",
-   "link_count": 0,
-   "link_to": "Member Attendance",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
    "label": "Coaching",
    "link_count": 5,
    "link_type": "DocType",
@@ -252,75 +213,6 @@
    "link_type": "DocType",
    "onboard": 0,
    "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Events & Tournaments",
-   "link_count": 6,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Tournament",
-   "link_count": 0,
-   "link_to": "Tournament",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Tournament Registration",
-   "link_count": 0,
-   "link_to": "Tournament Registration",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Fixtures",
-   "link_count": 0,
-   "link_to": "Fixtures",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Match",
-   "link_count": 0,
-   "link_to": "Match",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Results",
-   "link_count": 0,
-   "link_to": "Results",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Awards",
-   "link_count": 0,
-   "link_to": "Awards",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
   }
  ],
  "modified": "2026-08-27 13:06:47.572219",
@@ -355,14 +247,6 @@
    "doc_view": "List",
    "label": "Member",
    "link_to": "Member",
-   "stats_filter": "[]",
-   "type": "DocType"
-  },
-  {
-   "color": "Grey",
-   "doc_view": "List",
-   "label": "Tournament",
-   "link_to": "Tournament",
    "stats_filter": "[]",
    "type": "DocType"
   }

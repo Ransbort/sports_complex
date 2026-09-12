@@ -137,7 +137,7 @@
               </div>
               <div>
                 <p class="text-lg font-bold">Sports Complex</p>
-                <p class="mt-1 text-sm text-white/80">Book facilities, coaches and tournaments in one place.</p>
+                <p class="mt-1 text-sm text-white/80">Book facilities and coaches in one place.</p>
               </div>
             </div>
           </div>

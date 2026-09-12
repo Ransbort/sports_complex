@@ -93,14 +93,6 @@
           >
             <i class="bi bi-calendar2-check mr-2"></i>Book a Facility
           </router-link>
-          <!-- Not yet migrated into this app - see frontend/README.md - so
-               these are plain links to the existing standalone pages. -->
-          <a href="/book-player" class="rounded-lg px-3 py-2.5 hover:bg-slate-50 hover:text-[var(--portal-primary,#16a34a)]">
-            <i class="bi bi-person-check mr-2"></i>Book a Player
-          </a>
-          <a href="/tournaments" class="rounded-lg px-3 py-2.5 hover:bg-slate-50 hover:text-[var(--portal-primary,#16a34a)]">
-            <i class="bi bi-trophy mr-2"></i>Tournaments
-          </a>
           <router-link
             to="/my-bookings" class="rounded-lg px-3 py-2.5 hover:bg-slate-50 hover:text-[var(--portal-primary,#16a34a)]"
             active-class="bg-slate-50 text-[var(--portal-primary,#16a34a)]" @click="closeMenu"

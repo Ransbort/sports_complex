@@ -10,10 +10,9 @@ rules sends every /portal/<anything> request here too (not just the bare
 /portal/book-coach still renders this same shell instead of 404ing before
 Vue Router gets a chance to pick up that path.
 
-Deliberately no require_portal_login() - same reasoning as book-facility/
-book-coach/tournaments/index.py: guest booking has to keep working from
-inside this app too, so is_guest is just context for the frontend to
-branch on, never a gate here.
+Deliberately no require_portal_login() - guest booking has to keep
+working from inside this app too, so is_guest is just context for the
+frontend to branch on, never a gate here.
 """
 
 import frappe

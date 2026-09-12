@@ -31,9 +31,8 @@ def delete_custom_fields(custom_fields: dict):
 def get_custom_fields():
 	return {
 		# Placed inside the app's existing "SC Source" group (see
-		# fixtures/custom_field.json: facility_booking, membership,
-		# tournament_registration, training_session, equipment_issue,
-		# equipment_return) rather than a new section — two more
+		# fixtures/custom_field.json: facility_booking, training_session)
+		# rather than a new section — two more
 		# source-doctype links in that same family, for invoices raised
 		# against a Trialist or Player.
 		"Sales Invoice": [
@@ -42,7 +41,7 @@ def get_custom_fields():
 				"label": "Trialist",
 				"fieldtype": "Link",
 				"options": "Trialist",
-				"insert_after": "equipment_return",
+				"insert_after": "training_session",
 				"reqd": 0,
 				"hidden": 0,
 			},

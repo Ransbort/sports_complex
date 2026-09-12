@@ -28,12 +28,7 @@ import frappe
 # fieldname on Sales Invoice -> (source doctype, status fieldname, paid value)
 SOURCE_MAP = {
 	"facility_booking": ("Facility Booking", "payment_status", "Paid"),
-	"membership": ("Membership", "status", "Active"),
-	"membership_renewal": ("Membership Renewal", "status", "Completed"),
-	"tournament_registration": ("Tournament Registration", "status", "Confirmed"),
 	"training_session": ("Training Session", "payment_status", "Paid"),
-	"equipment_issue": ("Equipment Issue", "payment_status", "Paid"),
-	"equipment_return": ("Equipment Return", "payment_status", "Paid"),
 	# Trial Registration Fee invoices - see Trialist.create_registration_invoice()
 	# in doctype/trialist/trialist.py. Covers the case where a trialist's bill
 	# gets paid via frappe_paystack's own "Pay Now" button on the Sales

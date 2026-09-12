@@ -398,9 +398,8 @@ def convert_trialist_to_player(trialist, team=None, jersey_number=None, player_c
 # Fallback Item Group for the one-off "Trial Registration Fee" Item, used
 # only if Sports Complex Setup > Trials > Trial Registration Item Group is
 # left blank (see _get_trial_registration_item_group() below) - same
-# convention as the item_group values hardcoded elsewhere in this app (e.g.
-# "Equipment Rental" in equipment_issue.py, "Tournament" in
-# tournament_registration.py). Create this Item Group once on your site (or
+# convention as the item_group values hardcoded elsewhere in this app.
+# Create this Item Group once on your site (or
 # configure a different one in Setup) before the first bill is raised -
 # get_or_create_item() in utils/invoicing.py creates the Item itself but not
 # its Item Group.
@@ -427,7 +426,7 @@ def create_registration_invoice(trialist):
 	configured at Sports Complex Setup > Trials > Trial Registration Fee
 	against this Trialist's own Customer (see create_customer() above),
 	using the same make_linked_sales_invoice() helper Facility Booking/
-	Membership/Tournament Registration/etc. all use - stamps the `trialist`
+	Training Session/etc. all use - stamps the `trialist`
 	back-link custom field already provisioned on Sales Invoice (see
 	get_custom_fields() in setup.py) so the invoice shows up against this
 	Trialist (and on the Trial Registration Cashier page's billing queue).
@@ -435,9 +434,9 @@ def create_registration_invoice(trialist):
 	Only ever callable once a doctor has actually cleared this trialist
 	(medical_clearance_status == "Cleared") and only once per Trialist -
 	see _guard_medically_cleared()/_guard_not_already_invoiced() above.
-	Unlike make_linked_sales_invoice()'s other callers (e.g. Membership.
-	create_sales_invoice(), which leaves the invoice as a draft for
-	frappe_paystack's "Pay Now" button), this submits the invoice
+	Unlike make_linked_sales_invoice()'s other callers (e.g. Facility
+	Booking's own create_sales_invoice(), which leaves the invoice as a
+	draft for frappe_paystack's "Pay Now" button), this submits the invoice
 	immediately - the Trial Registration Cashier page deals with an
 	already-submitted invoice's outstanding_amount the same way Healthcare's
 	own Cashier Portal does (see cashier_portal.py's create_payment_entry()),

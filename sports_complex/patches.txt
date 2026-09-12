@@ -6,3 +6,5 @@
 # Patches added in this section will be executed after doctypes are migrated
 sports_complex.patches.remove_court_doctype
 sports_complex.patches.publicize_facility_images
+sports_complex.patches.remove_tournament_and_equipment_doctypes
+sports_complex.patches.remove_membership_doctypes

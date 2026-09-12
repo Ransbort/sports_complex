@@ -663,7 +663,7 @@ def _send_booking_confirmation_email(email, bookings, tokens=None):
 			"</tr>"
 		)
 
-	my_bookings_url = f"{site_url}/my-bookings"
+	my_bookings_url = f"{site_url}/portal/my-bookings"
 	message = f"""
 		<p>Thanks for your booking! Here's a summary:</p>
 		<table style="border-collapse: collapse">
@@ -1609,7 +1609,24 @@ def create_guest_booking(
 		"remember_token": issue_booking_remember_token(normalized_email),
 	}
 	if booking.booking_status == "Payment Pending":
-		result["payment_link"] = get_booking_payment_link(booking.name, token=token)
+		# Same request-scoped elevation create_booking() uses around this
+		# same call (see its own comment) - get_booking_payment_link()
+		# calls into frappe_paystack's create_payment_link(), code we
+		# don't own that does a raw frappe.get_doc() read with no
+		# ignore_permissions of its own. Missing here (unlike the two
+		# logged-in siblings, create_booking()/create_booking_cart(),
+		# which already wrap this) was the actual cause of "User don't
+		# have permissions to select/read this account" for first-time
+		# guest bookings: by this point in the function the earlier
+		# elevation around resolve_or_create_guest_customer()/booking.
+		# submit() has already been restored back to Guest in the
+		# `finally` above.
+		original_ignore_permissions = frappe.flags.ignore_permissions
+		frappe.flags.ignore_permissions = True
+		try:
+			result["payment_link"] = get_booking_payment_link(booking.name, token=token)
+		finally:
+			frappe.flags.ignore_permissions = original_ignore_permissions
 	if account:
 		result["account"] = account
 	return result
@@ -1697,7 +1714,19 @@ def create_guest_booking_cart(
 		"remember_token": issue_booking_remember_token(normalized_email),
 	}
 	if status == "Payment Pending":
-		result["payment_link"] = get_booking_payment_link(bookings[0].name, token=bookings_out[0]["token"])
+		# Same request-scoped elevation create_booking_cart() uses around
+		# this same call (see its own comment) - and the same gap
+		# create_guest_booking() above just had: by this point the
+		# earlier elevation around resolve_or_create_guest_customer()/
+		# _run_cart() has already been restored back to Guest in the
+		# `finally` above, so get_booking_payment_link() -> frappe_
+		# paystack's create_payment_link() needs its own elevation here.
+		original_ignore_permissions = frappe.flags.ignore_permissions
+		frappe.flags.ignore_permissions = True
+		try:
+			result["payment_link"] = get_booking_payment_link(bookings[0].name, token=bookings_out[0]["token"])
+		finally:
+			frappe.flags.ignore_permissions = original_ignore_permissions
 	if account:
 		result["account"] = account
 	return result
@@ -1920,12 +1949,12 @@ def list_my_bookings(email=None, otp=None, remember_token=None):
 	identity to remember (a logged-in customer's session already covers
 	that). customer_name is the Customer record's own display name,
 	fetched once here and reused for both the guest and logged-in paths -
-	see the my-bookings header, which shows it once bookings are loaded.
+	see MyBookings.vue's header, which shows it once bookings are loaded.
 	verified is False
 	only for the one case that isn't something the guest actively did
 	this visit: a remembered token that turned out to be missing,
 	expired, or tampered with, and no OTP supplied alongside it to fall
-	back on - see tryRememberedLogin() in my-bookings' index.js, which
+	back on - see the equivalent auto-login check in MyBookings.vue, which
 	relies on this NOT raising so that automatic background check can
 	fall back to the normal email/OTP form without popping an error
 	dialog the guest never asked for. Every other path either succeeds

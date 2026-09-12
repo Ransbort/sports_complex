@@ -11,23 +11,29 @@ With Book a Facility, Book a Coach, Book a Player, and Tournaments each
 having their own copy-pasted Vue app, shared logic (guest OTP flow,
 currency formatting, server-error handling) was drifting slightly between
 copies, and there was nowhere for a real signed-in account to live across
-pages. This app fixes both: one shared API/auth layer, one router, pages
+pages. This app fixes that: one shared API/auth layer, one router, pages
 added incrementally.
 
 ## Status
 
-Migrated into this app: sign-in (email + password, real Frappe session -
-see `src/stores/auth.js`), Book a Coach, Book a Facility (including its
-month calendar and multi-slot cart - the most involved of the four
-booking flows, so the other two should be more straightforward).
+This app now covers the site's whole public-facing scope: sign-in (email
++ password, real Frappe session - see `src/stores/auth.js`), Book a
+Coach, Book a Facility (including its month calendar and multi-slot cart
+- the most involved of the booking flows), My Bookings, and Booking
+Confirmation.
 
-Still on the old per-page approach for now: Book a Player, Tournaments,
-My Bookings. Their existing `www/`/`public/js/` pages are untouched and
-still work - the Home page and Navbar just link out to them until they're
-migrated too. Migrate one at a time by copying `src/pages/BookFacility.vue`
-or `BookCoach.vue`'s shape (fetch its own data on mount via
-`src/api/frappe.js`'s `call()`, no server-injected JSON) and adding a
-route in `src/router/index.js`.
+Tournaments was dropped from scope entirely - its old `www/tournaments`
+page, the Events & Tournaments/Inventory back-office doctypes, and the
+Home page/Navbar links out to it are all gone (see
+`sports_complex.patches.remove_tournament_and_equipment_doctypes` for the
+doctype cleanup).
+
+Book a Player was never migrated in and its old `www/book-player`/
+`public/js/book-player` page and Home page/Navbar links have likewise
+been removed, but its backing doctypes (Player Session, Player
+Availability) were kept - if it comes back, it gets built here from
+scratch (same shape as BookFacility.vue/BookCoach.vue) against those
+existing doctypes rather than resurrecting the old per-page approach.
 
 ## Styling
 
@@ -37,7 +43,7 @@ imported (see `src/style.css`'s own comment) since this page also loads
 the site's Bootstrap-based web theme via `templates/web.html`, and
 Preflight's element resets would fight that rather than layer on top of
 it cleanly. The one exception is `Home.vue`'s `.portal-action` card,
-which is easier to read as a few real CSS rules (shared by all five
+which is easier to read as a few real CSS rules (shared by all three
 cards, primary vs. secondary variants) than the same thing spelled out
 in Tailwind's `@apply` or repeated inline on every card - normal
 `<style scoped>`, no different from any other Vue app.

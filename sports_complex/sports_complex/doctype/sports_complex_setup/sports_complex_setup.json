@@ -16,11 +16,6 @@
   "column_break_fac_1",
   "advance_booking_window_days",
   "min_booking_notice_hours",
-  "tab_membership",
-  "renewal_grace_period_days",
-  "auto_suspend_on_expiry",
-  "column_break_mem_1",
-  "renewal_reminder_days_before",
   "tab_bookings",
   "allow_overlapping_bookings",
   "max_bookings_per_member_per_day",
@@ -115,33 +110,6 @@
    "label": "Minimum Booking Notice (hours)"
   },
   {
-   "fieldname": "tab_membership",
-   "fieldtype": "Tab Break",
-   "label": "Membership"
-  },
-  {
-   "default": "7",
-   "fieldname": "renewal_grace_period_days",
-   "fieldtype": "Int",
-   "label": "Renewal Grace Period (days)"
-  },
-  {
-   "default": "1",
-   "fieldname": "auto_suspend_on_expiry",
-   "fieldtype": "Check",
-   "label": "Auto-Suspend on Expiry"
-  },
-  {
-   "fieldname": "column_break_mem_1",
-   "fieldtype": "Column Break"
-  },
-  {
-   "default": "7",
-   "fieldname": "renewal_reminder_days_before",
-   "fieldtype": "Int",
-   "label": "Renewal Reminder (days before expiry)"
-  },
-  {
    "fieldname": "tab_bookings",
    "fieldtype": "Tab Break",
    "label": "Bookings"
@@ -213,7 +181,7 @@
   },
   {
    "default": "0",
-   "description": "Master switch for accepting Paystack payments across Facility Booking, Membership, Tournament Registration, Training Session, and Equipment Issue/Return.",
+   "description": "Master switch for accepting Paystack payments across Facility Booking and Training Session.",
    "fieldname": "enable_paystack_payments",
    "fieldtype": "Check",
    "label": "Enable Paystack Payments"
@@ -252,14 +220,14 @@
    "label": "Default Accounts"
   },
   {
-   "description": "Default income accounts to be used if not set to book Facility Booking, Membership, Tournament Registration, Equipment Rental and Training Session charges.",
+   "description": "Default income accounts to be used if not set to book Facility Booking and Training Session charges.",
    "fieldname": "income_account",
    "fieldtype": "Table",
    "label": "Income Account",
    "options": "Party Account"
   },
   {
-   "description": "Default receivable accounts to be used to book Facility Booking, Membership, Tournament Registration, Equipment Rental and Training Session charges.",
+   "description": "Default receivable accounts to be used to book Facility Booking and Training Session charges.",
    "fieldname": "receivable_account",
    "fieldtype": "Table",
    "label": "Receivable Account",

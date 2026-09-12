@@ -331,11 +331,10 @@ def _resolve_or_create_player_registration(
 
 def _issue_payment_link_if_any(sales_invoice):
 	"""Same generic frappe_paystack helper Facility Booking's own
-	get_booking_payment_link() delegates to - a Training Session/
-	Tournament Registration's linked invoice is always already submitted
-	by the time this runs (create_session_invoice()/create_entry_fee_
-	invoice() submit it themselves on_submit), so there's no "not
-	submitted yet" guard to duplicate here.
+	get_booking_payment_link() delegates to - a Training Session's linked
+	invoice is always already submitted by the time this runs
+	(create_session_invoice() submits it itself on_submit), so there's no
+	"not submitted yet" guard to duplicate here.
 	"""
 	if not sales_invoice:
 		return None

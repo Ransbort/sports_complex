@@ -34,12 +34,7 @@ def get_data(filters):
 		"si.docstatus = 1",
 		"""(
 			si.facility_booking is not null
-			or si.membership is not null
-			or si.membership_renewal is not null
-			or si.tournament_registration is not null
 			or si.training_session is not null
-			or si.equipment_issue is not null
-			or si.equipment_return is not null
 		)""",
 	]
 	values = {}
@@ -57,9 +52,7 @@ def get_data(filters):
 		f"""
 		select
 			si.name, si.posting_date, si.customer, si.status, si.grand_total,
-			si.facility_booking, si.membership, si.membership_renewal,
-			si.tournament_registration, si.training_session,
-			si.equipment_issue, si.equipment_return
+			si.facility_booking, si.training_session
 		from `tabSales Invoice` si
 		where {where_clause}
 		order by si.posting_date desc
@@ -77,12 +70,7 @@ def get_data(filters):
 def classify_source(row):
 	mapping = [
 		("facility_booking", _("Facility Booking")),
-		("membership", _("Membership")),
-		("membership_renewal", _("Membership Renewal")),
-		("tournament_registration", _("Tournament")),
 		("training_session", _("Coaching")),
-		("equipment_issue", _("Equipment Rental")),
-		("equipment_return", _("Equipment Damage")),
 	]
 	for fieldname, label in mapping:
 		if row.get(fieldname):

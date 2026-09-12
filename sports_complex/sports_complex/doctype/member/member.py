@@ -12,7 +12,7 @@ class Member(Document):
 
 	def create_customer(self):
 		"""Auto-create a 1:1 Customer record for this Member, per schema doc
-		section 8. Booking/Membership/Tournament invoices bill against this
+		section 8. Booking/Membership invoices bill against this
 		Customer.
 		"""
 		customer = frappe.new_doc("Customer")

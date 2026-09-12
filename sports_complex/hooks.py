@@ -1,7 +1,7 @@
 app_name = "sports_complex"
 app_title = "Sports Complex"
 app_publisher = "Ransbort"
-app_description = "Sports Complex Management: facilities, bookings, membership, coaching, tournaments, POS, and Paystack payments"
+app_description = "Sports Complex Management: facilities, bookings, coaching, POS, and Paystack payments"
 app_email = "ransbort@outlook.com"
 app_license = "mit"
 required_apps = ["frappe", "healthcare", "frappe_paystack"]
@@ -25,12 +25,14 @@ add_to_apps_screen = [
 
 # web_include_css/js would load on every PUBLIC page site-wide, not just
 # this app's own pages - too broad for a "Login"/footer tweak that only
-# makes sense on the guest booking flow this app adds. That tweak now
-# lives in each of this app's own www page templates instead (see
-# www/facilities, www/book-facility, www/my-bookings, www/booking-
-# confirmation) - public/css/sports_complex.css and public/js/
-# sports_complex.js are unused leftovers from that approach, kept on disk
-# but no longer referenced from anywhere.
+# makes sense on the guest booking flow this app adds. That tweak used to
+# live in each of this app's own www page templates (book-facility,
+# my-bookings, booking-confirmation, facilities) before those were
+# replaced by the Vue Portal SPA (sports_complex/frontend); the SPA's own
+# Login.vue/Navbar.vue components handle it now. public/css/
+# sports_complex.css and public/js/sports_complex.js are unused leftovers
+# from the pre-Vue approach, kept on disk but no longer referenced from
+# anywhere.
 
 # Installation
 # ------------
@@ -40,20 +42,18 @@ before_uninstall = "sports_complex.uninstall.before_uninstall"
 
 # Website Route Rules
 # --------------------
-# /book-facility needs no rule (default www/book-facility routing handles it);
-# /booking-confirmation/<name> takes a path segment, same as
-# frappe_paystack's own /my-payment/<reference> rule.
-#
-# /portal/<app_path> is the Vue Portal SPA (sports_complex/frontend - see
-# its own README.md): Vue Router handles routing client-side once the page
-# has loaded, but a hard reload or a shared link straight to a nested
+# Everything guest-facing now lives in the Vue Portal SPA (sports_complex/
+# frontend - see its own README.md): the old standalone www/book-facility,
+# www/book-coach, www/book-player, www/my-bookings, www/booking-
+# confirmation, www/tournaments, and www/facilities pages have all been
+# removed in favor of it. Vue Router handles routing client-side once the
+# page has loaded, but a hard reload or a shared link straight to a nested
 # route like /portal/book-coach is still a fresh server-side request for
 # that exact path - without this catch-all, Frappe would 404 it before
 # Vue Router ever got a chance to take over. Every /portal/* path maps to
 # the same www/portal/index.html shell; the bare /portal itself needs no
-# rule of its own, same as /book-facility above.
+# rule of its own.
 website_route_rules = [
-    {"from_route": "/booking-confirmation/<booking>", "to_route": "booking-confirmation"},
     {"from_route": "/portal/<path:app_path>", "to_route": "portal"},
 ]
 
@@ -147,13 +147,8 @@ fixtures = [
                 [
                     "sc_source_section",
                     "facility_booking",
-                    "membership",
-                    "membership_renewal",
                     "column_break_sc_source",
-                    "tournament_registration",
                     "training_session",
-                    "equipment_issue",
-                    "equipment_return",
                 ],
             ],
         ],

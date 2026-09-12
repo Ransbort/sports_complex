@@ -33,16 +33,6 @@
           <span class="portal-action-title">Book a Coach</span>
           <span class="portal-action-desc">Book a one-on-one session with a coach</span>
         </router-link>
-        <a href="/book-player" class="portal-action portal-action-secondary">
-          <i class="bi bi-person-circle"></i>
-          <span class="portal-action-title">Book a Player</span>
-          <span class="portal-action-desc">Book a one-on-one session with a player</span>
-        </a>
-        <a href="/tournaments" class="portal-action portal-action-secondary">
-          <i class="bi bi-trophy"></i>
-          <span class="portal-action-title">Register for a Tournament</span>
-          <span class="portal-action-desc">Enter as a team or an individual player</span>
-        </a>
         <router-link to="/my-bookings" class="portal-action portal-action-secondary sm:col-span-2">
           <i class="bi bi-list-check"></i>
           <span class="portal-action-title">My Bookings</span>
@@ -67,12 +57,12 @@ const auth = useAuthStore();
 <style scoped>
 /* Same visual language as the www/facilities/index.html landing page own
    .sc-action - one shared component class here instead of one-off
-   utility soup per card, since all five cards share the exact same
+   utility soup per card, since all three cards share the exact same
    shape and only the "primary vs secondary" look differs. Padding and
    font sizes here are tuned tighter than a typical landing page, since
    this whole screen has to fit inside one viewport (see the App shell,
-   which sets a fixed h-screen with no page-level scrolling) on top of a
-   full 5-card grid, so the vertical rhythm throughout is deliberately
+   which sets a fixed h-screen with no page-level scrolling) on top of
+   the card grid, so the vertical rhythm throughout is deliberately
    compact rather than the airier spacing a normally-scrolling page
    would use. */
 .portal-action {

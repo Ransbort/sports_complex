@@ -3,8 +3,8 @@
 
 """Shared helper for the "every payable doc creates a Sales Invoice" pattern
 described in section 0 / section 11 of the schema. Keep this in one place so
-Facility Booking, Membership, Tournament Registration, Equipment Issue/Return
-and Training Session all reconcile with frappe_paystack the same way.
+Facility Booking and Training Session all reconcile with
+frappe_paystack the same way.
 """
 
 import frappe
@@ -57,8 +57,8 @@ def get_income_account(company=None):
 
 def get_or_create_item(item_code, item_group, rate=None):
 	"""Ensure a billable Item exists for a given source (facility usage,
-	tournament entry fee, equipment rental, etc.) so we don't hand
-	frappe_paystack/ERPNext an invoice line with no Item."""
+	coaching session, etc.) so we don't hand frappe_paystack/ERPNext an
+	invoice line with no Item."""
 	if frappe.db.exists("Item", item_code):
 		return item_code
 
@@ -129,7 +129,7 @@ def make_linked_sales_invoice(
 	qty=1,
 ):
 	"""Create a draft Sales Invoice against `customer` for `amount`, stamping
-	the custom back-link field (e.g. tournament_registration, equipment_issue)
+	the custom back-link field (e.g. facility_booking, training_session)
 	added to Sales Invoice per section 6, and return it. Does NOT submit -
 	each caller decides when to submit (see Facility Booking and Trialist for
 	the established "submit right after this returns" pattern, required both
@@ -176,8 +176,8 @@ def make_linked_sales_invoice(
 
 
 def cancel_linked_invoice(sales_invoice):
-	"""Cancel a linked Sales Invoice, if any, when the parent doc (Membership,
-	Equipment Issue, Tournament Registration, ...) is cancelled - otherwise
+	"""Cancel a linked Sales Invoice, if any, when the parent doc (Training
+	Session, ...) is cancelled - otherwise
 	cancelling the parent would leave an orphaned invoice still open on the
 	books for a service that's no longer being rendered. No-op if there's no
 	invoice, or it's already a draft/cancelled.
