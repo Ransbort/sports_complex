@@ -41,7 +41,19 @@ TRIAL_ONLY_ENCOUNTER_FIELDS = [
 ]
 
 FITNESS_RESULT_VISIBILITY_SCRIPT = (
-	"""var SPORTS_COMPLEX_TRIAL_ONLY_FIELDS = """
+	# This comment is load-bearing: ensure_fitness_result_visibility_
+	# script() below (and remove_fitness_result_visibility_script() in
+	# uninstall.py) both find this Client Script again on a later run by
+	# searching for this exact marker inside the saved script text - the
+	# marker was previously declared as a local variable in both of
+	# those functions but never actually written into the script body,
+	# so that lookup always returned nothing. That meant every single
+	# `bench migrate` after the first tried to re-insert a Client Script
+	# with the same fixed name and failed with a duplicate-key
+	# IntegrityError, and uninstall's own cleanup silently never found
+	# anything to delete either.
+	"""/* __sports_complex_fitness_result_visibility__ */
+var SPORTS_COMPLEX_TRIAL_ONLY_FIELDS = """
 	+ json.dumps(TRIAL_ONLY_ENCOUNTER_FIELDS)
 	+ """;
 
@@ -79,10 +91,21 @@ function sports_complex_toggle_trial_fields(frm) {
 def ensure_fitness_result_visibility_script():
 
 	marker = "__sports_complex_fitness_result_visibility__"
+	fixed_name = "Sports Complex Fitness Result Visibility"
 	existing_name = frappe.db.get_value(
 		"Client Script",
 		{"dt": "Patient Encounter", "view": "Form", "script": ("like", f"%{marker}%")},
 	)
+	if not existing_name and frappe.db.exists("Client Script", fixed_name):
+		# Covers a site whose record predates this marker being embedded
+		# in FITNESS_RESULT_VISIBILITY_SCRIPT below (see that comment) -
+		# without this fallback, every migrate would keep missing the
+		# marker search above and re-attempt an insert() under the same
+		# fixed name, failing with a duplicate-key IntegrityError forever.
+		# Falling through to the update branch here rewrites the saved
+		# script to the current (marker-including) version, so the next
+		# migrate finds it via the marker search as intended.
+		existing_name = fixed_name
 	if existing_name:
 		doc = frappe.get_doc("Client Script", existing_name)
 		doc.script = FITNESS_RESULT_VISIBILITY_SCRIPT
@@ -91,7 +114,7 @@ def ensure_fitness_result_visibility_script():
 	else:
 		frappe.get_doc({
 			"doctype": "Client Script",
-			"name": "Sports Complex Fitness Result Visibility",
+			"name": fixed_name,
 			"dt": "Patient Encounter",
 			"view": "Form",
 			"enabled": 1,
@@ -100,7 +123,16 @@ def ensure_fitness_result_visibility_script():
 
 
 VIEW_LAB_RESULTS_SCRIPT = (
-	"""frappe.ui.form.on("Patient Encounter", {
+	# Same load-bearing marker comment as FITNESS_RESULT_VISIBILITY_SCRIPT
+	# above - ensure_view_lab_results_script() below finds this Client
+	# Script again by searching for this exact marker inside the saved
+	# script text. It was previously declared as a local variable in that
+	# function but never actually written into the script body, so the
+	# lookup always came up empty and every migrate after the first tried
+	# to re-insert a Client Script under the same fixed name, failing
+	# with a duplicate-key IntegrityError.
+	"""/* __sports_complex_view_lab_results__ */
+frappe.ui.form.on("Patient Encounter", {
 	refresh: function (frm) {
 		frm.add_custom_button(
 			__("View Lab Results"),
@@ -217,10 +249,18 @@ def ensure_view_lab_results_script():
 	ensure_fitness_result_visibility_script() above.
 	"""
 	marker = "__sports_complex_view_lab_results__"
+	fixed_name = "Sports Complex View Lab Results"
 	existing_name = frappe.db.get_value(
 		"Client Script",
 		{"dt": "Patient Encounter", "view": "Form", "script": ("like", f"%{marker}%")},
 	)
+	if not existing_name and frappe.db.exists("Client Script", fixed_name):
+		# Same fallback as ensure_fitness_result_visibility_script() -
+		# covers a record saved before the marker was actually embedded
+		# in VIEW_LAB_RESULTS_SCRIPT above, which the marker search
+		# would otherwise never find, forever re-attempting an insert()
+		# under this same fixed name.
+		existing_name = fixed_name
 	if existing_name:
 		doc = frappe.get_doc("Client Script", existing_name)
 		doc.script = VIEW_LAB_RESULTS_SCRIPT
@@ -229,7 +269,7 @@ def ensure_view_lab_results_script():
 	else:
 		frappe.get_doc({
 			"doctype": "Client Script",
-			"name": "Sports Complex View Lab Results",
+			"name": fixed_name,
 			"dt": "Patient Encounter",
 			"view": "Form",
 			"enabled": 1,

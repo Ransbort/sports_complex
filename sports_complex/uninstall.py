@@ -108,10 +108,17 @@ def remove_fitness_result_visibility_script():
 	field goes back to always being visible once this app is gone.
 	"""
 	marker = "__sports_complex_fitness_result_visibility__"
+	fixed_name = "Sports Complex Fitness Result Visibility"
 	existing_name = frappe.db.get_value(
 		"Client Script",
 		{"dt": "Patient Encounter", "view": "Form", "script": ("like", f"%{marker}%")},
 	)
+	if not existing_name and frappe.db.exists("Client Script", fixed_name):
+		# Same fallback as healthcare_integration.ensure_fitness_result_
+		# visibility_script() - covers a record saved before the marker
+		# was actually embedded in the script body, which the marker
+		# search above would otherwise never find.
+		existing_name = fixed_name
 	if existing_name:
 		frappe.delete_doc("Client Script", existing_name, ignore_permissions=True, force=True)
 		log_message("Removed Patient Encounter Fitness Result visibility Client Script", level="success")
