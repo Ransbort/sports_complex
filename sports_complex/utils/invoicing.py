@@ -58,7 +58,25 @@ def get_income_account(company=None):
 def get_or_create_item(item_code, item_group, rate=None):
 	"""Ensure a billable Item exists for a given source (facility usage,
 	coaching session, etc.) so we don't hand frappe_paystack/ERPNext an
-	invoice line with no Item."""
+	invoice line with no Item.
+
+	Also ensures `item_group` itself exists (as a direct child of the
+	site's root Item Group) before inserting the Item - every caller here
+	(Training Session/Player Session's "Coaching", Trialist's "Trials",
+	Check-Out's "Facility Usage", ...) uses its own dedicated group that
+	nothing else in this app provisions, so without this a fresh site
+	would just trade "No Item found" for "Could not find Item Group" the
+	first time each one is billed.
+	"""
+	if item_group and not frappe.db.exists("Item Group", item_group):
+		root = frappe.db.get_value("Item Group", {"is_group": 1, "parent_item_group": ("in", ["", None])})
+		group = frappe.new_doc("Item Group")
+		group.item_group_name = item_group
+		if root:
+			group.parent_item_group = root
+		group.is_group = 0
+		group.insert(ignore_permissions=True)
+
 	if frappe.db.exists("Item", item_code):
 		return item_code
 

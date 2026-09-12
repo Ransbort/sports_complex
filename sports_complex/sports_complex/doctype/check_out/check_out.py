@@ -8,9 +8,7 @@ from frappe.utils import flt, get_datetime, time_diff_in_hours
 
 from sports_complex.utils.invoicing import (
 	cancel_linked_invoice,
-	get_default_company,
-	get_income_account,
-	get_receivable_account,
+	make_linked_sales_invoice,
 )
 
 
@@ -65,48 +63,36 @@ class CheckOut(Document):
 		cancel_linked_invoice(self.overage_sales_invoice)
 
 	def create_overage_invoice(self):
-		"""Bill overage time as an additional Sales Invoice.
+		"""Bill overage time as an additional Sales Invoice, via the same
+		make_linked_sales_invoice() helper Facility Booking/Training Session/
+		Trialist all use (see utils/invoicing.py) - which auto-creates the
+		"Facility Overage" Item (Item Group: "Facility Usage") the first time
+		it's needed, via get_or_create_item(), instead of requiring it to
+		already exist on the site.
 
-		NOTE: assumes a generic sellable Item named "Facility Overage" exists.
-		Create it once (Item Group: Facility Usage) or adjust the item_code
-		below to match your actual catalogue.
+		This used to build the Sales Invoice by hand and throw "No 'Facility
+		Overage' Item found" if that Item was missing - a one-time setup trap
+		every fresh site hit the first time it billed overage, since nothing
+		else in this app ever creates Items that way; every other billing
+		path (Facility Booking, Training Session, Trialist) goes through
+		make_linked_sales_invoice() and gets the Item auto-provisioned for
+		free.
 		"""
 		if self.overage_sales_invoice:
 			return
 
-		if not frappe.db.exists("Item", "Facility Overage"):
-			frappe.throw(
-				_(
-					"No 'Facility Overage' Item found. Create a sellable Item with that "
-					"name before submitting a Check-Out with overage charges."
-				)
-			)
-
 		customer = frappe.db.get_value("Facility Booking", self.facility_booking, "customer")
-		company = get_default_company()
-		company = get_default_company()
 
-		si = frappe.new_doc("Sales Invoice")
-		si.customer = customer
-		si.facility_booking = self.facility_booking
-		if company:
-			si.company = company
-			receivable_account = get_receivable_account(company)
-			if receivable_account:
-				si.debit_to = receivable_account
-
-		item_row = {
-			"item_code": "Facility Overage",
-			"qty": 1,
-			"rate": self.overage_charge,
-		}
-		income_account = get_income_account(company)
-		if income_account:
-			item_row["income_account"] = income_account
-		si.append("items", item_row)
-
+		si = make_linked_sales_invoice(
+			customer,
+			"Facility Overage",
+			"Facility Usage",
+			self.overage_charge,
+			"facility_booking",
+			self.facility_booking,
+			description=_("Facility overage charge"),
+		)
 		si.flags.ignore_permissions = True
-		si.insert()
 		si.submit()
 
 		self.overage_sales_invoice = si.name
