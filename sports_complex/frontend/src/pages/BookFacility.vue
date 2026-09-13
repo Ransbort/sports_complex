@@ -22,8 +22,25 @@
                above the Book Now bar. The photo and gradient are
                absolute WITHIN THIS WRAPPER only (not the whole panel),
                so they can never show through behind/around the Book Now
-               bar below - a real two-row layout, not an overlap. -->
-          <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+               bar below - a real two-row layout, not an overlap.
+
+               touch-pan-y + the pointer handlers below add swipe
+               navigation for mobile, where there's no room for the
+               desktop-only prev/next arrows (those live down in the "All
+               facilities" strip, out of view above the fold on a phone) -
+               the dots are the only other way to move between facilities
+               on a touchscreen otherwise, and they're a small target.
+               touch-pan-y (not touch-none) keeps vertical scrolling of the
+               page itself working while a horizontal drag is in progress,
+               same reasoning as the facility strip's own touch-pan-y. -->
+          <div
+            class="relative flex min-h-0 flex-1 flex-col touch-pan-y select-none overflow-hidden"
+            @pointerdown="onHeroPointerDown"
+            @pointermove="onHeroPointerMove"
+            @pointerup="onHeroPointerUp"
+            @pointerleave="onHeroPointerUp"
+            @pointercancel="onHeroPointerUp"
+          >
             <div
               class="absolute inset-0 bg-slate-800 bg-cover bg-center"
               :style="browseFacility.image ? { backgroundImage: 'url(' + browseFacility.image + ')' } : {}"
@@ -638,6 +655,9 @@ export default {
       stripDragMoved: false, // true once a drag has moved enough to not count as a click
       stripDragStartX: 0,
       stripDragStartScrollLeft: 0,
+      heroDragActive: false, // true while a pointer-drag is swiping the hero image
+      heroDragStartX: 0,
+      heroDragDeltaX: 0,
       currencySymbol: (window.portalBoot && window.portalBoot.currency_symbol) || '',
       step: 'grid', // 'grid' -> 'browse' -> 'details' -> 'result'
       mobileBrowseView: 'calendar', // 'calendar' | 'slots' - which pane is active on mobile within the browse step
@@ -774,6 +794,33 @@ export default {
       const strip = this.$refs.facilityStrip;
       const active = strip && strip.children[this.browseIndex];
       if (active) active.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    },
+    onHeroPointerDown(e) {
+      // Only the primary touch/click starts a swipe - a second simultaneous
+      // touch (pinch-zoom, accidental) shouldn't hijack navigation.
+      if (e.isPrimary === false) return;
+      this.heroDragActive = true;
+      this.heroDragStartX = e.clientX;
+      this.heroDragDeltaX = 0;
+    },
+    onHeroPointerMove(e) {
+      if (!this.heroDragActive) return;
+      this.heroDragDeltaX = e.clientX - this.heroDragStartX;
+    },
+    onHeroPointerUp() {
+      if (!this.heroDragActive) return;
+      this.heroDragActive = false;
+      // Threshold in pixels, not a fraction of panel width - a deliberate
+      // ~50px swipe reads the same on a small phone or a wide tablet,
+      // where a percentage-based threshold would make the gesture feel
+      // inconsistently touchy/sluggish depending on screen size.
+      const SWIPE_THRESHOLD = 50;
+      if (this.heroDragDeltaX <= -SWIPE_THRESHOLD) {
+        this.browseNext(); // dragged left - reveal the next facility
+      } else if (this.heroDragDeltaX >= SWIPE_THRESHOLD) {
+        this.browsePrev(); // dragged right - reveal the previous facility
+      }
+      this.heroDragDeltaX = 0;
     },
     onStripPointerDown(e) {
       this.stripDragActive = true;
