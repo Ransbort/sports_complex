@@ -23,16 +23,22 @@
       </p>
 
       <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <router-link to="/book-facility" class="portal-action portal-action-primary">
+        <router-link to="/book-facility" class="portal-action portal-action-primary sm:col-span-2">
           <i class="bi bi-calendar2-check"></i>
           <span class="portal-action-title">Book a Facility</span>
           <span class="portal-action-desc">Browse facilities and reserve a time slot</span>
         </router-link>
+        <!-- "Book a Coach" removed from the home page list per request -
+             the page/route/feature itself is untouched (still reachable
+             directly at /book-coach), just not offered as a home page
+             option. Uncomment to bring the card back. -->
+        <!--
         <router-link to="/book-coach" class="portal-action portal-action-secondary">
           <i class="bi bi-person-badge"></i>
           <span class="portal-action-title">Book a Coach</span>
           <span class="portal-action-desc">Book a one-on-one session with a coach</span>
         </router-link>
+        -->
         <router-link to="/my-bookings" class="portal-action portal-action-secondary sm:col-span-2">
           <i class="bi bi-list-check"></i>
           <span class="portal-action-title">My Bookings</span>

@@ -690,7 +690,10 @@ class SportsComplexCashier {
 					label: __('Mode of Payment'),
 					options: this.payment_methods,
 					reqd: 1,
-					default: this.payment_methods[0],
+					// Cash is the overwhelmingly common front-desk payment method here - default
+					// to it (when the site actually has a "Cash" Mode of Payment configured)
+					// instead of whatever happens to sort first.
+					default: this.payment_methods.includes('Cash') ? 'Cash' : this.payment_methods[0],
 				},
 				{ fieldtype: 'Column Break' },
 				{ fieldtype: 'Data', fieldname: 'reference_no', label: __('Reference No') },
@@ -915,7 +918,10 @@ class SportsComplexCashier {
 					label: __('Mode of Payment'),
 					options: this.payment_methods,
 					reqd: 1,
-					default: this.payment_methods[0],
+					// Cash is the overwhelmingly common front-desk payment method here - default
+					// to it (when the site actually has a "Cash" Mode of Payment configured)
+					// instead of whatever happens to sort first.
+					default: this.payment_methods.includes('Cash') ? 'Cash' : this.payment_methods[0],
 				},
 				{ fieldtype: 'Column Break' },
 				{

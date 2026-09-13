@@ -149,7 +149,14 @@ def get_checked_in(facility=None, date=None, customer=None, facility_booking=Non
 	)) if bookings else {}
 	for b in bookings:
 		check_in_time = check_in_times.get(b.name)
-		b["check_in_time"] = str(check_in_time) if check_in_time else None
+		# get_datetime_str(), not str() - same reasoning as get_checkout_
+		# preview()'s own comment on this below: str() on a datetime with a
+		# nonzero microsecond component renders e.g.
+		# "2026-09-13 16:41:35.167341", which is only ever used for display
+		# here (sc_fci_short_datetime() in facility_checkin.js), but is one
+		# format-sensitive consumer away from the same "must be in format"
+		# blowup - not worth leaving as a latent trap when the fix is free.
+		b["check_in_time"] = get_datetime_str(check_in_time) if check_in_time else None
 
 	return bookings
 

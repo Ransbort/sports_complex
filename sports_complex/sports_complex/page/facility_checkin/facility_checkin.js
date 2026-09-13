@@ -218,6 +218,27 @@ class FacilityCheckinBoard {
 					color: white;
 				}
 
+				.fci-pricing-row {
+					display: flex;
+					justify-content: space-between;
+					font-size: 0.88rem;
+					padding: 3px 0;
+					color: #495057;
+				}
+
+				.fci-pricing-discount {
+					color: #c92a2a;
+				}
+
+				.fci-pricing-total {
+					font-weight: 700;
+					font-size: 1rem;
+					color: #212529;
+					border-top: 1px solid #dee2e6;
+					margin-top: 4px;
+					padding-top: 8px;
+				}
+
 				.fci-btn-outline {
 					display: flex;
 					align-items: center;
@@ -1225,7 +1246,21 @@ class FacilityCheckinBoard {
 	open_check_out_dialog(facility_booking) {
 		frappe.call({
 			method: "sports_complex.sports_complex.page.facility_checkin.facility_checkin.get_checkout_preview",
-			args: { facility_booking },
+			// as_of: without this, get_checkout_preview() computes "now" via
+			// frappe.utils.get_datetime() on the SERVER (container) clock,
+			// while check_in_time was captured from the CLIENT's own clock
+			// (open_check_in_dialog()'s "Check-In Time" field defaults to
+			// frappe.datetime.now_datetime() - the browser's local time).
+			// When the container isn't running in the same timezone as the
+			// people actually using this board (e.g. a Docker host on UTC,
+			// staff in Asia/Kolkata), those two "now"s are hours apart - the
+			// exact shape of "Duration so far: -330 min" (a stale-looking
+			// negative duration = the container clock reading over 5 hours
+			// behind the browser's). Passing the browser's own now here
+			// keeps the very first preview on the same clock check-in used,
+			// same as every *edit* to the Check-Out Time field already does
+			// via recalculate() below.
+			args: { facility_booking, as_of: frappe.datetime.now_datetime() },
 			freeze: true,
 			freeze_message: __("Calculating..."),
 			callback: (r) => {
@@ -1395,6 +1430,25 @@ class FacilityCheckinBoard {
 				},
 				{ fieldtype: "Section Break" },
 				{
+					fieldtype: "Currency",
+					fieldname: "discount_amount",
+					label: __("Discount"),
+					default: 0,
+					onchange: () => this.update_pricing_summary(dialog),
+				},
+				{ fieldtype: "Column Break" },
+				{
+					// Read-only Total/Discount/Amount Due breakdown - see
+					// update_pricing_summary(). An HTML field for the same
+					// reason slot_picker is one: this isn't a value the form
+					// itself holds, just a live-computed display driven off
+					// dialog._selected_slots and dialog._facility_rate.
+					fieldtype: "HTML",
+					fieldname: "pricing_summary",
+					label: "",
+				},
+				{ fieldtype: "Section Break" },
+				{
 					fieldtype: "Link",
 					fieldname: "customer",
 					options: "Customer",
@@ -1419,6 +1473,7 @@ class FacilityCheckinBoard {
 				this.do_book_facility({
 					customer: values.customer,
 					notes: values.notes,
+					discount_amount: flt(values.discount_amount),
 					slots: selected.map((slot) => ({
 						sports_facility: values.facility,
 						booking_date: values.booking_date,
@@ -1430,7 +1485,10 @@ class FacilityCheckinBoard {
 		});
 
 		dialog._selected_slots = new Map();
+		dialog._facility_rate = null;
+		dialog._rate_for_facility = null;
 		this.render_slot_picker(dialog, null);
+		this.update_pricing_summary(dialog);
 		dialog.show();
 	}
 
@@ -1478,6 +1536,7 @@ class FacilityCheckinBoard {
 				dialog._selected_slots.set(key, slot);
 				$chip.addClass("selected");
 			}
+			this.update_pricing_summary(dialog);
 		});
 
 		$wrapper.find(".fci-slot-select-all").on("click", () => {
@@ -1492,7 +1551,38 @@ class FacilityCheckinBoard {
 				slots.forEach((s) => dialog._selected_slots.set(`${s.start_time}|${s.end_time}`, s));
 			}
 			this.render_slot_picker(dialog, slots);
+			this.update_pricing_summary(dialog);
 		});
+	}
+
+	// Total/Discount/Amount Due breakdown shown under the slot picker -
+	// depends on two things loaded independently (the facility's rate,
+	// fetched once per facility; the selected slots, which change on every
+	// chip click), so this re-renders from dialog state rather than being
+	// threaded through either of those call sites individually.
+	update_pricing_summary(dialog) {
+		const $wrapper = dialog.fields_dict.pricing_summary.$wrapper;
+		const selected = dialog._selected_slots ? Array.from(dialog._selected_slots.values()) : [];
+		const rate = dialog._facility_rate;
+
+		if (rate == null || !selected.length) {
+			$wrapper.html("");
+			return;
+		}
+
+		// slot_duration is in minutes (see get_available_slots()) - same
+		// rate * hours math Facility Booking itself uses in
+		// calculate_duration_and_amount().
+		const subtotal = selected.reduce((sum, slot) => sum + rate * (slot.slot_duration / 60), 0);
+		const discount = Math.max(0, Math.min(flt(dialog.get_value("discount_amount")), subtotal));
+		const due = subtotal - discount;
+
+		let html = `<div class="fci-pricing-row"><span>${__("Total")}</span><span>${format_currency(subtotal)}</span></div>`;
+		if (discount > 0) {
+			html += `<div class="fci-pricing-row fci-pricing-discount"><span>${__("Discount")}</span><span>-${format_currency(discount)}</span></div>`;
+		}
+		html += `<div class="fci-pricing-row fci-pricing-total"><span>${__("Amount Due")}</span><span>${format_currency(due)}</span></div>`;
+		$wrapper.html(html);
 	}
 
 	refresh_booking_slots(dialog) {
@@ -1503,10 +1593,31 @@ class FacilityCheckinBoard {
 
 		if (!facility || !booking_date) {
 			this.render_slot_picker(dialog, null);
+			this.update_pricing_summary(dialog);
 			return;
 		}
 
 		dialog.fields_dict.slot_picker.$wrapper.html(`<p class="text-muted">${__("Loading available slots...")}</p>`);
+
+		// The rate only depends on facility, not date - only refetched when
+		// the facility itself actually changed, so switching just the date
+		// doesn't refire it. dialog._facility_rate stays whatever it already
+		// was (still correct for this facility) while the slot list below
+		// reloads for the new date.
+		if (dialog._rate_for_facility !== facility) {
+			dialog._facility_rate = null;
+			dialog._rate_for_facility = facility;
+			this.update_pricing_summary(dialog);
+			frappe.call({
+				method: "sports_complex.sports_complex.doctype.facility_booking.facility_booking.get_facility_rate",
+				args: { sports_facility: facility },
+				callback: (r) => {
+					if (dialog.get_value("facility") !== facility) return;
+					dialog._facility_rate = flt(r.message);
+					this.update_pricing_summary(dialog);
+				},
+			});
+		}
 
 		frappe.call({
 			method: "sports_complex.sports_complex.doctype.facility_booking.facility_booking.get_available_slots",
@@ -1521,6 +1632,7 @@ class FacilityCheckinBoard {
 					return;
 				}
 				this.render_slot_picker(dialog, r.message || []);
+				this.update_pricing_summary(dialog);
 			},
 		});
 	}

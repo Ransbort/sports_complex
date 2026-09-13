@@ -455,6 +455,18 @@ def get_available_slots(sports_facility, date):
 	compatibility with existing data - see the retired Court doctype's
 	migration patch), which is why it's used as the filter key below even
 	though the parameter here is named for what it actually holds now.
+
+	Slots whose start time is already at or before right now are dropped
+	before returning - otherwise, for today's date, this happily offered
+	up hours that had already passed (or were already under way) as
+	"available", and both the guest portal (BookFacility.vue) and the
+	staff Book Facility dialog (facility_checkin.js) render whatever this
+	returns as selectable. Same get_datetime(f"{date} {time}") >= now
+	comparison mark_no_shows() already uses below for the same reason:
+	Facility Booking's start_time/end_time are separate Time fields, so
+	the precise cutoff has to be checked against the combined date+time,
+	not the date alone. Future dates are unaffected since every slot on
+	them is necessarily still ahead of now.
 	"""
 	day_of_week = get_datetime(date).strftime("%A")
 
@@ -504,18 +516,40 @@ def get_available_slots(sports_facility, date):
 		if row.scheduled_start and row.scheduled_end:
 			busy.append((row.scheduled_start, row.scheduled_end))
 
+	now = now_datetime()
+
 	slots = []
 	for template in template_slots:
 		for free_start, free_end in _subtract_busy(template.slot_start, template.slot_end, busy):
 			for slot_start, slot_end in _split_into_slots(free_start, free_end, template.slot_duration):
+				start_str = _format_time(slot_start)
+				if get_datetime(f"{date} {start_str}") <= now:
+					# Elapsed, or already under way - not bookable.
+					continue
 				slots.append(
 					{
-						"start_time": _format_time(slot_start),
+						"start_time": start_str,
 						"end_time": _format_time(slot_end),
 						"slot_duration": template.slot_duration,
 					}
 				)
 	return slots
+
+
+@frappe.whitelist()
+def get_facility_rate(sports_facility):
+	"""Effective hourly rate for one facility - the exact same source
+	_new_cart_booking() itself prices every booking against
+	(get_effective_hourly_rate(): the facility's own hourly_rate, or its
+	Facility Type's default). Lets the Facility Check-In board's Book a
+	Facility dialog show a running total as slots are picked, without
+	either duplicating that fallback rule client-side or waiting for the
+	booking to actually be created to find out what it costs. Not
+	allow_guest - staff-only dialog, same as create_staff_booking_cart().
+	"""
+	if not frappe.db.exists("Sports Facility", sports_facility):
+		frappe.throw(_("Sports Facility {0} not found").format(sports_facility))
+	return flt(frappe.get_cached_doc("Sports Facility", sports_facility).get_effective_hourly_rate())
 
 
 @frappe.whitelist(allow_guest=True)
@@ -1209,12 +1243,18 @@ def _rollback_cart_bookings(bookings):
 	frappe.db.commit()
 
 
-def _create_cart_invoice(customer, bookings):
+def _create_cart_invoice(customer, bookings, discount_amount=0):
 	"""One Sales Invoice covering every booking in the cart - a line item
 	per slot - so the customer pays once for the whole cart instead of
 	once per slot. Mirrors create_sales_invoice()'s own Item-resolution
 	rules (per-facility Billing Item, falling back to a same-named
 	Facility Type Item) rather than duplicating them differently here.
+
+	discount_amount: flat amount taken off the invoice's grand total via
+	ERPNext's own discount_amount/apply_discount_on fields - only ever
+	passed by create_staff_booking_cart() (a front-desk comp on a walk-in
+	booking); create_booking_cart()/create_guest_booking_cart() never pass
+	one, so self-service checkout is completely unaffected.
 	"""
 	items = []
 	for booking in bookings:
@@ -1232,6 +1272,16 @@ def _create_cart_invoice(customer, bookings):
 			)
 		items.append({"item_code": item_code, "qty": 1, "rate": booking.total_amount or booking.rate or 0})
 
+	discount_amount = flt(discount_amount)
+	if discount_amount:
+		subtotal = sum(flt(item["rate"]) * item["qty"] for item in items)
+		if discount_amount > subtotal:
+			frappe.throw(
+				_("Discount ({0}) can't be more than the booking total ({1}).").format(
+					discount_amount, subtotal
+				)
+			)
+
 	si = frappe.new_doc("Sales Invoice")
 	si.customer = customer
 	# Only the first booking gets this forward link - the generic
@@ -1243,6 +1293,9 @@ def _create_cart_invoice(customer, bookings):
 	si.facility_booking = bookings[0].name
 	for item in items:
 		si.append("items", item)
+	if discount_amount:
+		si.apply_discount_on = "Grand Total"
+		si.discount_amount = discount_amount
 	si.flags.ignore_permissions = True
 	si.insert()
 	si.submit()
@@ -1267,7 +1320,7 @@ def _finalize_cart_bookings(bookings):
 	return status
 
 
-def _run_cart(customer, slots, notes=None, email=None, phone=None, guest_name=None):
+def _run_cart(customer, slots, notes=None, email=None, phone=None, guest_name=None, discount_amount=0):
 	"""Shared pipeline behind create_booking_cart() and create_guest_
 	booking_cart(): submit one booking per slot (same validate() chain a
 	single booking goes through), bill them all on one shared Sales
@@ -1280,6 +1333,9 @@ def _run_cart(customer, slots, notes=None, email=None, phone=None, guest_name=No
 	only ever creates as many Facility Bookings as there are actual
 	distinct visits, not one per fixed-duration slot the guest happened
 	to click.
+
+	discount_amount: see _create_cart_invoice() - only create_staff_
+	booking_cart() ever passes a non-zero value here.
 	"""
 	slots = _merge_contiguous_slots(slots)
 	bookings = []
@@ -1288,7 +1344,7 @@ def _run_cart(customer, slots, notes=None, email=None, phone=None, guest_name=No
 			bookings.append(
 				_new_cart_booking(customer, slot, notes=notes, email=email, phone=phone, guest_name=guest_name)
 			)
-		_create_cart_invoice(customer, bookings)
+		_create_cart_invoice(customer, bookings, discount_amount=discount_amount)
 		status = _finalize_cart_bookings(bookings)
 	except Exception:
 		_rollback_cart_bookings(bookings)
@@ -1297,7 +1353,7 @@ def _run_cart(customer, slots, notes=None, email=None, phone=None, guest_name=No
 
 
 @frappe.whitelist()
-def create_staff_booking_cart(customer, slots, notes=None):
+def create_staff_booking_cart(customer, slots, notes=None, discount_amount=0):
 	"""Cart counterpart to create_staff_booking(): lets staff on the
 	Facility Check-In board book several time slots for one walk-in/phone
 	customer in a single visit - same facility, back-to-back or spaced
@@ -1312,6 +1368,12 @@ def create_staff_booking_cart(customer, slots, notes=None):
 	"end_time"} dicts, one per selected slot - same shape
 	create_booking_cart() takes, just gathered from the check-in board's
 	own slot picker instead of the public booking page's cart.
+
+	discount_amount: flat amount off the whole cart's invoice, entered on
+	the Book a Facility dialog - see _create_cart_invoice() for how it's
+	applied and validated. No extra role check beyond the STAFF_ROLES
+	gate just below - anyone who can open this dialog at all can already
+	book (and by extension, effectively comp) on a customer's behalf.
 
 	There used to be a mark_paid flag here (a "Payment Collected"
 	checkbox on the Book Facility dialog, staff attesting cash/card was
@@ -1339,7 +1401,9 @@ def create_staff_booking_cart(customer, slots, notes=None):
 	email, phone = _resolve_member_contact(customer)
 
 	slots = _parse_slots(slots)
-	bookings, status = _run_cart(customer, slots, notes=notes, email=email, phone=phone)
+	bookings, status = _run_cart(
+		customer, slots, notes=notes, email=email, phone=phone, discount_amount=discount_amount
+	)
 
 	_send_booking_confirmation_email(email, bookings)
 
