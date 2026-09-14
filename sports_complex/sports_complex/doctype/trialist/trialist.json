@@ -490,9 +490,9 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Registration Fee Status",
-   "options": "Not Invoiced\nInvoiced\nPaid",
+   "options": "Not Invoiced\nInvoiced\nPartially Paid\nPaid",
    "read_only": 1,
-   "description": "Not Invoiced until a doctor clears this trialist and a bill is raised (Trial Registration Cashier page, or the \"Create Registration Bill\" button below) - see create_registration_invoice() in trialist.py."
+   "description": "Not Invoiced until a doctor clears this trialist and a bill is raised (Cashier page, or the \"Create Registration Bill\" button below) - see create_registration_invoice() in trialist.py. Partially Paid once the Cashier has collected some but not all of the registration fee - see create_trial_payment_entry() in the Cashier page's own module."
   },
   {
    "fieldname": "registration_invoice",

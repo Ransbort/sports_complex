@@ -105,7 +105,11 @@ def get_trial_billing_queue():
 
 	awaiting_payment = frappe.get_all(
 		"Trialist",
-		filters={"registration_fee_status": "Invoiced"},
+		# "Invoiced" and "Partially Paid" both still owe money on this bill -
+		# a Partially Paid trialist needs to stay in this queue (with
+		# whatever's left on the invoice) rather than disappearing the
+		# moment the first installment lands.
+		filters={"registration_fee_status": ["in", ["Invoiced", "Partially Paid"]]},
 		fields=[
 			"name", "full_name", "trial_batch", "sport",
 			"customer", "registration_invoice", "mobile_number",
@@ -134,9 +138,18 @@ def get_trial_billing_queue():
 
 
 @frappe.whitelist()
-def create_trial_payment_entry(invoice_name, mode_of_payment, remarks=None, reference_no=None, reference_date=None):
+def create_trial_payment_entry(
+	invoice_name, mode_of_payment, paid_amount=None, remarks=None, reference_no=None, reference_date=None
+):
 	"""Collect payment against an already-raised registration invoice and
-	flip the originating Trialist's registration_fee_status to "Paid".
+	update the originating Trialist's registration_fee_status accordingly -
+	"Paid" once the invoice is fully settled, "Partially Paid" (leaving the
+	rest in this same queue - see get_trial_billing_queue()) otherwise.
+	Same paid_amount/partial-payment shape as create_facility_payment_
+	entry() below - added for parity once the Facility Bookings side of
+	this page got it and registration fees were left as an all-or-nothing
+	collection with no way to record a deposit.
+
 	Adds an explicit _is_cashier() gate the original trial_registration_
 	cashier.create_payment_entry() didn't have (it relied purely on the
 	Page's own role restriction) - worth tightening here since this
@@ -152,10 +165,22 @@ def create_trial_payment_entry(invoice_name, mode_of_payment, remarks=None, refe
 	if flt(invoice.outstanding_amount) <= 0:
 		frappe.throw(_("Invoice {0} has nothing outstanding to collect.").format(invoice_name))
 
+	amount = flt(paid_amount) if paid_amount else flt(invoice.outstanding_amount)
+	if amount <= 0 or amount > flt(invoice.outstanding_amount) + 0.01:
+		frappe.throw(
+			_("Payment amount must be between 0 and the outstanding balance ({0})").format(invoice.outstanding_amount)
+		)
+
 	pe = get_payment_entry("Sales Invoice", invoice_name)
 	pe.mode_of_payment = mode_of_payment
-	pe.paid_amount = invoice.outstanding_amount
-	pe.received_amount = invoice.outstanding_amount
+	pe.paid_amount = amount
+	pe.received_amount = amount
+	# get_payment_entry() pre-allocates the invoice's full outstanding
+	# amount against itself in the one reference row it creates - re-point
+	# that at whatever was actually collected for a partial payment, same
+	# reasoning as create_facility_payment_entry() below.
+	if pe.references:
+		pe.references[0].allocated_amount = amount
 
 	if remarks:
 		pe.remarks = remarks
@@ -170,19 +195,34 @@ def create_trial_payment_entry(invoice_name, mode_of_payment, remarks=None, refe
 	pe.insert(ignore_permissions=True)
 	pe.submit()
 
+	invoice.reload()
 	trialist_name = invoice.get("trialist")
+	fully_paid = flt(invoice.outstanding_amount) <= 0
 	if trialist_name and frappe.db.exists("Trialist", trialist_name):
-		frappe.db.set_value("Trialist", trialist_name, "registration_fee_status", "Paid")
-		frappe.publish_realtime(
-			event="trial_registration_fee_paid",
-			message={
-				"trialist": trialist_name,
-				"invoice": invoice_name,
-				"message": _("Registration fee paid for {0}").format(trialist_name),
-			},
+		frappe.db.set_value(
+			"Trialist", trialist_name, "registration_fee_status", "Paid" if fully_paid else "Partially Paid"
 		)
+		if fully_paid:
+			# Only fire the realtime "fully paid" notice once the balance is
+			# actually zero - a partial payment isn't the event anything
+			# listening for this is waiting on (see wherever this event is
+			# consumed for the front-of-house "cleared to trial" cue).
+			frappe.publish_realtime(
+				event="trial_registration_fee_paid",
+				message={
+					"trialist": trialist_name,
+					"invoice": invoice_name,
+					"message": _("Registration fee paid for {0}").format(trialist_name),
+				},
+			)
 
-	return {"status": "Success", "name": pe.name, "trialist": trialist_name}
+	return {
+		"status": "Success",
+		"name": pe.name,
+		"trialist": trialist_name,
+		"registration_fee_status": "Paid" if fully_paid else "Partially Paid",
+		"outstanding_amount": invoice.outstanding_amount,
+	}
 
 
 # ---------------------------------------------------------------------

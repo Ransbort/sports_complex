@@ -696,17 +696,31 @@ class SportsComplexCashier {
 					default: this.payment_methods.includes('Cash') ? 'Cash' : this.payment_methods[0],
 				},
 				{ fieldtype: 'Column Break' },
+				{
+					fieldtype: 'Currency',
+					fieldname: 'paid_amount',
+					label: __('Amount'),
+					default: trialist.outstanding_amount,
+					reqd: 1,
+					description: __('Partial payments are allowed - the rest stays owing on this bill.'),
+				},
 				{ fieldtype: 'Data', fieldname: 'reference_no', label: __('Reference No') },
+				{ fieldtype: 'Column Break' },
 				{ fieldtype: 'Date', fieldname: 'reference_date', label: __('Reference Date'), default: 'Today' },
 				{ fieldtype: 'Small Text', fieldname: 'remarks', label: __('Remarks') },
 			],
 			primary_action_label: __('Collect Payment'),
 			primary_action: (values) => {
+				if (flt(values.paid_amount) <= 0 || flt(values.paid_amount) > flt(trialist.outstanding_amount) + 0.01) {
+					frappe.show_alert({ message: __('Amount must be between 0 and the outstanding balance'), indicator: 'orange' });
+					return;
+				}
 				frappe.call({
 					method: 'sports_complex.sports_complex.page.cashier.cashier.create_trial_payment_entry',
 					args: {
 						invoice_name: trialist.registration_invoice,
 						mode_of_payment: values.mode_of_payment,
+						paid_amount: values.paid_amount,
 						remarks: values.remarks,
 						reference_no: values.reference_no,
 						reference_date: values.reference_date,
