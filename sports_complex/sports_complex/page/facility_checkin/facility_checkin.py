@@ -118,7 +118,7 @@ def get_ready_to_check_in(facility=None, date=None, customer=None, facility_book
 		or_filters=or_filters,
 		fields=[
 			"name", "customer", "court", "booking_date", "start_time", "end_time",
-			"total_amount", "payment_status",
+			"total_amount", "payment_status", "sales_invoice",
 		],
 		order_by="booking_date asc, start_time asc",
 	)
@@ -282,7 +282,7 @@ def get_all_bookings(facility=None, date=None, customer=None, facility_booking=N
 		or_filters=or_filters,
 		fields=[
 			"name", "customer", "court", "booking_date", "start_time", "end_time",
-			"total_amount", "booking_status", "payment_status",
+			"total_amount", "booking_status", "payment_status", "sales_invoice",
 		],
 		order_by="booking_date desc, start_time desc",
 		limit_page_length=200,

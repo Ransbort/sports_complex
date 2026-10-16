@@ -81,6 +81,8 @@ class SportsComplexCashier {
 		this.payment_methods = [];
 		this.facility_filters = { facility: null, date: null, customer: '' };
 		this.facility_bookings = [];
+		this.inpatient_filters = { patient: null };
+		this.inpatient_invoices = [];
 
 		this.$wrapper = $(`
 			<div class="csh-wrapper">
@@ -101,6 +103,9 @@ class SportsComplexCashier {
 								<button class="csh-tab-btn${this.activeTab === 'facility' ? ' active' : ''}" data-tab="facility">
 									${frappe.utils.icon('calendar', 'sm')} ${__('Facility Bookings')}
 								</button>
+								<button class="csh-tab-btn${this.activeTab === 'inpatient' ? ' active' : ''}" data-tab="inpatient">
+									${frappe.utils.icon('activity', 'sm')} ${__('Inpatient Billing')}
+								</button>
 							</div>
 							<button class="csh-btn-icon" id="csh-refresh-btn" title="${__('Refresh')}">
 								${frappe.utils.icon('refresh-cw', 'sm')}
@@ -113,6 +118,11 @@ class SportsComplexCashier {
 						<div class="frappe-control" data-fieldname="date"></div>
 						<div class="frappe-control" data-fieldname="customer"></div>
 						<button class="btn btn-default" id="csh-clear-filters-btn">${__('Clear Filters')}</button>
+					</div>
+
+					<div class="csh-facility-filters" data-section="inpatient" style="display: ${this.activeTab === 'inpatient' ? 'grid' : 'none'}; grid-template-columns: 1fr auto;">
+						<div class="frappe-control" data-fieldname="inpatient_patient"></div>
+						<button class="btn btn-default" id="csh-clear-inpatient-filters-btn">${__('Clear Filters')}</button>
 					</div>
 
 					<div class="csh-stats"></div>
@@ -163,6 +173,23 @@ class SportsComplexCashier {
 						</div>
 					</div>
 				</div>
+
+				<div class="csh-section" data-section="inpatient" style="display: ${this.activeTab === 'inpatient' ? 'flex' : 'none'};">
+					<div class="csh-columns csh-columns-single">
+						<div class="csh-column">
+							<div class="csh-column-head">
+								<span class="csh-column-title">
+									${frappe.utils.icon('credit-card', 'sm')}
+									${__('Pending Payments')}
+								</span>
+								<span class="csh-count-pill csh-count-pill-warning" data-count="inpatient_pending">0</span>
+							</div>
+							<div class="csh-list csh-list-grid" data-list="inpatient_pending">
+								<div class="csh-empty">${__('Loading...')}</div>
+							</div>
+						</div>
+					</div>
+				</div>
 			</div>
 		`).appendTo(this.page.main);
 
@@ -171,6 +198,7 @@ class SportsComplexCashier {
 
 		this.inject_styles();
 		this.setup_facility_filters();
+		this.setup_inpatient_filters();
 		this.bind_realtime();
 		this.load_active_tab();
 	}
@@ -183,7 +211,8 @@ class SportsComplexCashier {
 		this.$wrapper.find(`.csh-tab-btn[data-tab="${tab}"]`).addClass('active');
 		this.$wrapper.find('.csh-section').hide();
 		this.$wrapper.find(`.csh-section[data-section="${tab}"]`).show();
-		this.$wrapper.find('.csh-facility-filters').toggle(tab === 'facility');
+		this.$wrapper.find('.csh-facility-filters[data-section="facility"]').toggle(tab === 'facility');
+		this.$wrapper.find('.csh-facility-filters[data-section="inpatient"]').toggle(tab === 'inpatient');
 
 		this.load_active_tab();
 	}
@@ -191,8 +220,10 @@ class SportsComplexCashier {
 	load_active_tab() {
 		if (this.activeTab === 'trial') {
 			this.load_trial();
-		} else {
+		} else if (this.activeTab === 'facility') {
 			this.load_facility();
+		} else {
+			this.load_inpatient();
 		}
 	}
 
@@ -412,6 +443,7 @@ class SportsComplexCashier {
 			.csh-invoice-link svg { width: 11px; height: 11px; }
 
 			.csh-card-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color); }
+			.csh-btn-group { display: flex; align-items: center; gap: 8px; }
 			.csh-amount-block { display: flex; flex-direction: column; }
 			.csh-amount-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); }
 			.csh-amount { font-weight: 700; font-size: 1.05rem; color: var(--text-color); }
@@ -901,15 +933,51 @@ class SportsComplexCashier {
 							<span class="csh-amount-label">${__('Outstanding')}</span>
 							<span class="csh-amount csh-amount-outstanding">${format_currency(b.outstanding_amount, this.currency)}</span>
 						</div>
-						<button class="btn btn-primary csh-btn csh-pay-btn" ${b.sales_invoice ? '' : 'disabled'}>
-							${frappe.utils.icon('credit-card', 'xs')}${__('Collect Payment')}
-						</button>
+						<div class="csh-btn-group">
+							${b.sales_invoice ? `
+								<button class="btn btn-secondary csh-btn csh-print-btn" title="${__('Print Invoice')}">
+									${frappe.utils.icon('printer', 'xs')}
+								</button>
+								<button class="btn btn-primary csh-btn csh-pay-btn">
+									${frappe.utils.icon('credit-card', 'xs')}${__('Collect Payment')}
+								</button>
+							` : `
+								<button class="btn btn-primary csh-btn csh-invoice-btn">
+									${frappe.utils.icon('file-text', 'xs')}${__('Create Invoice')}
+								</button>
+							`}
+						</div>
 					</div>
 				</div>
 			`);
 			$card.find('.csh-pay-btn').on('click', () => this.collect_facility_payment(b));
+			$card.find('.csh-invoice-btn').on('click', () => this.create_facility_invoice(b));
+			$card.find('.csh-print-btn').on('click', () => this.print_receipt(b.sales_invoice));
 			$list.append($card);
 		});
+	}
+
+	create_facility_invoice(booking) {
+		frappe.confirm(
+			__('Raise a Sales Invoice for this booking ({0})?', [booking.name]),
+			() => {
+				frappe.call({
+					method: 'sports_complex.sports_complex.doctype.facility_booking.facility_booking.create_facility_invoice',
+					args: { facility_booking: booking.name },
+					freeze: true,
+					freeze_message: __('Creating invoice...'),
+					callback: (r) => {
+						if (r.message && r.message.status === 'Success') {
+							frappe.show_alert({
+								message: __('Invoice {0} created for {1}', [r.message.sales_invoice, booking.name]),
+								indicator: 'green',
+							}, 6);
+							this.load_facility();
+						}
+					},
+				});
+			}
+		);
 	}
 
 	collect_facility_payment(booking) {
@@ -978,6 +1046,193 @@ class SportsComplexCashier {
 							}, 6);
 							this.print_receipt(booking.sales_invoice);
 							this.load_facility();
+						}
+					},
+				});
+			},
+		});
+		dialog.show();
+	}
+
+	// =====================================================================
+	// Inpatient Billing section
+	// =====================================================================
+
+	setup_inpatient_filters() {
+		const $bar = this.$wrapper.find('.csh-facility-filters[data-section="inpatient"]');
+
+		this.inpatient_patient_control = frappe.ui.form.make_control({
+			parent: $bar.find('[data-fieldname="inpatient_patient"]'),
+			df: {
+				fieldtype: 'Link',
+				fieldname: 'inpatient_patient',
+				options: 'Patient',
+				label: __('Patient'),
+				placeholder: __('Filter by patient'),
+				onchange: () => {
+					this.inpatient_filters.patient = this.inpatient_patient_control.get_value() || null;
+					this.load_inpatient();
+				},
+			},
+			render_input: true,
+		});
+		this.inpatient_patient_control.refresh();
+
+		this.$wrapper.find('#csh-clear-inpatient-filters-btn').on('click', () => {
+			this.inpatient_patient_control.set_value('');
+			this.inpatient_filters = { patient: null };
+			this.load_inpatient();
+		});
+	}
+
+	load_inpatient() {
+		frappe.call({
+			method: 'sports_complex.sports_complex.page.cashier.cashier.get_inpatient_pending_payments',
+			args: this.inpatient_filters,
+			freeze: true,
+			callback: (r) => {
+				this.inpatient_invoices = r.message || [];
+				this.render_inpatient_stats();
+				this.render_inpatient_list();
+			},
+		});
+	}
+
+	render_inpatient_stats() {
+		const invoices = this.inpatient_invoices || [];
+		const outstanding_total = invoices.reduce((sum, i) => sum + flt(i.outstanding_amount), 0);
+
+		const TONE_CLASS = { neutral: 'stat-blue', warning: 'stat-orange', good: 'stat-green' };
+
+		const tiles = [
+			{
+				tone: invoices.length ? 'warning' : 'good',
+				label: __('Pending Payments'),
+				value: String(invoices.length),
+				sub: invoices.length ? __('invoice(s) owed money') : __('nothing outstanding'),
+			},
+			{
+				tone: invoices.length ? 'warning' : 'good',
+				label: __('Outstanding'),
+				value: format_currency(outstanding_total, this.currency),
+				sub: invoices.length ? __('across {0} invoice(s)', [invoices.length]) : __('nothing outstanding'),
+			},
+		];
+
+		this.render_stat_tiles(tiles, TONE_CLASS);
+	}
+
+	render_inpatient_list() {
+		const invoices = this.inpatient_invoices || [];
+		this.$wrapper.find('[data-count="inpatient_pending"]').text(invoices.length);
+		const $list = this.$wrapper.find('[data-list="inpatient_pending"]').empty();
+
+		if (!invoices.length) {
+			$list.append(`<div class="csh-empty">${frappe.utils.icon('inbox', 'md')}${__('No inpatient invoices owe payment')}</div>`);
+			return;
+		}
+
+		invoices.forEach((inv) => {
+			const $card = $(`
+				<div class="csh-card">
+					<div class="csh-card-top">
+						<div class="csh-avatar">${this.initials(inv.patient_name)}</div>
+						<div class="csh-card-id">
+							<div class="csh-name" title="${frappe.utils.escape_html(inv.patient_name || '')}">${frappe.utils.escape_html(inv.patient_name || inv.patient || '')}</div>
+							<div class="csh-meta">${frappe.utils.escape_html(inv.customer_name || '')} · ${frappe.datetime.str_to_user(inv.posting_date)}</div>
+						</div>
+					</div>
+					<div class="csh-tags">
+						<span class="csh-tag csh-tag-status">${frappe.utils.escape_html(__(inv.status || ''))}</span>
+						<a class="csh-invoice-link" href="/app/sales-invoice/${encodeURIComponent(inv.name)}" target="_blank">
+							${frappe.utils.icon('file-text', 'xs')}${frappe.utils.escape_html(inv.name)}
+						</a>
+					</div>
+					<div class="csh-card-foot">
+						<div class="csh-amount-block">
+							<span class="csh-amount-label">${__('Outstanding')}</span>
+							<span class="csh-amount csh-amount-outstanding">${format_currency(inv.outstanding_amount, this.currency)}</span>
+						</div>
+						<div class="csh-btn-group">
+							<button class="btn btn-secondary csh-btn csh-print-btn" title="${__('Print Invoice')}">
+								${frappe.utils.icon('printer', 'xs')}
+							</button>
+							<button class="btn btn-primary csh-btn csh-pay-btn">
+								${frappe.utils.icon('credit-card', 'xs')}${__('Collect Payment')}
+							</button>
+						</div>
+					</div>
+				</div>
+			`);
+			$card.find('.csh-pay-btn').on('click', () => this.collect_inpatient_payment(inv));
+			$card.find('.csh-print-btn').on('click', () => this.print_receipt(inv.name));
+			$list.append($card);
+		});
+	}
+
+	collect_inpatient_payment(invoice) {
+		this.get_payment_methods(() => this.show_inpatient_payment_dialog(invoice));
+	}
+
+	show_inpatient_payment_dialog(invoice) {
+		const dialog = new frappe.ui.Dialog({
+			title: __('Collect Payment - {0}', [invoice.patient_name || invoice.name]),
+			fields: [
+				{
+					fieldtype: 'HTML',
+					options: `<div style="margin-bottom:10px">${__('Outstanding')}: <b>${format_currency(
+						invoice.outstanding_amount, this.currency
+					)}</b></div>`,
+				},
+				{
+					fieldtype: 'Select',
+					fieldname: 'mode_of_payment',
+					label: __('Mode of Payment'),
+					options: this.payment_methods,
+					reqd: 1,
+					default: this.payment_methods.includes('Cash') ? 'Cash' : this.payment_methods[0],
+				},
+				{ fieldtype: 'Column Break' },
+				{
+					fieldtype: 'Currency',
+					fieldname: 'paid_amount',
+					label: __('Amount'),
+					default: invoice.outstanding_amount,
+					reqd: 1,
+					description: __('Partial payments are allowed - the invoice stays owing the rest.'),
+				},
+				{ fieldtype: 'Data', fieldname: 'reference_no', label: __('Reference No') },
+				{ fieldtype: 'Column Break' },
+				{ fieldtype: 'Date', fieldname: 'reference_date', label: __('Reference Date'), default: 'Today' },
+				{ fieldtype: 'Small Text', fieldname: 'remarks', label: __('Remarks') },
+			],
+			primary_action_label: __('Collect Payment'),
+			primary_action: (values) => {
+				if (flt(values.paid_amount) <= 0 || flt(values.paid_amount) > flt(invoice.outstanding_amount) + 0.01) {
+					frappe.show_alert({ message: __('Amount must be between 0 and the outstanding balance'), indicator: 'orange' });
+					return;
+				}
+				frappe.call({
+					method: 'sports_complex.sports_complex.page.cashier.cashier.create_inpatient_payment_entry',
+					args: {
+						sales_invoice: invoice.name,
+						mode_of_payment: values.mode_of_payment,
+						paid_amount: values.paid_amount,
+						remarks: values.remarks,
+						reference_no: values.reference_no,
+						reference_date: values.reference_date,
+					},
+					freeze: true,
+					freeze_message: __('Recording payment...'),
+					callback: (r) => {
+						if (r.message && r.message.status === 'Success') {
+							dialog.hide();
+							frappe.show_alert({
+								message: __('Payment {0} recorded for {1}', [r.message.name, invoice.patient_name || invoice.name]),
+								indicator: 'green',
+							}, 6);
+							this.print_receipt(invoice.name);
+							this.load_inpatient();
 						}
 					},
 				});

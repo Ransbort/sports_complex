@@ -374,3 +374,144 @@ def create_facility_payment_entry(
 		"payment_status": booking.payment_status,
 		"outstanding_amount": invoice.outstanding_amount,
 	}
+
+
+# ---------------------------------------------------------------------
+# Inpatient Billing section
+#
+# Unlike Trial Registrations and Facility Bookings, there's no
+# sports_complex doctype standing in for "the bill" here - the Sales
+# Invoice created by healthcare.healthcare.doctype.inpatient_record.
+# inpatient_record.create_invoice_for_inpatient() (the Inpatient
+# Record's own "Create > Sales Invoice" action) *is* the record. An
+# invoice from that action can carry the Inpatient Ward stay bundled
+# together with the same admission's Patient Encounter, Lab Test, etc.
+# charges - one line with reference_dt "Inpatient Record Item" or
+# "Inpatient Occupancy" is enough to count the whole invoice as "an
+# admission's bill" for this tab; it doesn't need to be ward-only.
+# ---------------------------------------------------------------------
+
+INPATIENT_REFERENCE_DOCTYPES = ["Inpatient Record Item", "Inpatient Occupancy"]
+
+
+@frappe.whitelist()
+def get_inpatient_pending_payments(patient=None):
+	"""Submitted Sales Invoices that include at least one Inpatient Ward
+	charge and still have something outstanding - the queue the
+	Inpatient Billing tab works through."""
+	sii = frappe.qb.DocType("Sales Invoice Item")
+	si = frappe.qb.DocType("Sales Invoice")
+
+	query = (
+		frappe.qb.from_(si)
+		.join(sii)
+		.on(sii.parent == si.name)
+		.select(si.name)
+		.where(
+			(si.docstatus == 1)
+			& (si.outstanding_amount > 0)
+			& (sii.reference_dt.isin(INPATIENT_REFERENCE_DOCTYPES))
+		)
+		.distinct()
+	)
+	if patient:
+		query = query.where(si.patient == patient)
+
+	invoice_names = [row[0] for row in query.run()]
+	if not invoice_names:
+		return []
+
+	invoices = frappe.get_all(
+		"Sales Invoice",
+		filters={"name": ["in", invoice_names]},
+		fields=[
+			"name", "posting_date", "due_date", "status",
+			"outstanding_amount", "grand_total", "currency",
+			"patient", "patient_name", "customer", "customer_name",
+		],
+		order_by="posting_date asc",
+	)
+	return invoices
+
+
+@frappe.whitelist()
+def create_inpatient_payment_entry(
+	sales_invoice, mode_of_payment, paid_amount=None, remarks=None, reference_no=None, reference_date=None
+):
+	"""Collect payment against an inpatient Sales Invoice - same
+	insert(ignore_permissions=True)+submit() Payment Entry pattern as
+	create_facility_payment_entry/cashier_portal.create_payment_entry
+	above. Unlike a Facility Booking, there's no separate booking doc
+	whose own status needs bringing in line afterwards once this
+	settles - Sales Invoice's own outstanding_amount, and the invoiced
+	flag each line's reference_dt/reference_dn already carries (set when
+	the invoice itself was submitted - see healthcare/utils.py's
+	set_invoiced()), are the only state a payment needs to move, and a
+	submitted Payment Entry against the invoice does that on its own.
+	"""
+	if not _is_cashier():
+		frappe.throw(_("Not permitted to collect payment"), frappe.PermissionError)
+
+	invoice = frappe.get_doc("Sales Invoice", sales_invoice)
+	if invoice.docstatus != 1:
+		frappe.throw(_("Invoice {0} is not submitted yet.").format(invoice.name))
+	if flt(invoice.outstanding_amount) <= 0:
+		frappe.throw(_("Invoice {0} has nothing outstanding to collect.").format(invoice.name))
+
+	amount = flt(paid_amount) if paid_amount else flt(invoice.outstanding_amount)
+	if amount <= 0 or amount > flt(invoice.outstanding_amount) + 0.01:
+		frappe.throw(
+			_("Payment amount must be between 0 and the outstanding balance ({0})").format(
+				invoice.outstanding_amount
+			)
+		)
+
+	pe = get_payment_entry("Sales Invoice", invoice.name)
+	pe.mode_of_payment = mode_of_payment
+	pe.paid_amount = amount
+	pe.received_amount = amount
+	# Same re-pointing as create_facility_payment_entry above - see that
+	# function's own comment for why a partial payment needs this.
+	if pe.references:
+		pe.references[0].allocated_amount = amount
+
+	if remarks:
+		pe.remarks = remarks
+	if reference_no:
+		pe.reference_no = reference_no
+	if reference_date:
+		pe.reference_date = reference_date
+	else:
+		pe.reference_no = pe.reference_no or sales_invoice
+		pe.reference_date = pe.reference_date or nowdate()
+
+	pe.insert(ignore_permissions=True)
+	pe.submit()
+
+	invoice.reload()
+
+	# Nurse Station's Admitted Patients tab shows each admission's own
+	# outstanding balance (see get_admitted_patients() in
+	# healthcare/page/nurse_station/nurse_station.py) but only ever
+	# refreshes it on page load/manual reload or its own actions - a
+	# payment collected here, from the Cashier, would otherwise sit
+	# stale on any Nurse Station already open until someone there does
+	# something. Nurse Station already listens for this exact
+	# department="nurse" queue_update event (see on_page_load in
+	# nurse_station.js, which calls loadAll() - including
+	# loadAdmittedPatients() - on every one) for new-arrival
+	# notifications; reusing it here is what makes the balance there
+	# update live the moment this payment is submitted, with no polling.
+	frappe.publish_realtime(
+		event="queue_update",
+		message={
+			"department": "nurse",
+			"message": _("Payment received for {0}").format(invoice.name),
+		},
+	)
+
+	return {
+		"status": "Success",
+		"name": pe.name,
+		"outstanding_amount": invoice.outstanding_amount,
+	}

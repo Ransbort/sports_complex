@@ -316,6 +316,56 @@ class FacilityBooking(Document):
 
 
 @frappe.whitelist()
+def create_facility_invoice(facility_booking):
+	"""Manual recovery path for a submitted Facility Booking that has no
+	linked Sales Invoice - normally create_sales_invoice() above runs
+	automatically from on_submit() so this never comes up, but a booking
+	can still end up here if its invoice was later cancelled/deleted
+	directly (e.g. an accountant correcting a mistake) or a Facility's
+	Billing Item wasn't configured yet when the booking was first
+	confirmed. Mirrors Trialist's own manual "Create Bill" flow
+	(create_registration_invoice() in trialist.py) - called from the
+	Cashier page's Facility Bookings tab (cashier.js's
+	create_facility_invoice()) in place of the "Collect Payment" button,
+	which stays disabled until a booking has an invoice to collect
+	against.
+
+	Reuses the CASHIER_ROLES gate from page/cashier/cashier.py rather
+	than this module's own narrower STAFF_ROLES (which lacks the
+	"Cashier" role) - raising a bill is the same class of financial
+	action as collecting payment against one, so it should require the
+	same permission.
+	"""
+	from sports_complex.sports_complex.page.cashier.cashier import CASHIER_ROLES
+
+	if not set(frappe.get_roles()) & CASHIER_ROLES:
+		frappe.throw(_("Not permitted to create invoices"), frappe.PermissionError)
+
+	booking = frappe.get_doc("Facility Booking", facility_booking)
+	if booking.docstatus != 1:
+		frappe.throw(_("Booking {0} must be submitted before it can be invoiced").format(facility_booking))
+	if booking.sales_invoice:
+		frappe.throw(
+			_("Booking {0} already has a linked Sales Invoice ({1})").format(
+				facility_booking, booking.sales_invoice
+			)
+		)
+
+	booking.create_sales_invoice()
+	# create_sales_invoice() only sets self.sales_invoice in memory - its
+	# usual caller, on_submit(), does its own explicit db_update()
+	# right after calling it (to also persist booking_status in the same
+	# write). There's no booking_status change to make here, but the
+	# sales_invoice field still needs this same explicit persist.
+	booking.db_update()
+
+	return {
+		"status": "Success",
+		"sales_invoice": booking.sales_invoice,
+	}
+
+
+@frappe.whitelist()
 def get_booking_events(start, end, filters=None):
 	"""Feed the Calendar view for Facility Booking.
 

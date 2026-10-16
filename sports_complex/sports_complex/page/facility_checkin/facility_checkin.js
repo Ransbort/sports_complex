@@ -629,6 +629,9 @@ class FacilityCheckinBoard {
 							<button class="fci-btn-outline" id="fci-cashier-btn">
 								<i class="fa fa-money"></i> ${__("Cashier")}
 							</button>
+							<button class="fci-btn-outline" id="fci-invoice-btn">
+								<i class="fa fa-file-text-o"></i> ${__("Invoice")}
+							</button>
 							<button class="fci-btn-outline" id="fci-all-bookings-btn">
 								<i class="fa fa-list-alt"></i> ${__("All Bookings")}
 							</button>
@@ -713,6 +716,7 @@ class FacilityCheckinBoard {
 		// reading Paid while its Sales Invoice sat Unpaid. Both were
 		// removed; the Cashier page is the one place that flow now exists.
 		this.page.main.find("#fci-cashier-btn").on("click", () => frappe.set_route("cashier", "facility"));
+		this.page.main.find("#fci-invoice-btn").on("click", () => this.open_invoices_dialog());
 
 		this.page.main.find(".fci-view-toggle-btn").on("click", (e) => {
 			const view = $(e.currentTarget).attr("data-view");
@@ -976,6 +980,11 @@ class FacilityCheckinBoard {
 							<div class="fci-card-footer">
 								<span class="fci-status-badge fci-status-confirmed">${__("Confirmed")}</span>
 								<div>
+									${b.sales_invoice ? `
+										<button class="btn btn-outline-secondary fci-btn-action fci-ready-print-btn" data-invoice="${b.sales_invoice}" title="${__("Print Invoice")}">
+											<i class="fa fa-print"></i>
+										</button>
+									` : ""}
 									<button class="btn btn-success fci-btn-action fci-checkin-btn" data-booking="${b.name}">
 										<i class="fa fa-sign-in"></i> ${__("Check In")}
 									</button>
@@ -990,6 +999,9 @@ class FacilityCheckinBoard {
 		this.$ready_list.find(".fci-checkin-btn").on("click", (e) => {
 			const booking = $(e.currentTarget).attr("data-booking");
 			this.open_check_in_dialog(booking);
+		});
+		this.$ready_list.find(".fci-ready-print-btn").on("click", (e) => {
+			this.print_booking_invoice($(e.currentTarget).attr("data-invoice"));
 		});
 	}
 
@@ -1006,6 +1018,11 @@ class FacilityCheckinBoard {
 						<td>${format_currency(b.total_amount)}</td>
 						<td>${payment}</td>
 						<td>
+							${b.sales_invoice ? `
+								<button class="btn btn-outline-secondary btn-sm fci-btn-action fci-ready-print-btn" data-invoice="${b.sales_invoice}" title="${__("Print Invoice")}">
+									<i class="fa fa-print"></i>
+								</button>
+							` : ""}
 							<button class="btn btn-success btn-sm fci-btn-action fci-checkin-btn" data-booking="${b.name}">
 								<i class="fa fa-sign-in"></i> ${__("Check In")}
 							</button>
@@ -1035,6 +1052,9 @@ class FacilityCheckinBoard {
 		this.$ready_table.find(".fci-checkin-btn").on("click", (e) => {
 			const booking = $(e.currentTarget).attr("data-booking");
 			this.open_check_in_dialog(booking);
+		});
+		this.$ready_table.find(".fci-ready-print-btn").on("click", (e) => {
+			this.print_booking_invoice($(e.currentTarget).attr("data-invoice"));
 		});
 	}
 
@@ -1771,6 +1791,113 @@ class FacilityCheckinBoard {
 		$wrapper.find(".fci-ab-checkout-btn").on("click", (e) => {
 			dialog.hide();
 			this.open_check_out_dialog($(e.currentTarget).attr("data-booking"));
+		});
+	}
+
+	// "Invoice" panel - a quick lookup for a booking's already-raised
+	// Sales Invoice, for the common front-desk moment this page's own
+	// "Ready to Check In" queue captures: a Confirmed booking whose
+	// customer is standing at the desk about to pay before checking in.
+	// Reuses get_all_bookings() (same board filters as "All Bookings"
+	// above) rather than a dedicated endpoint, filtered down here to
+	// just the rows that actually have a sales_invoice - an unpaid
+	// Payment Pending/Draft booking with no invoice yet has nothing to
+	// print. Printing itself reuses Cashier's own get_print_content()/
+	// print_receipt() plumbing (see page/cashier/cashier.js) rather than
+	// duplicating a print-content endpoint here.
+	open_invoices_dialog() {
+		const dialog = new frappe.ui.Dialog({
+			title: __("Booking Invoices"),
+			size: "extra-large",
+			fields: [{ fieldtype: "HTML", fieldname: "invoices_table" }],
+		});
+		dialog.show();
+		this.load_invoices(dialog);
+	}
+
+	load_invoices(dialog) {
+		const $wrapper = dialog.fields_dict.invoices_table.$wrapper;
+		$wrapper.html(`<p class="text-muted">${__("Loading...")}</p>`);
+
+		frappe.call({
+			method: "sports_complex.sports_complex.page.facility_checkin.facility_checkin.get_all_bookings",
+			args: this.get_common_args(),
+			callback: (r) => {
+				const invoiced = (r.message || []).filter((b) => b.sales_invoice);
+				this.render_invoices_table(dialog, invoiced);
+			},
+		});
+	}
+
+	render_invoices_table(dialog, bookings) {
+		const $wrapper = dialog.fields_dict.invoices_table.$wrapper;
+
+		if (!bookings.length) {
+			$wrapper.html(`
+				<div class="fci-empty-state">
+					<i class="fa fa-inbox"></i>
+					<p>${__("No invoiced bookings match the current filters")}</p>
+				</div>
+			`);
+			return;
+		}
+
+		const rows = bookings
+			.map((b) => `
+				<tr>
+					<td><strong>${frappe.utils.escape_html(b.name)}</strong></td>
+					<td>${frappe.utils.escape_html(b.customer || "")}</td>
+					<td>${frappe.utils.escape_html(b.facility_name || "")}</td>
+					<td>${frappe.datetime.str_to_user(b.booking_date)}</td>
+					<td>${format_currency(b.total_amount)}</td>
+					<td>${frappe.utils.escape_html(b.payment_status || "-")}</td>
+					<td>${frappe.utils.escape_html(b.sales_invoice)}</td>
+					<td>
+						<button class="btn btn-outline-primary btn-sm fci-btn-action fci-inv-print-btn" data-invoice="${b.sales_invoice}">
+							<i class="fa fa-print"></i> ${__("Print")}
+						</button>
+					</td>
+				</tr>
+			`)
+			.join("");
+
+		$wrapper.html(`
+			<div class="fci-scrollable-content" style="max-height: 60vh;">
+				<table class="fci-all-bookings-table">
+					<thead>
+						<tr>
+							<th>${__("ID")}</th>
+							<th>${__("Customer")}</th>
+							<th>${__("Facility")}</th>
+							<th>${__("Date")}</th>
+							<th>${__("Amount")}</th>
+							<th>${__("Payment")}</th>
+							<th>${__("Invoice")}</th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody>${rows}</tbody>
+				</table>
+			</div>
+		`);
+
+		$wrapper.find(".fci-inv-print-btn").on("click", (e) => {
+			this.print_booking_invoice($(e.currentTarget).attr("data-invoice"));
+		});
+	}
+
+	print_booking_invoice(sales_invoice) {
+		if (!sales_invoice) return;
+		frappe.call({
+			method: "sports_complex.sports_complex.page.cashier.cashier.get_print_content",
+			args: { doctype: "Sales Invoice", docname: sales_invoice },
+			callback: (r) => {
+				if (!r.message || !r.message.html) return;
+				const win = window.open("", "_blank");
+				if (!win) return;
+				win.document.write(r.message.html);
+				win.document.close();
+			},
 		});
 	}
 
