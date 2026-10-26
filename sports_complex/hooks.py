@@ -5,7 +5,7 @@ app_description = "Sports Complex Management: facilities, bookings, coaching, PO
 app_email = "ransbort@outlook.com"
 app_license = "mit"
 required_apps = ["frappe", "healthcare", "frappe_paystack"]
-app_home = "/desk/healthcare"
+app_home = "/desk/sports-complex"
 
 add_to_apps_screen = [
 	{
